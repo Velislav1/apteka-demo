@@ -1,0 +1,22 @@
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: #1f2933;
+  background: #f5f7fa;
+}
+
+.top-bar {
+  padding: 0.75rem 1.5rem;
+  color: #fff;
+  background: #2b7a5b;
+  font-weight: 600;
+}
+
+.content {
+  max-width: 60rem;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem;
+}
+
+.ok { color: #1b7f3b; }
+.fail { color: #b42318; }

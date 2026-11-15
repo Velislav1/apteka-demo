@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Modules\Purchasing\Apteka.Purchasing.Infrastructure\Apteka.Purchasing.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Purchasing\Apteka.Purchasing.Domain\Apteka.Purchasing.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

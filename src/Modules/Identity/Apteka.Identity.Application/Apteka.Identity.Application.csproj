@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Apteka.Identity.Domain\Apteka.Identity.Domain.csproj" />
+    <ProjectReference Include="..\Apteka.Identity.Contracts\Apteka.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Apteka.SharedKernel\Apteka.SharedKernel.csproj" />
+  </ItemGroup>
+
+</Project>

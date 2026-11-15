@@ -21,19 +21,55 @@
 
 ### Структура
 
+Архитектура: **модулен монолит** (един процес, една PostgreSQL база, модули с ясни граници). Защо: `docs/architecture/0001-modular-monolith.md`.
+
 ```
 apteka-demo/
-  CLAUDE.md
-  docker-compose.yml          # само postgres
-  Apteka.sln
+  CLAUDE.md, README.md, Apteka.sln, global.json, .editorconfig, .gitignore
+  Directory.Build.props       # общи настройки: net10.0, nullable, warnings as errors
+  Directory.Packages.props    # централни версии на NuGet пакетите
+  docker-compose.yml          # само PostgreSQL 16
+  .github/workflows/ci.yml    # build + test при всеки push
+  docs/
+    architecture/             # ADR: 0001-modular-monolith.md ...
+    domain/glossary.md        # речник
+    BACKLOG.md                # идеи и бъдещи модули
   src/
-    Apteka.Domain/            # ентитети, правила, без зависимости към EF/ASP.NET
-    Apteka.Infrastructure/    # EF Core DbContext, миграции, seed
-    Apteka.Web/               # ASP.NET Core + Blazor (UI и API)
+    Host/
+      Apteka.Web/             # ASP.NET Core + Blazor; само сглобява модулите
+        Features/<Module>/    # Blazor страници, групирани по модул
+    BuildingBlocks/
+      Apteka.SharedKernel/            # Money, Quantity, Entity, Result, домейн събития
+      Apteka.Infrastructure.Common/   # ModuleDbContext, DatabaseStatus (по-късно: audit interceptor, транзакции)
+    Modules/
+      Catalog/      # стоки, мерки, баркодове, производители      (схема catalog)
+      Purchasing/   # доставчици, доставки                         (схема purchasing)
+      Inventory/    # партиди, движения, наличност, инвентаризация (схема inventory)
+      Sales/        # каса, продажби, сторно, клиенти              (схема sales)
+      Identity/     # потребители, роли, вход                      (схема identity)
+      Audit/        # одит лог                                     (схема audit)
+        # всеки модул има 4 проекта:
+        #   Apteka.<Module>.Contracts        публичен интерфейс към другите модули
+        #   Apteka.<Module>.Domain           ентитети и правила, без EF/ASP.NET
+        #   Apteka.<Module>.Application      use cases (команди/заявки)
+        #   Apteka.<Module>.Infrastructure   EF Core, собствена DB схема, Add<Module>Module()
   tests/
-    Apteka.Domain.Tests/      # unit тестове
-    Apteka.Integration.Tests/ # Testcontainers + PostgreSQL
+    Modules/<Module>/Apteka.<Module>.Tests   # unit тестове
+    BuildingBlocks/Apteka.SharedKernel.Tests
+    Apteka.IntegrationTests                  # Testcontainers + PostgreSQL
+    Apteka.ArchitectureTests                 # проверява правилата по-долу
 ```
+
+### Правила на архитектурата (проверяват се от `Apteka.ArchitectureTests`)
+
+- Модул НЕ вижда `Domain`/`Application`/`Infrastructure` на друг модул, само неговия `Contracts` проект.
+- `Domain` не зависи от нищо освен `SharedKernel`; няма EF Core, Npgsql или ASP.NET пакети.
+- `Contracts` зависи само от `SharedKernel`. `Application` не реферира `Infrastructure`.
+- `BuildingBlocks` не реферират модули; `SharedKernel` не реферира нищо.
+- Всеки модул има собствена PostgreSQL схема (catalog, purchasing, inventory, sales, identity, audit) и собствени миграции (историята също е в неговата схема).
+- Само `Apteka.Web` регистрира модулите (всеки дава `Add<Module>Module()`).
+- Бъдещите модули (Prescriptions, Nhif, Fiscal, Verification, Reporting, Agent) НЕ се създават преди време, а само се описват в `docs/BACKLOG.md`.
+- Тестовете се пускат с `dotnet test --solution Apteka.sln` (xunit v3 работи през Microsoft Testing Platform, избрана в `global.json`).
 
 ## Речник (един термин = едно име в кода)
 

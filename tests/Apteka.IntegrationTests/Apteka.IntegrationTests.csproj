@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Host\Apteka.Web\Apteka.Web.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Catalog\Apteka.Catalog.Infrastructure\Apteka.Catalog.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Purchasing\Apteka.Purchasing.Infrastructure\Apteka.Purchasing.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Apteka.Inventory.Infrastructure\Apteka.Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Sales\Apteka.Sales.Infrastructure\Apteka.Sales.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\Apteka.Identity.Infrastructure\Apteka.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Audit\Apteka.Audit.Infrastructure\Apteka.Audit.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="NetArchTest.Rules" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Catalog\Apteka.Catalog.Contracts\Apteka.Catalog.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Catalog\Apteka.Catalog.Domain\Apteka.Catalog.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Catalog\Apteka.Catalog.Application\Apteka.Catalog.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Catalog\Apteka.Catalog.Infrastructure\Apteka.Catalog.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Purchasing\Apteka.Purchasing.Contracts\Apteka.Purchasing.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Purchasing\Apteka.Purchasing.Domain\Apteka.Purchasing.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Purchasing\Apteka.Purchasing.Application\Apteka.Purchasing.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Purchasing\Apteka.Purchasing.Infrastructure\Apteka.Purchasing.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Apteka.Inventory.Contracts\Apteka.Inventory.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Apteka.Inventory.Domain\Apteka.Inventory.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Apteka.Inventory.Application\Apteka.Inventory.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Apteka.Inventory.Infrastructure\Apteka.Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Sales\Apteka.Sales.Contracts\Apteka.Sales.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Sales\Apteka.Sales.Domain\Apteka.Sales.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Sales\Apteka.Sales.Application\Apteka.Sales.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Sales\Apteka.Sales.Infrastructure\Apteka.Sales.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\Apteka.Identity.Contracts\Apteka.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\Apteka.Identity.Domain\Apteka.Identity.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\Apteka.Identity.Application\Apteka.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\Apteka.Identity.Infrastructure\Apteka.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Audit\Apteka.Audit.Contracts\Apteka.Audit.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Audit\Apteka.Audit.Domain\Apteka.Audit.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Audit\Apteka.Audit.Application\Apteka.Audit.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Audit\Apteka.Audit.Infrastructure\Apteka.Audit.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\Apteka.SharedKernel\Apteka.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\Apteka.Infrastructure.Common\Apteka.Infrastructure.Common.csproj" />
+  </ItemGroup>
+
+</Project>

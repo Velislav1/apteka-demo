@@ -1,0 +1,19 @@
+@page "/"
+@using Apteka.Infrastructure.Common
+@inject DatabaseStatus Database
+
+<PageTitle>Аптека</PageTitle>
+
+<h1>Аптека</h1>
+<p>Системата е стартирана.</p>
+<p>
+  Връзка с базата данни:
+  <strong class="@(_databaseAvailable ? "ok" : "fail")">@(_databaseAvailable ? "налична" : "няма връзка")</strong>
+</p>
+
+@code {
+  private bool _databaseAvailable;
+
+  protected override async Task OnInitializedAsync() =>
+    _databaseAvailable = await Database.IsAvailableAsync();
+}

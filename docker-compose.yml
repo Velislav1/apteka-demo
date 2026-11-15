@@ -1,0 +1,22 @@
+# Local development database only. The app runs with `dotnet run`.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: apteka-postgres
+    environment:
+      POSTGRES_DB: apteka
+      POSTGRES_USER: apteka
+      # Local default; override with POSTGRES_PASSWORD in an untracked .env file.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apteka_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - apteka-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apteka -d apteka"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  apteka-pgdata:

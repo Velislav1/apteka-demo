@@ -1,0 +1,22 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+TestResults/
+*.user
+*.suo
+
+# IDE
+.vs/
+.idea/
+
+# Secrets and local settings (CLAUDE.md rule 8)
+appsettings.Development.json
+.env
+*.pfx
+secrets.json
+
+# OS
+Thumbs.db
+.DS_Store

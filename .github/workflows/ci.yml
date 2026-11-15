@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Apteka.sln
+
+      - name: Build
+        run: dotnet build Apteka.sln --configuration Release --no-restore
+
+      # Integration tests start PostgreSQL through Testcontainers (Docker is available on ubuntu-latest).
+      - name: Test
+        run: dotnet test Apteka.sln --configuration Release --no-build
