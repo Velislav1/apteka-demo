@@ -41,8 +41,8 @@ public class CatalogPagesTests : BunitContext
         Services.AddScoped<ProductGroupsHandler>();
         Services.AddScoped<ShelvesHandler>();
 
-        _queries.Items.Add(new ProductListItem(Guid.CreateVersion7(), "Парацетамол 500 мг", "Демо Фарма АД", "Нервна система", 20m, DispensingMode.OverTheCounter, true, "таблетка", ["2000000000015"]));
-        _queries.Items.Add(new ProductListItem(Guid.CreateVersion7(), "Амоксицилин 500 мг", "Примерфарм АД", null, 20m, DispensingMode.Prescription, false, "капсула", ["2000000000022"]));
+        _queries.Items.Add(new ProductListItem(Guid.CreateVersion7(), 1, "Парацетамол 500 мг", "Демо Фарма АД", "Нервна система", 20m, DispensingMode.OverTheCounter, true, "таблетка", ["2000000000015"]));
+        _queries.Items.Add(new ProductListItem(Guid.CreateVersion7(), 2, "Амоксицилин 500 мг", "Примерфарм АД", null, 20m, DispensingMode.Prescription, false, "капсула", ["2000000000022"]));
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class CatalogPagesTests : BunitContext
         var manufacturer = Manufacturer.Create("Демо Фарма АД").Value;
         _manufacturers.Items.Add(manufacturer);
         _queries.Views[id] = new ProductView(
-            id, "Ибупрофен 400 мг", "M01AE01", DispensingMode.Narcotic, 20.00m, true, "PG123", manufacturer.Id, null, null, "кутия",
+            id, 42, "Ибупрофен 400 мг", "M01AE01", DispensingMode.Narcotic, 20.00m, true, "PG123", manufacturer.Id, null, null, "кутия",
             [new ProductUnitView(box, "кутия", 30), new ProductUnitView(Guid.CreateVersion7(), "таблетка", 1)],
             [new BarcodeView(Guid.CreateVersion7(), "2000000000046", box, "кутия")]);
 

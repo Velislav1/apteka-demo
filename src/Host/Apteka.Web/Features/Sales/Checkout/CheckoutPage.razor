@@ -21,7 +21,7 @@
   <section class="till-main">
     <div class="till-entry card">
       <label for="till-input" class="till-prompt">@Prompt</label>
-      <input id="till-input" class="till-input" autocomplete="off" placeholder="Баркод, име или 3*баркод…"
+      <input id="till-input" class="till-input" autocomplete="off" placeholder="Код, баркод, име или 3*баркод…"
              @bind="_input" @bind:event="oninput" @onkeydown="OnKeyDown" />
 
       @if (_error is not null)
@@ -143,7 +143,7 @@
     Mode.ConfirmPrescription => $"„{_pendingPrescription?.Product.Name}“ е по лекарско предписание. Има ли рецепта? Enter — да, Esc — не",
     Mode.Payment => $"Плащане {Formats.Euro(_cart.Total)}: получена сума в брой и Enter (празно — точна сума) · F10 — с карта · Esc — назад",
     Mode.ConfirmCancel => "Отказ на цялата продажба? Esc — да, Enter — не",
-    _ => "Стока: баркод или име и Enter",
+    _ => "Стока: код, баркод или име и Enter",
   };
 
   protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -277,9 +277,22 @@
     await Find(text, quantity);
   }
 
-  /// <summary>Digits are a barcode; anything else searches by name (one match is added at once).</summary>
+  /// <summary>A short number is a product code, a long one a barcode; anything else searches by name.</summary>
   private async Task Find(string text, int quantity)
   {
+    if (Apteka.Catalog.Contracts.CatalogCodes.LooksLikeCode(text))
+    {
+      var byCode = await FindProduct.ByCodeAsync(long.Parse(text, CultureInfo.InvariantCulture));
+      if (byCode.IsFailure)
+      {
+        _error = byCode.Error.Message;
+        return;
+      }
+
+      Add(byCode.Value, quantity);
+      return;
+    }
+
     if (text.All(char.IsAsciiDigit))
     {
       var found = await FindProduct.ByBarcodeAsync(text);

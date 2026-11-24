@@ -10,6 +10,7 @@ namespace Apteka.Catalog.Infrastructure;
 public static class CatalogSchema
 {
     public const string Name = "catalog";
+    public const string ProductCodeSequence = "product_codes";
 }
 
 public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
@@ -30,6 +31,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.HasSequence<long>(CatalogSchema.ProductCodeSequence, CatalogSchema.Name).StartsAt(1);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(CatalogDbContext).Assembly);
         UseSnakeCaseNames(modelBuilder);
     }

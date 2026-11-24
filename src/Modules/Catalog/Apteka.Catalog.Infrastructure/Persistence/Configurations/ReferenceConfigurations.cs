@@ -11,7 +11,7 @@ namespace Apteka.Catalog.Infrastructure.Persistence.Configurations;
 internal abstract class ReferenceConfiguration<T>(string table) : IEntityTypeConfiguration<T>
     where T : CatalogReference
 {
-    public void Configure(EntityTypeBuilder<T> builder)
+    public virtual void Configure(EntityTypeBuilder<T> builder)
     {
         builder.ToTable(table);
         builder.HasKey(r => r.Id);
@@ -28,7 +28,14 @@ internal abstract class ReferenceConfiguration<T>(string table) : IEntityTypeCon
 
 internal sealed class ManufacturerConfiguration() : ReferenceConfiguration<Manufacturer>(Tables.Manufacturers);
 
-internal sealed class ProductGroupConfiguration() : ReferenceConfiguration<ProductGroup>(Tables.ProductGroups);
+internal sealed class ProductGroupConfiguration() : ReferenceConfiguration<ProductGroup>(Tables.ProductGroups)
+{
+    public override void Configure(EntityTypeBuilder<ProductGroup> builder)
+    {
+        base.Configure(builder);
+        builder.Property(g => g.MarkupPercent).HasPrecision(7, 2);
+    }
+}
 
 internal sealed class ShelfConfiguration() : ReferenceConfiguration<Shelf>(Tables.Shelves);
 

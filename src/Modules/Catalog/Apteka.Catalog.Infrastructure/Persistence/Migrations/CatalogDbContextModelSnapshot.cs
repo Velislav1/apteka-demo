@@ -23,6 +23,8 @@ namespace Apteka.Catalog.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("product_codes", "catalog");
+
             modelBuilder.Entity("Apteka.Catalog.Domain.Manufacturers.Manufacturer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -58,6 +60,11 @@ namespace Apteka.Catalog.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
+
+                    b.Property<decimal?>("MarkupPercent")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("numeric(7,2)")
+                        .HasColumnName("markup_percent");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -122,6 +129,12 @@ namespace Apteka.Catalog.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(7)")
                         .HasColumnName("atc_code");
 
+                    b.Property<long>("Code")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("code")
+                        .HasDefaultValueSql("nextval('catalog.product_codes')");
+
                     b.Property<Guid?>("DefaultSaleUnitId")
                         .HasColumnType("uuid")
                         .HasColumnName("default_sale_unit_id");
@@ -132,13 +145,36 @@ namespace Apteka.Catalog.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("dispensing_mode");
 
+                    b.Property<string>("GenericName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("generic_name");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<string>("LatinName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("latin_name");
+
                     b.Property<Guid?>("ManufacturerId")
                         .HasColumnType("uuid")
                         .HasColumnName("manufacturer_id");
+
+                    b.Property<decimal?>("MarkupPercent")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("numeric(7,2)")
+                        .HasColumnName("markup_percent");
+
+                    b.Property<int?>("MaxStock")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_stock");
+
+                    b.Property<int?>("MinStock")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_stock");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -166,6 +202,10 @@ namespace Apteka.Catalog.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_products");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_products_code");
 
                     b.HasIndex("ManufacturerId")
                         .HasDatabaseName("ix_products_manufacturer_id");

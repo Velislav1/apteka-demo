@@ -27,6 +27,9 @@ internal sealed class FakeCatalogLookup : ICatalogLookup
             product.ProductId, product.Name, product.VatRate, product.DispensingMode, product.IsActive, unit.UnitId, unit.Name, unit.Factor));
     }
 
+    public Task<CatalogProductInfo?> FindByCodeAsync(long code, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Products.SingleOrDefault(p => p.Code == code));
+
     public Task<CatalogProductInfo?> GetProductAsync(Guid productId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Products.SingleOrDefault(p => p.ProductId == productId));
 

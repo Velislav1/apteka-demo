@@ -28,8 +28,20 @@ else if (_model is not null)
   <fieldset>
     <legend>Основни данни</legend>
     <div class="form-grid">
-      <label for="name">Име</label>
+      @if (_model.Code > 0)
+      {
+        <label>Код</label>
+        <strong class="product-code">@_model.Code</strong>
+      }
+
+      <label for="name">Наименование (кир.)</label>
       <input id="name" @bind="_model.Name" maxlength="200" />
+
+      <label for="latin">Наименование (лат.)</label>
+      <input id="latin" @bind="_model.LatinName" maxlength="200" />
+
+      <label for="generic">Генерика</label>
+      <input id="generic" @bind="_model.GenericName" maxlength="200" placeholder="напр. Paracetamol" />
 
       <label for="manufacturer">Производител</label>
       <select id="manufacturer" @bind="_model.ManufacturerId">
@@ -78,6 +90,17 @@ else if (_model is not null)
         <option value="9">9 %</option>
         <option value="0">0 %</option>
       </select>
+
+      <label for="markup">Търг. надценка %</label>
+      <input id="markup" type="number" min="0" step="0.01" @bind="_model.MarkupPercent" placeholder="празно — по групата" />
+
+      <label for="minstock">Мин. / макс. запас</label>
+      <span class="stock-limits">
+        <input id="minstock" type="number" min="0" @bind="_model.MinStock" aria-label="Минимален запас" />
+        <span>/</span>
+        <input id="maxstock" type="number" min="0" @bind="_model.MaxStock" aria-label="Максимален запас" />
+        <span class="muted">в най-малка мярка</span>
+      </span>
 
       <label for="saleunit">Мярка за продажба</label>
       <select id="saleunit" @bind="_model.DefaultSaleUnitName">

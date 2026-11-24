@@ -93,7 +93,7 @@ else if (_model is not null)
 
             <div class="product-search">
               <label for="productsearch">Стока</label>
-              <input id="productsearch" @ref="_searchInput" placeholder="Баркод или име и Enter" autocomplete="off"
+              <input id="productsearch" @ref="_searchInput" placeholder="Код, баркод или име и Enter" autocomplete="off"
                      @bind="_search" @bind:event="oninput" @onkeydown="OnSearchKeyDown" />
             </div>
 
@@ -409,6 +409,20 @@ else if (_model is not null)
       return;
     }
 
+    if (CatalogCodes.LooksLikeCode(text))
+    {
+      if (await Catalog.FindByCodeAsync(long.Parse(text, System.Globalization.CultureInfo.InvariantCulture)) is { } byCode)
+      {
+        await Select(byCode, null);
+      }
+      else
+      {
+        _error = $"Няма стока с код {text}.";
+      }
+
+      return;
+    }
+
     if (text.All(char.IsAsciiDigit) && await Catalog.FindByBarcodeAsync(text) is { } scanned)
     {
       if (await Catalog.GetProductAsync(scanned.ProductId) is { } product)
@@ -441,7 +455,10 @@ else if (_model is not null)
     _focusQuantity = true;
   }
 
-  /// <summary>As in Apteka Expert 2, the suggested sale price is the last one, in the chosen unit.</summary>
+  /// <summary>
+  /// As in Apteka Expert 2, the suggested sale price is the last one, in the chosen unit; a product never delivered
+  /// gets its sale price from the markup (product's, else group's, else 25 %) once the purchase price is typed.
+  /// </summary>
   private void ApplyLastPrice()
   {
     if (_line is not null && _last is not null && _editingIndex is null)

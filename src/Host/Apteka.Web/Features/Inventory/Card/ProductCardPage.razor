@@ -15,7 +15,7 @@
 <h1>Картон на стока</h1>
 
 <div class="toolbar">
-  <input type="search" id="cardsearch" placeholder="Баркод или име на стока и Enter" aria-label="Стока"
+  <input type="search" id="cardsearch" placeholder="Код, баркод или име на стока и Enter" aria-label="Стока"
          @bind="_search" @bind:event="oninput" @onkeydown="OnKeyDown" />
   <label>от <input type="date" @bind="_from" @bind:after="Load" /></label>
   <label>до <input type="date" @bind="_to" @bind:after="Load" /></label>
@@ -120,7 +120,11 @@ else if (_product is null)
       return;
     }
 
-    if (text.All(char.IsAsciiDigit) && await Catalog.FindByBarcodeAsync(text) is { } scanned)
+    if (CatalogCodes.LooksLikeCode(text))
+    {
+      _matches = await Catalog.FindByCodeAsync(long.Parse(text, System.Globalization.CultureInfo.InvariantCulture)) is { } byCode ? [byCode] : [];
+    }
+    else if (text.All(char.IsAsciiDigit) && await Catalog.FindByBarcodeAsync(text) is { } scanned)
     {
       _matches = (await Catalog.GetProductsAsync([scanned.ProductId])).ToList();
     }

@@ -3,6 +3,11 @@ namespace Apteka.Catalog.Domain.Products;
 /// <summary>The editable fields of a product.</summary>
 /// <param name="NhifCode">The product's code in the NHIF (НЗОК) list, if it is reimbursed.</param>
 /// <param name="DefaultSaleUnitName">Unit the till offers first; null means the largest unit.</param>
+/// <param name="LatinName">Name in Latin letters (наименование лат.).</param>
+/// <param name="GenericName">Generic / INN name (генерика), e.g. „Paracetamol“.</param>
+/// <param name="MarkupPercent">Trade markup of this product; null means the group's (then the default).</param>
+/// <param name="MinStock">Minimum stock in base units (for a „below minimum“ report later).</param>
+/// <param name="MaxStock">Maximum stock in base units.</param>
 public sealed record ProductDetails(
     string Name,
     string? AtcCode,
@@ -13,7 +18,12 @@ public sealed record ProductDetails(
     Guid? ManufacturerId = null,
     Guid? ProductGroupId = null,
     Guid? ShelfId = null,
-    string? DefaultSaleUnitName = null);
+    string? DefaultSaleUnitName = null,
+    string? LatinName = null,
+    string? GenericName = null,
+    decimal? MarkupPercent = null,
+    int? MinStock = null,
+    int? MaxStock = null);
 
 /// <summary>A unit as requested by the user. <paramref name="Id"/> is null for a new unit.</summary>
 public sealed record UnitSpec(Guid? Id, string Name, int Factor);

@@ -27,6 +27,17 @@ public sealed class FindTillProductHandler(ICatalogLookup catalog, IStockQueries
             : await PriceAsync(product, unit.UnitId, cancellationToken);
     }
 
+    /// <summary>The product with this code (номенклатурен номер), in its default sale unit.</summary>
+    public async Task<Result<TillProduct>> ByCodeAsync(long code, CancellationToken cancellationToken = default)
+    {
+        var product = await catalog.FindByCodeAsync(code, cancellationToken);
+        return product is null
+            ? Result.Failure<TillProduct>(UnknownCode(code))
+            : await PriceAsync(product, product.DefaultSaleUnitId, cancellationToken);
+    }
+
+    public static Error UnknownCode(long code) => new("sales.unknown_code", $"Няма стока с код {code}.");
+
     /// <summary>Active products whose name contains the text, each in its default sale unit.</summary>
     public async Task<Result<IReadOnlyList<TillProduct>>> ByNameAsync(string text, int limit, CancellationToken cancellationToken = default)
     {

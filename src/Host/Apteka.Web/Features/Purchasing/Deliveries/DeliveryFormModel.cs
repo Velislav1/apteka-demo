@@ -8,8 +8,6 @@ namespace Apteka.Web.Features.Purchasing.Deliveries;
 /// <summary>Editable state of the delivery form; converted to <see cref="DeliveryInput"/> on save.</summary>
 public sealed class DeliveryFormModel
 {
-    public const decimal DefaultMarkupPercent = 25m;
-
     /// <summary>"" until a supplier is chosen.</summary>
     public string SupplierId { get; set; } = string.Empty;
 
@@ -58,25 +56,6 @@ public sealed class DeliveryFormModel
         return model;
     }
 
-    /// <summary>A new line for a product, in the scanned unit or else the largest one.</summary>
-    public LineRow AddLine(CatalogProductInfo product, Guid? unitId, DateOnly today)
-    {
-        var unit = product.Units.FirstOrDefault(u => u.UnitId == unitId) ?? product.Units.MaxBy(u => u.Factor)!;
-        var row = new LineRow
-        {
-            ProductId = product.ProductId,
-            ProductName = product.Name,
-            VatRate = product.VatRate,
-            Units = product.Units,
-            UnitId = unit.UnitId.ToString(),
-            Quantity = 1,
-            MarkupPercent = DefaultMarkupPercent,
-            ExpiryDate = today.AddYears(1),
-        };
-        Lines.Add(row);
-        return row;
-    }
-
     public DeliveryInput ToInput() => new(
         Guid.TryParse(SupplierId, out var supplier) ? supplier : Guid.Empty,
         InvoiceNo,
@@ -121,7 +100,7 @@ public sealed class DeliveryFormModel
             Units = product.Units,
             UnitId = unit.UnitId.ToString(),
             Quantity = 1,
-            MarkupPercent = DefaultMarkupPercent,
+            MarkupPercent = product.MarkupPercent,
             ExpiryDate = today.AddYears(1),
         };
     }

@@ -15,6 +15,15 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).ValueGeneratedNever();
         builder.Property(p => p.Name).HasMaxLength(CatalogErrors.MaxNameLength).IsRequired();
+
+        // Номенклатурен номер from a sequence; existing products get one when the column is added.
+        builder.Property(p => p.Code)
+            .HasDefaultValueSql($"nextval('{CatalogSchema.Name}.{CatalogSchema.ProductCodeSequence}')")
+            .ValueGeneratedOnAdd();
+        builder.HasIndex(p => p.Code).IsUnique();
+        builder.Property(p => p.LatinName).HasMaxLength(CatalogErrors.MaxNameLength);
+        builder.Property(p => p.GenericName).HasMaxLength(CatalogErrors.MaxNameLength);
+        builder.Property(p => p.MarkupPercent).HasPrecision(7, 2);
         builder.Property(p => p.AtcCode).HasMaxLength(7);
         builder.Property(p => p.DispensingMode).HasConversion<string>().HasMaxLength(20);
         builder.Property(p => p.NhifCode).HasMaxLength(20);

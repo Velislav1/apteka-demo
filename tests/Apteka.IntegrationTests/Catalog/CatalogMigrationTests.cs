@@ -47,6 +47,9 @@ public class CatalogMigrationTests(PostgresFixture postgres)
         Assert.Equal(manufacturer.Id, products[rx].ManufacturerId);
         Assert.Equal(manufacturer.Id, products[otc].ManufacturerId);
         Assert.Null(products[anonymous].ManufacturerId);
+
+        // Products that existed before codes were introduced each got their own code.
+        Assert.Equal(3, products.Values.Select(p => p.Code).Where(c => c > 0).Distinct().Count());
     }
 
     private async Task<string> CreateEmptyDatabaseAsync()
