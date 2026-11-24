@@ -1,6 +1,6 @@
 # Къде сме спрели и как да продължиш
 
-Състояние към 2026-11-15.
+Състояние към 2026-11-24.
 
 ## Готово
 
@@ -8,8 +8,11 @@
 - Скелет на **модулен монолит**: 6 модула (Catalog, Purchasing, Inventory, Sales, Identity, Audit),
   по 4 проекта всеки (Contracts, Domain, Application, Infrastructure), SharedKernel, Infrastructure.Common,
   Blazor host с начална страница на български, свързана с PostgreSQL.
-- 36 теста минават (unit, архитектурни, интеграционни с Testcontainers).
-- Бизнес функционалност още няма: няма таблици, екрани, вход, seed.
+- **Стъпка 1 (Catalog) е готова** в клон `claude/catalog-module`: таблици `catalog.products`, `product_units`, `barcodes`,
+  екрани „Номенклатура“ (списък, търсене по име/баркод) и „Нова стока“ / „Редакция“, 50 измислени стоки (seed),
+  одит на всяка промяна в `audit.audit_log` (само за добавяне), `ICatalogLookup` за другите модули.
+- 90 теста минават (unit, архитектурни, интеграционни с Testcontainers, bUnit).
+- Още няма: вход (Identity), доставки, наличности, каса.
 
 ## Как да продължиш на друг компютър
 
@@ -31,7 +34,7 @@
    ```
    Copy-Item src\Host\Apteka.Web\appsettings.Development.example.json src\Host\Apteka.Web\appsettings.Development.json
    ```
-3. Провери: `docker compose up -d`, после `dotnet test --solution Apteka.sln`. Трябва да са 36 зелени теста.
+3. Провери: `docker compose up -d`, после `dotnet test --solution Apteka.sln`. Всички тестове трябва да са зелени.
 4. Отвори папката във VS Code, стартирай Claude Code. `CLAUDE.md` се чете автоматично.
 5. Git идентичност на новия компютър: `git config --global user.name "..."` и `git config --global user.email "..."`.
 
@@ -40,23 +43,26 @@
 Промптовете са в `PROMPTS.md`. Продължаваме модул по модул, като към всеки промпт се добавя:
 „Спазвай модулната структура и правилата в CLAUDE.md.“
 
-| Стъпка | Модул | Промпт |
-|---|---|---|
-| 1 | Catalog | 2 |
-| 2 | Purchasing и Inventory | 3 и 4 |
-| 3 | Sales | 5 и 6 |
-| 4 | Преглед | 7 |
+| Стъпка | Модул | Промпт | Състояние |
+|---|---|---|---|
+| 1 | Catalog | 2 | ✅ клон `claude/catalog-module` |
+| 2 | Purchasing и Inventory | 3 и 4 | следва, клон `claude/purchasing-inventory-module` |
+| 3 | Sales | 5 и 6 | |
+| 4 | Преглед | 7 | |
 
-Промпт 1 (общ план на базата) е прескочен. Промпт 2 трябва да включи и таблиците на Catalog,
-първата миграция и seed с 50 измислени стоки. Claude първо дава кратък план и чака одобрение.
+Всеки модул се прави в свой клон и се слива в `main` с pull request (виж `docs/architecture/0002-module-layout-and-branches.md`).
+Вътре в модула всеки модел има своя папка на всяко ниво (Domain/Application/Infrastructure/Features/тестове).
 
-Решения, които важат за всички модули (приети като препоръка, виж `docs/architecture/0001-modular-monolith.md`):
-- ключове `uuid` (`Guid.CreateVersion7()`), без външни ключове между схеми;
-- наличност = сума от `StockMovement`, с заключване на реда на партидата;
-- общ `IUnitOfWork` за транзакции между модули и общ audit interceptor, когато първата функционалност ги поиска.
+Решения, които важат за всички модули:
+- **потвърдено:** ключове `uuid` (`Guid.CreateVersion7()`), без външни ключове между схеми, snake_case имена,
+  одит през общия interceptor (`AddModuleDbContext`), миграции по модул, прилагани при стартиране в Development;
+- предстои (стъпка 2): наличност = сума от `StockMovement`, със заключване на реда на партидата;
+  общ `IUnitOfWork` за транзакции между модули (доставка → партиди и движения).
 
 ## Известни особености
 
+- Облачна сесия на Claude (Linux): .NET 10 се инсталира с `apt-get install -y dotnet-sdk-10.0`
+  (сървърът на Microsoft е блокиран), Docker се пуска с `dockerd &`, `dotnet-ef` с `dotnet tool install --global dotnet-ef`.
 - **Smart App Control (Windows)** може да блокира току-що компилирани празни DLL-и. Тестовете за типове ги пропускат.
   Ако `dotnet run` откаже да зареди DLL, това е причината.
 - Тестовете се пускат с `dotnet test --solution Apteka.sln` (xunit v3 през Microsoft Testing Platform, виж `global.json`).

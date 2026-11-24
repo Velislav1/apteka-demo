@@ -1,9 +1,10 @@
 # Аптечна програма (демо)
 
-Нова програма за българска аптека. Сега е само **скелет**: модулен монолит, който се компилира,
-има тестове и показва начална страница, свързана с PostgreSQL. Бизнес функционалност още няма.
+Нова програма за българска аптека. Модулен монолит на .NET 10 + PostgreSQL.
+Готово: **Номенклатура** (стоки, мерки, баркодове) с одит на всяка промяна.
 
-Подробности за правилата и модела: [CLAUDE.md](CLAUDE.md). Защо е така: [docs/architecture/0001-modular-monolith.md](docs/architecture/0001-modular-monolith.md).
+Подробности за правилата и модела: [CLAUDE.md](CLAUDE.md). Защо е така: [docs/architecture/0001-modular-monolith.md](docs/architecture/0001-modular-monolith.md),
+подредба на модулите и клонове: [docs/architecture/0002-module-layout-and-branches.md](docs/architecture/0002-module-layout-and-branches.md).
 
 ## Изисквания
 
@@ -23,7 +24,16 @@
 
 2. Стартирай базата: `docker compose up -d`
 3. Стартирай приложението: `dotnet run --project src\Host\Apteka.Web`
-4. Отвори http://localhost:5080
+4. Отвори http://localhost:5080 → „Номенклатура“
+
+При стартиране в Development приложението само прилага миграциите на всички модули и добавя демо данни
+(50 измислени стоки с баркодове 200…), ако каталогът е празен.
+
+Нова миграция за модул (пример за Catalog):
+
+```powershell
+dotnet ef migrations add <Име> --project src\Modules\Catalog\Apteka.Catalog.Infrastructure --startup-project src\Host\Apteka.Web --context CatalogDbContext --output-dir Persistence\Migrations
+```
 
 ## Как се тества
 
