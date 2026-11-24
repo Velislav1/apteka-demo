@@ -160,6 +160,26 @@ public class CheckoutPageTests : BunitContext
     }
 
     [Fact]
+    public void Percent_command_gives_an_overall_discount_to_all_lines_and_to_lines_added_later()
+    {
+        var page = Render<CheckoutPage>();
+        Type(page, OtcBarcode);
+        Type(page, "%10");
+        Type(page, RxBarcode);
+        Type(page, string.Empty); // confirm the prescription
+        Assert.Contains("обща 10 %", page.Find(".till-sum").TextContent);
+
+        Type(page, "%x");
+        Assert.Contains("Обща отстъпка", page.Markup);
+
+        page.Find("#till-input").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter", CtrlKey = true });
+
+        var sale = Assert.Single(_sales.Saved);
+        Assert.Equal([10m, 10m], sale.Lines.Select(l => l.DiscountPercent));
+        Assert.DoesNotContain("обща", page.Find(".till-sum").TextContent);
+    }
+
+    [Fact]
     public void Ctrl_Enter_completes_the_sale_in_cash_with_the_exact_amount()
     {
         var page = Render<CheckoutPage>();

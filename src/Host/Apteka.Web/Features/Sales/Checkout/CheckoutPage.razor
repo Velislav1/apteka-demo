@@ -90,7 +90,7 @@
 
     <div class="till-sum card">
       <span>Ст-ст без ТО: <strong>@Formats.Euro(_cart.Gross)</strong></span>
-      <span>– ТО: <strong>@Formats.Euro(_cart.Discount)</strong></span>
+      <span>– ТО@(_cart.OverallDiscountPercent > 0 ? $" (обща {_cart.OverallDiscountPercent.ToString("0.##", CultureInfo.GetCultureInfo("bg-BG"))} %)" : null): <strong>@Formats.Euro(_cart.Discount)</strong></span>
       <span class="till-total">= СУМА: <strong>@Formats.Euro(_cart.Total)</strong></span>
     </div>
   </section>
@@ -109,7 +109,8 @@
       <li><kbd>Enter</kbd> добави стока</li>
       <li><kbd>3*</kbd> + баркод — количество 3; <kbd>3*</kbd> + Enter — количество на текущия ред</li>
       <li><kbd>↑</kbd> <kbd>↓</kbd> избор на ред</li>
-      <li><kbd>F4</kbd> отстъпка (ТО %)</li>
+      <li><kbd>F4</kbd> отстъпка (ТО %) на реда</li>
+      <li><kbd>%10</kbd> + Enter — обща ТО 10 % на цялата продажба</li>
       <li><kbd>F12</kbd> смяна на мярката</li>
       <li><kbd>F8</kbd> изтрий реда</li>
       <li><kbd>F10</kbd> плащане и ресто</li>
@@ -200,6 +201,9 @@
 
     switch (_mode)
     {
+      case Mode.Scan when text.StartsWith('%'):
+        SetOverallDiscount(text[1..]);
+        break;
       case Mode.Scan when text.Length > 0:
         _done = null;
         await Scan(text);
@@ -251,6 +255,19 @@
       case Mode.ConfirmCancel:
         Switch(Mode.Scan);
         break;
+    }
+  }
+
+  /// <summary>„%10“: overall discount (Обща ТО) for the whole sale; „%0“ removes it.</summary>
+  private void SetOverallDiscount(string text)
+  {
+    if (decimal.TryParse(text.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var discount) && discount is >= 0 and <= 100)
+    {
+      _cart.SetOverallDiscount(discount);
+    }
+    else
+    {
+      _error = "Обща отстъпка: % и число от 0 до 100, например %10.";
     }
   }
 

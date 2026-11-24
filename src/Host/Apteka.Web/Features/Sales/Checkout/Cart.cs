@@ -19,6 +19,19 @@ public sealed class Cart
 
     public bool IsEmpty => _lines.Count == 0;
 
+    /// <summary>„Обща ТО %“: the discount given to every line, including lines added later (0 = none).</summary>
+    public decimal OverallDiscountPercent { get; private set; }
+
+    /// <summary>Sets the overall discount on all lines; F4 can still change one line afterwards.</summary>
+    public void SetOverallDiscount(decimal percent)
+    {
+        OverallDiscountPercent = percent;
+        foreach (var line in _lines)
+        {
+            line.DiscountPercent = percent;
+        }
+    }
+
     /// <summary>„Ст-ст без ТО“: before discounts.</summary>
     public decimal Gross => _lines.Sum(l => l.Amounts.Gross);
 
@@ -39,7 +52,7 @@ public sealed class Cart
             return _lines[existing];
         }
 
-        var line = new CartLine(product) { Quantity = quantity, PrescriptionConfirmed = prescriptionConfirmed };
+        var line = new CartLine(product) { Quantity = quantity, DiscountPercent = OverallDiscountPercent, PrescriptionConfirmed = prescriptionConfirmed };
         _lines.Add(line);
         CurrentIndex = _lines.Count - 1;
         return line;
@@ -86,6 +99,7 @@ public sealed class Cart
     {
         _lines.Clear();
         CurrentIndex = 0;
+        OverallDiscountPercent = 0;
     }
 
     public IReadOnlyList<CheckoutLineInput> ToInput() =>
