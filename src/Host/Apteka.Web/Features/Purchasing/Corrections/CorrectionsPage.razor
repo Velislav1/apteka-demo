@@ -1,0 +1,62 @@
+@page "/purchasing/corrections"
+@using Apteka.Purchasing.Application.Corrections
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject ListCorrectionsHandler ListCorrections
+@inject TimeProvider Clock
+@inject NavigationManager Navigation
+
+<PageTitle>Корекционни складови разписки</PageTitle>
+
+<ListKeys OnAdd="@(() => Navigation.NavigateTo("purchasing/corrections/new"))" />
+
+<h1>Корекционни складови разписки</h1>
+
+<div class="toolbar">
+  <a class="button" href="purchasing/corrections/new"><Icon Name="plus" /> Нова корекция <kbd>F5</kbd></a>
+  <label>От <input id="from" type="date" @bind="_from" @bind:after="Load" /></label>
+  <label>до <input id="to" type="date" @bind="_to" @bind:after="Load" /></label>
+</div>
+
+@if (_items is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_items.Count == 0)
+{
+  <p class="muted">Няма корекции за периода.</p>
+}
+else
+{
+  <table class="grid">
+    <thead><tr><th class="num">№</th><th>Дата и час</th><th>Доставчик</th><th>Към разписка</th><th>Известие</th><th class="num">Сума без ДДС</th></tr></thead>
+    <tbody>
+      @foreach (var item in _items)
+      {
+        <tr>
+          <td class="num"><a href="purchasing/corrections/@item.Id">@item.Number</a></td>
+          <td>@Formats.LocalTime(item.CreatedAt)</td>
+          <td>@item.SupplierName</td>
+          <td><a href="purchasing/deliveries/@item.DeliveryId">№ @item.DeliveryNumber (ф-ра @item.InvoiceNo)</a></td>
+          <td>@item.NoteNo @Formats.Date(item.NoteDate)</td>
+          <td class="num">@Formats.Euro(item.PurchaseTotal)</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
+
+@code {
+  private DateOnly _from;
+  private DateOnly _to;
+  private IReadOnlyList<CorrectionListItem>? _items;
+
+  protected override Task OnInitializedAsync()
+  {
+    _to = BulgarianTime.Today(Clock.GetUtcNow());
+    _from = new DateOnly(_to.Year, _to.Month, 1);
+    return Load();
+  }
+
+  private async Task Load() => _items = await ListCorrections.HandleAsync(_from, _to);
+}

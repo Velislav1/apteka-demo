@@ -1,6 +1,8 @@
 using Apteka.Infrastructure.Common;
 using Apteka.Infrastructure.Common.Persistence;
+using Apteka.Purchasing.Application.Corrections;
 using Apteka.Purchasing.Application.Deliveries;
+using Apteka.Purchasing.Infrastructure.Corrections;
 using Apteka.Purchasing.Application.Suppliers;
 using Apteka.Purchasing.Infrastructure.Deliveries;
 using Apteka.Purchasing.Infrastructure.Seed;
@@ -19,6 +21,7 @@ public static class PurchasingModule
         // Infrastructure
         services.AddScoped<ISupplierRepository, SupplierRepository>();
         services.AddScoped<IDeliveryRepository, DeliveryRepository>();
+        services.AddScoped<IDeliveryCorrectionRepository, DeliveryCorrectionRepository>();
 
         // Use cases
         services.AddScoped<SuppliersHandler>();
@@ -26,6 +29,10 @@ public static class PurchasingModule
         services.AddScoped<PostDeliveryHandler>();
         services.AddScoped<ListDeliveriesHandler>();
         services.AddScoped<GetDeliveryHandler>();
+        services.AddScoped<CreateCorrectionHandler>();
+        services.AddScoped<ListCorrectionsHandler>();
+        services.AddScoped<DeliveryCorrectionsHandler>();
+        services.AddScoped<GetCorrectionHandler>();
 
         return services;
     }

@@ -12,6 +12,9 @@ internal sealed class InventoryRepository(InventoryDbContext context) : IInvento
     public Task<bool> AnyReceivedAsync(IReadOnlyCollection<Guid> sourceLineIds, CancellationToken cancellationToken) =>
         context.Batches.AnyAsync(b => sourceLineIds.Contains(b.SourceLineId), cancellationToken);
 
+    public async Task<IReadOnlyList<Batch>> GetBySourceLinesAsync(IReadOnlyCollection<Guid> sourceLineIds, CancellationToken cancellationToken) =>
+        await context.Batches.AsNoTracking().Where(b => sourceLineIds.Contains(b.SourceLineId)).ToListAsync(cancellationToken);
+
     public void Add(Batch batch) => context.Batches.Add(batch);
 
     public void Add(StockMovement movement) => context.StockMovements.Add(movement);

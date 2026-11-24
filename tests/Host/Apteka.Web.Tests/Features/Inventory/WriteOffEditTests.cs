@@ -130,6 +130,9 @@ public class WriteOffEditTests : BunitContext
 
         public void Add(Batch batch) => Batches.Add(batch);
 
+        public Task<IReadOnlyList<Batch>> GetBySourceLinesAsync(IReadOnlyCollection<Guid> sourceLineIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Batch>>(Batches.Where(b => sourceLineIds.Contains(b.SourceLineId)).ToList());
+
         public Task<bool> AnyReceivedAsync(IReadOnlyCollection<Guid> sourceLineIds, CancellationToken cancellationToken) => Task.FromResult(false);
 
         public Task<Result> SaveChangesAsync(CancellationToken cancellationToken) => Task.FromResult(Result.Success());

@@ -9,7 +9,20 @@ namespace Apteka.Inventory.Contracts;
 public interface IStockReceiving
 {
     Task<Result> ReceiveAsync(StockReceipt receipt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// „Корекционна складова разписка“: + or − on the batches of already received lines. The batches are locked
+    /// (as for a sale) and a − never takes more than the batch still has. Run it inside the caller's <see cref="IUnitOfWork"/>.
+    /// </summary>
+    Task<Result> CorrectAsync(StockCorrection correction, CancellationToken cancellationToken = default);
 }
+
+public sealed record StockCorrection(string DocumentType, Guid DocumentId, Guid? UserId, IReadOnlyList<StockCorrectionLine> Lines);
+
+/// <param name="DocumentLineId">The received line (its <see cref="StockReceiptLine.DocumentLineId"/>).</param>
+/// <param name="BaseQuantityDelta">+ adds, − removes, in base units; never 0.</param>
+/// <param name="Position">The line number shown in error messages.</param>
+public sealed record StockCorrectionLine(Guid DocumentLineId, int BaseQuantityDelta, int Position);
 
 /// <param name="DocumentType">E.g. "Delivery".</param>
 public sealed record StockReceipt(

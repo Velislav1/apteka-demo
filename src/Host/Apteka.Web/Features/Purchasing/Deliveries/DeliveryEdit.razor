@@ -18,6 +18,7 @@
 @inject TimeProvider Clock
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject Apteka.Purchasing.Application.Corrections.DeliveryCorrectionsHandler DeliveryCorrections
 
 @* „Складова разписка“ as in Apteka Expert 2: first the invoice (header), then the lines — form on top, table below. *@
 
@@ -245,8 +246,27 @@ else if (_model is not null)
             <button class="secondary" @onclick="DeleteSelected" disabled="@(_selected is null)">Изтриване <kbd>F8</kbd></button>
           }
         }
+        else
+        {
+          <a class="button" href="purchasing/corrections/new?delivery=@Id">Корекция</a>
+        }
         <a class="button secondary" href="purchasing/deliveries">Затвори</a>
       </div>
+
+      @if (_corrections is { Count: > 0 })
+      {
+        <h2>Корекции</h2>
+        <ul class="corrections">
+          @foreach (var correction in _corrections)
+          {
+            <li>
+              <a href="purchasing/corrections/@correction.Id">Корекция № @correction.Number</a>
+              от @Formats.LocalTime(correction.CreatedAt)@(correction.NoteNo is null ? null : $", известие {correction.NoteNo}") —
+              <strong>@Formats.Euro(correction.PurchaseTotal)</strong>
+            </li>
+          }
+        </ul>
+      }
     }
 
     @if (Id is null && _error is not null)
@@ -275,6 +295,7 @@ else if (_model is not null)
   private bool _busy;
   private bool _confirmPost;
   private bool _editHeader;
+  private IReadOnlyList<Apteka.Purchasing.Application.Corrections.DeliveryCorrectionItem>? _corrections;
   private ElementReference _searchInput;
   private ElementReference _quantityInput;
   private bool _focusQuantity;
@@ -306,6 +327,7 @@ else if (_model is not null)
     var view = await GetDelivery.HandleAsync(id);
     _notFound = view is null;
     _model = view is null ? null : DeliveryFormModel.From(view);
+    _corrections = view is { Status: Apteka.Purchasing.Domain.Deliveries.DeliveryStatus.Posted } ? (await DeliveryCorrections.HandleAsync(id)).Items : null;
     _focusSearch = true;
   }
 

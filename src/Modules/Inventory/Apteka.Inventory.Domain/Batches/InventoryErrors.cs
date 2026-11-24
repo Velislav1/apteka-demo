@@ -19,5 +19,13 @@ public static class InventoryErrors
     public static Error InsufficientStock(int available) =>
         new("inventory.insufficient_stock", $"Няма достатъчна наличност (налични в най-малка мярка, без изтекли партиди: {available}).");
 
+    public static readonly Error CorrectionEmpty = new("inventory.correction_empty", "Няма редове за корекция.");
+
+    public static Error NotReceived(int line) =>
+        new("inventory.not_received", $"Ред {line}: редът не е заприходен.");
+
+    public static Error CorrectionBelowZero(int line, string batchNo, int available) =>
+        new("inventory.correction_below_zero", $"Ред {line}: в партида {batchNo} са останали само {available} (в най-малка мярка) — не може да се намали повече.");
+
     public static readonly Error AlreadyReceived = new("inventory.already_received", "Тези редове вече са заприходени.");
 }

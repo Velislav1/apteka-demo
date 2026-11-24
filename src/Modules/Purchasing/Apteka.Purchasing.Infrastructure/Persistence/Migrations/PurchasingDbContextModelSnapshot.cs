@@ -23,7 +23,117 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("delivery_correction_numbers", "purchasing");
+
             modelBuilder.HasSequence("delivery_numbers", "purchasing");
+
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Corrections.DeliveryCorrection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DeliveryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("delivery_id");
+
+                    b.Property<DateOnly>("NoteDate")
+                        .HasColumnType("date")
+                        .HasColumnName("note_date");
+
+                    b.Property<string>("NoteNo")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("note_no");
+
+                    b.Property<long>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('purchasing.delivery_correction_numbers')");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_delivery_corrections");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_delivery_corrections_created_at");
+
+                    b.HasIndex("DeliveryId")
+                        .HasDatabaseName("ix_delivery_corrections_delivery_id");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_delivery_corrections_number");
+
+                    b.ToTable("delivery_corrections", "purchasing");
+                });
+
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Corrections.DeliveryCorrectionLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CorrectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("correction_id");
+
+                    b.Property<Guid>("DeliveryLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("delivery_line_id");
+
+                    b.Property<int>("DeliveryLinePosition")
+                        .HasColumnType("integer")
+                        .HasColumnName("delivery_line_position");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<int>("QuantityDelta")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity_delta");
+
+                    b.Property<int>("UnitFactor")
+                        .HasColumnType("integer")
+                        .HasColumnName("unit_factor");
+
+                    b.Property<decimal>("UnitPurchasePrice")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("unit_purchase_price");
+
+                    b.HasKey("Id")
+                        .HasName("pk_delivery_correction_lines");
+
+                    b.HasIndex("CorrectionId")
+                        .HasDatabaseName("ix_delivery_correction_lines_correction_id");
+
+                    b.HasIndex("DeliveryLineId")
+                        .HasDatabaseName("ix_delivery_correction_lines_delivery_line_id");
+
+                    b.ToTable("delivery_correction_lines", "purchasing", t =>
+                        {
+                            t.HasCheckConstraint("ck_delivery_correction_lines_delta", "quantity_delta <> 0");
+                        });
+                });
 
             modelBuilder.Entity("Apteka.Purchasing.Domain.Deliveries.Delivery", b =>
                 {
@@ -209,6 +319,33 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
                     b.ToTable("suppliers", "purchasing");
                 });
 
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Corrections.DeliveryCorrection", b =>
+                {
+                    b.HasOne("Apteka.Purchasing.Domain.Deliveries.Delivery", null)
+                        .WithMany()
+                        .HasForeignKey("DeliveryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_delivery_corrections_deliveries_delivery_id");
+                });
+
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Corrections.DeliveryCorrectionLine", b =>
+                {
+                    b.HasOne("Apteka.Purchasing.Domain.Corrections.DeliveryCorrection", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("CorrectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_delivery_correction_lines_delivery_corrections_correction_id");
+
+                    b.HasOne("Apteka.Purchasing.Domain.Deliveries.DeliveryLine", null)
+                        .WithMany()
+                        .HasForeignKey("DeliveryLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_delivery_correction_lines_delivery_lines_delivery_line_id");
+                });
+
             modelBuilder.Entity("Apteka.Purchasing.Domain.Deliveries.Delivery", b =>
                 {
                     b.HasOne("Apteka.Purchasing.Domain.Suppliers.Supplier", null)
@@ -227,6 +364,11 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_delivery_lines_deliveries_delivery_id");
+                });
+
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Corrections.DeliveryCorrection", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("Apteka.Purchasing.Domain.Deliveries.Delivery", b =>

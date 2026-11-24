@@ -268,5 +268,8 @@ public class DeliveryPostingTests(PostgresFixture postgres)
             Assert.True(received.IsSuccess);
             return Result.Failure(Error);
         }
+
+        public Task<Result> CorrectAsync(StockCorrection correction, CancellationToken cancellationToken = default) =>
+            inner.CorrectAsync(correction, cancellationToken);
     }
 }

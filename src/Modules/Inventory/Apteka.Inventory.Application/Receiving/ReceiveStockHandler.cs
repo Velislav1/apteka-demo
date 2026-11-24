@@ -1,3 +1,4 @@
+using Apteka.Inventory.Application.Issuing;
 using Apteka.Inventory.Contracts;
 using Apteka.Inventory.Domain.Batches;
 using Apteka.Inventory.Domain.StockMovements;
@@ -6,8 +7,54 @@ using Apteka.SharedKernel;
 namespace Apteka.Inventory.Application.Receiving;
 
 /// <summary>Use case „Заприхождаване“: a new batch and a + movement for every receipt line.</summary>
-public sealed class ReceiveStockHandler(IInventoryRepository inventory, TimeProvider clock) : IStockReceiving
+public sealed class ReceiveStockHandler(IInventoryRepository inventory, IStockLocking locking, TimeProvider clock) : IStockReceiving
 {
+    public async Task<Result> CorrectAsync(StockCorrection correction, CancellationToken cancellationToken = default)
+    {
+        if (correction.Lines.Count == 0)
+        {
+            return Result.Failure(InventoryErrors.CorrectionEmpty);
+        }
+
+        var batches = (await inventory.GetBySourceLinesAsync([.. correction.Lines.Select(l => l.DocumentLineId)], cancellationToken))
+            .ToDictionary(b => b.SourceLineId);
+
+        // Lock the products in a fixed order (as the till), then check the − lines against what is left now.
+        var left = new Dictionary<Guid, int>();
+        foreach (var productId in batches.Values.Select(b => b.ProductId).Distinct().Order())
+        {
+            foreach (var locked in await locking.LockRetailBatchesAsync(productId, cancellationToken))
+            {
+                left[locked.BatchId] = locked.Quantity;
+            }
+        }
+
+        var now = clock.GetUtcNow();
+        foreach (var line in correction.Lines)
+        {
+            if (!batches.TryGetValue(line.DocumentLineId, out var batch) || !left.TryGetValue(batch.Id, out var quantity))
+            {
+                return Result.Failure(InventoryErrors.NotReceived(line.Position));
+            }
+
+            if (quantity + line.BaseQuantityDelta < 0)
+            {
+                return Result.Failure(InventoryErrors.CorrectionBelowZero(line.Position, batch.BatchNo, quantity));
+            }
+
+            var movement = StockMovement.Correction(batch.Id, line.BaseQuantityDelta, correction.DocumentType, correction.DocumentId, correction.UserId, now);
+            if (movement.IsFailure)
+            {
+                return movement;
+            }
+
+            left[batch.Id] = quantity + line.BaseQuantityDelta;
+            inventory.Add(movement.Value);
+        }
+
+        return await inventory.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<Result> ReceiveAsync(StockReceipt receipt, CancellationToken cancellationToken = default)
     {
         if (receipt.Lines.Count == 0)

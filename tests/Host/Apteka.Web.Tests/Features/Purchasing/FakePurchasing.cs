@@ -1,6 +1,8 @@
 using Apteka.Catalog.Contracts;
 using Apteka.Inventory.Contracts;
+using Apteka.Purchasing.Application.Corrections;
 using Apteka.Purchasing.Application.Deliveries;
+using Apteka.Purchasing.Domain.Corrections;
 using Apteka.Purchasing.Application.Suppliers;
 using Apteka.Purchasing.Domain.Deliveries;
 using Apteka.Purchasing.Domain.Suppliers;
@@ -95,6 +97,14 @@ internal sealed class FakeStockReceiving : IStockReceiving
         Receipts.Add(receipt);
         return Task.FromResult(Result.Success());
     }
+
+    public List<StockCorrection> Corrections { get; } = [];
+
+    public Task<Result> CorrectAsync(StockCorrection correction, CancellationToken cancellationToken = default)
+    {
+        Corrections.Add(correction);
+        return Task.FromResult(Result.Success());
+    }
 }
 
 internal sealed class FakeUser(string role = "Manager") : ICurrentUser
@@ -132,4 +142,21 @@ internal sealed class NoStockQueries : IStockQueries
 
     public Task<IReadOnlyList<BatchStock>> GetBatchesAsync(Guid productId, DateOnly? expiringOnOrBefore, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<BatchStock>>([]);
+}
+
+internal sealed class FakeCorrectionRepository : IDeliveryCorrectionRepository
+{
+    public List<DeliveryCorrection> Items { get; } = [];
+
+    public void Add(DeliveryCorrection correction) => Items.Add(correction);
+
+    public Task<DeliveryCorrection?> GetAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(Items.SingleOrDefault(c => c.Id == id));
+
+    public Task<IReadOnlyList<DeliveryCorrection>> ListForDeliveryAsync(Guid deliveryId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<DeliveryCorrection>>(Items.Where(c => c.DeliveryId == deliveryId).ToList());
+
+    public Task<IReadOnlyList<CorrectionListItem>> ListAsync(DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<CorrectionListItem>>([]);
+
+    public Task<Result> SaveChangesAsync(CancellationToken cancellationToken) => Task.FromResult(Result.Success());
 }

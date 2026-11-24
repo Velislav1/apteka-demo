@@ -1,0 +1,186 @@
+@page "/purchasing/corrections/new"
+@using Apteka.Purchasing.Application.Corrections
+@using Apteka.Purchasing.Application.Deliveries
+@using Apteka.Purchasing.Domain.Deliveries
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject ListDeliveriesHandler ListDeliveries
+@inject GetDeliveryHandler GetDelivery
+@inject DeliveryCorrectionsHandler DeliveryCorrections
+@inject CreateCorrectionHandler CreateCorrection
+@inject TimeProvider Clock
+@inject NavigationManager Navigation
+
+@* „Корекционна складова разписка“ as in Apteka Expert 2: choose the posted delivery, write the credit/debit note,
+   then type + or − by each line. Ctrl+Enter twice saves; the stock of the lines' batches moves at once. *@
+
+<PageTitle>Корекционна складова разписка</PageTitle>
+
+<h1>Корекционна складова разписка</h1>
+
+<div @onkeydown="OnKeyDown">
+  <fieldset class="header-form">
+    <legend>Известие</legend>
+    <div class="form-grid">
+      <label for="delivery">Към складова разписка</label>
+      <select id="delivery" @bind="_deliveryId" @bind:after="LoadDelivery">
+        <option value="">— изберете —</option>
+        @foreach (var item in _deliveries)
+        {
+          <option value="@item.Id">№ @item.Number · @item.SupplierName · ф-ра @item.InvoiceNo от @Formats.Date(item.InvoiceDate)</option>
+        }
+      </select>
+
+      <label for="noteno">Кредитно / дебитно известие №</label>
+      <input id="noteno" @bind="_noteNo" maxlength="30" />
+
+      <label for="notedate">Дата на известието</label>
+      <input id="notedate" type="date" @bind="_noteDate" />
+
+      <label for="reason">Основание</label>
+      <input id="reason" @bind="_reason" maxlength="200" placeholder="напр. върната стока, грешно количество" />
+    </div>
+  </fieldset>
+
+  @if (_delivery is not null)
+  {
+    <p class="muted">Въведете с „−“ колко се намалява и с „+“ колко се увеличава всеки ред (в мярката на реда).</p>
+    <table class="grid">
+      <thead>
+        <tr><th>Ред</th><th>Стока</th><th>Партида</th><th>Мярка</th><th class="num">Получено</th><th class="num">Досега коригирано</th><th class="num">Покупна цена</th><th class="num">Корекция ±</th></tr>
+      </thead>
+      <tbody>
+        @foreach (var (line, index) in _delivery.Lines.Select((line, index) => (line, index)))
+        {
+          var unit = line.Units.FirstOrDefault(u => u.UnitId == line.ProductUnitId)?.Name;
+          var before = _corrected.GetValueOrDefault(line.Id);
+          <tr>
+            <td>@(index + 1)</td>
+            <td>@line.ProductName</td>
+            <td>@line.BatchNo</td>
+            <td>@unit</td>
+            <td class="num">@line.Quantity</td>
+            <td class="num">@(before == 0 ? null : before.ToString("+0;−0"))</td>
+            <td class="num">@Formats.Price(line.NetUnitPurchasePrice)</td>
+            <td class="num"><input type="number" class="delta" step="1" aria-label="Корекция ред @(index + 1)"
+                                   value="@(_deltas.GetValueOrDefault(line.Id) is var d && d != 0 ? d : null)"
+                                   @oninput="e => SetDelta(line.Id, e.Value)" /></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <div class="toolbar">
+      <span>Промяна на сумата без ДДС: <strong>@Formats.Euro(Total)</strong></span>
+    </div>
+  }
+
+  @if (_error is not null)
+  {
+    <p class="alert error" role="alert">@_error</p>
+  }
+  @if (_confirm)
+  {
+    <p class="alert warning" role="alert">Потвърди: Ctrl+Enter още веднъж (Esc — отказ). Наличността на партидите ще се промени.</p>
+  }
+
+  <div class="toolbar">
+    <button @onclick="Save" disabled="@(_busy || _delivery is null)">Запиши <kbd>Ctrl+Enter</kbd></button>
+    <a class="button secondary" href="purchasing/corrections">Отказ</a>
+  </div>
+</div>
+
+@code {
+  /// <summary>„?delivery=…“ opens the form for that delivery (button „Корекция“ on a posted delivery).</summary>
+  [SupplyParameterFromQuery(Name = "delivery")] public Guid? DeliveryParameter { get; set; }
+
+  private IReadOnlyList<DeliveryListItem> _deliveries = [];
+  private string _deliveryId = string.Empty;
+  private DeliveryView? _delivery;
+  private IReadOnlyDictionary<Guid, int> _corrected = new Dictionary<Guid, int>();
+  private readonly Dictionary<Guid, int> _deltas = [];
+  private string? _noteNo;
+  private DateOnly _noteDate;
+  private string? _reason;
+  private string? _error;
+  private bool _confirm;
+  private bool _busy;
+
+  private decimal Total => _delivery is null
+    ? 0m
+    : _delivery.Lines.Sum(l => decimal.Round(_deltas.GetValueOrDefault(l.Id) * l.NetUnitPurchasePrice, 2, MidpointRounding.AwayFromZero));
+
+  protected override async Task OnInitializedAsync()
+  {
+    _noteDate = BulgarianTime.Today(Clock.GetUtcNow());
+    _deliveries = await ListDeliveries.HandleAsync(status: DeliveryStatus.Posted);
+    if (DeliveryParameter is { } id)
+    {
+      _deliveryId = id.ToString();
+      await LoadDelivery();
+    }
+  }
+
+  private async Task LoadDelivery()
+  {
+    _deltas.Clear();
+    _error = null;
+    _confirm = false;
+    _delivery = Guid.TryParse(_deliveryId, out var id) ? await GetDelivery.HandleAsync(id) : null;
+    _corrected = _delivery is null ? new Dictionary<Guid, int>() : (await DeliveryCorrections.HandleAsync(_delivery.Id)).QuantityByLine;
+  }
+
+  private void SetDelta(Guid lineId, object? value)
+  {
+    _confirm = false;
+    _deltas[lineId] = int.TryParse(value?.ToString(), out var delta) ? delta : 0;
+  }
+
+  private async Task OnKeyDown(KeyboardEventArgs e)
+  {
+    if (e.Key == "Enter" && e.CtrlKey)
+    {
+      await Save();
+    }
+    else if (e.Key == "Escape")
+    {
+      _confirm = false;
+    }
+  }
+
+  private async Task Save()
+  {
+    if (_delivery is null || _busy)
+    {
+      return;
+    }
+
+    if (!_confirm)
+    {
+      _confirm = true;
+      return;
+    }
+
+    _busy = true;
+    try
+    {
+      var result = await CreateCorrection.HandleAsync(new CorrectionInput(
+        _delivery.Id,
+        _noteNo,
+        _noteDate,
+        _reason,
+        _deltas.Where(d => d.Value != 0).Select(d => new CorrectionLineInput(d.Key, d.Value)).ToList()));
+      _confirm = false;
+      if (result.IsFailure)
+      {
+        _error = result.Error.Message;
+        return;
+      }
+
+      Navigation.NavigateTo($"purchasing/corrections/{result.Value}");
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+}

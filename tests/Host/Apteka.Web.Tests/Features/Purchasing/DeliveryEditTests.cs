@@ -19,6 +19,7 @@ public class DeliveryEditTests : BunitContext
     private readonly FakeDeliveryRepository _deliveries = new();
     private readonly FakeSupplierRepository _suppliers = new();
     private readonly FakeStockReceiving _stock = new();
+    private readonly FakeCorrectionRepository _corrections = new();
     private readonly Guid _box = Guid.CreateVersion7();
     private readonly Supplier _supplier = Supplier.Create("Фарма Демо ООД", Eik.Complete9("20000001"), 30).Value;
 
@@ -45,6 +46,10 @@ public class DeliveryEditTests : BunitContext
         Services.AddScoped<SaveDeliveryDraftHandler>();
         Services.AddScoped<PostDeliveryHandler>();
         Services.AddScoped<GetDeliveryHandler>();
+        Services.AddSingleton<Apteka.Purchasing.Application.Corrections.IDeliveryCorrectionRepository>(_corrections);
+        Services.AddScoped<Apteka.Purchasing.Application.Corrections.DeliveryCorrectionsHandler>();
+        Services.AddScoped<Apteka.Purchasing.Application.Corrections.CreateCorrectionHandler>();
+        Services.AddScoped<ListDeliveriesHandler>();
     }
 
     private Guid Draft()
@@ -155,5 +160,28 @@ public class DeliveryEditTests : BunitContext
 
         Assert.Empty(_deliveries.Items.Single().Lines);
         Assert.Empty(page.FindAll(".lines-table tbody tr"));
+    }
+
+    [Fact]
+    public void Correction_form_for_a_posted_delivery_saves_the_minus_and_moves_the_stock_after_Ctrl_Enter_twice()
+    {
+        var id = Draft();
+        var delivery = _deliveries.Items.Single();
+        var productId = _catalog.Products[0].ProductId;
+        Assert.True(delivery.SetLines([new DeliveryLineSpec(null, productId, _box, 20, 3, 2.40m, 25m, 3.60m, "L1", DateOnly.FromDateTime(DateTime.Today).AddYears(1))]).IsSuccess);
+        Assert.True(delivery.Post(DateOnly.FromDateTime(DateTime.Today), DateTimeOffset.UtcNow).IsSuccess);
+
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"purchasing/corrections/new?delivery={id}");
+        var page = Render<Apteka.Web.Features.Purchasing.Corrections.CorrectionEdit>();
+
+        page.Find("input.delta").Input("-1");
+        Assert.Contains("-2,40", page.Markup);
+        page.Find("div").KeyDown(new KeyboardEventArgs { Key = "Enter", CtrlKey = true });
+        Assert.Empty(_corrections.Items);
+        page.Find("div").KeyDown(new KeyboardEventArgs { Key = "Enter", CtrlKey = true });
+
+        var correction = Assert.Single(_corrections.Items);
+        Assert.Equal(-1, Assert.Single(correction.Lines).QuantityDelta);
+        Assert.Equal(-20, Assert.Single(Assert.Single(_stock.Corrections).Lines).BaseQuantityDelta);
     }
 }

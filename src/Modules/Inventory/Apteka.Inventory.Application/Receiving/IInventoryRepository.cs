@@ -9,6 +9,9 @@ public interface IInventoryRepository
 {
     Task<bool> AnyReceivedAsync(IReadOnlyCollection<Guid> sourceLineIds, CancellationToken cancellationToken);
 
+    /// <summary>The batches created from these document lines.</summary>
+    Task<IReadOnlyList<Batch>> GetBySourceLinesAsync(IReadOnlyCollection<Guid> sourceLineIds, CancellationToken cancellationToken);
+
     void Add(Batch batch);
 
     void Add(StockMovement movement);
