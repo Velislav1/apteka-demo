@@ -10,12 +10,17 @@
 @inject ReverseSaleHandler ReverseSale
 @inject TimeProvider Clock
 @inject AuthenticationStateProvider Authentication
+@inject Apteka.Identity.Contracts.IUserDirectory UserDirectory
+@inject NavigationManager Navigation
 
-<PageTitle>Продажби за деня</PageTitle>
+<PageTitle>Директни продажби</PageTitle>
 
-<h1>Продажби за деня</h1>
+<ListKeys OnAdd="NewSale" />
+
+<h1>Директни продажби</h1>
 
 <div class="toolbar">
+  <a class="button" href="sales/checkout"><Icon Name="plus" /> Нова продажба <kbd>F5</kbd></a>
   <input id="day" type="date" aria-label="Ден" @bind="_day" @bind:after="Load" />
   @if (_view is not null)
   {
@@ -45,13 +50,14 @@ else if (_view.Sales.Count == 0)
 else
 {
   <table class="grid">
-    <thead><tr><th>№</th><th>Час</th><th class="num">Редове</th><th class="num">Сума</th><th>Плащане</th><th>Статус</th><th></th></tr></thead>
+    <thead><tr><th>№</th><th>Час</th><th>Потребител</th><th class="num">Редове</th><th class="num">Сума</th><th>Плащане</th><th>Статус</th><th></th></tr></thead>
     <tbody>
       @foreach (var sale in _view.Sales)
       {
         <tr class="@(sale.Status == SaleStatus.Reversed ? "inactive" : null)">
           <td><button class="linklike" @onclick="() => Toggle(sale.Id)">@sale.Number</button></td>
           <td>@BulgarianTime.ToLocal(sale.CreatedAt).ToString("HH:mm", CultureInfo.InvariantCulture)</td>
+          <td>@(sale.UserId is { } userId ? _userNames.GetValueOrDefault(userId) : "—")</td>
           <td class="num">@sale.LineCount</td>
           <td class="num">@Formats.Euro(sale.Total)</td>
           <td>@(sale.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</td>
@@ -75,7 +81,7 @@ else
         @if (_details?.Id == sale.Id)
         {
           <tr class="details">
-            <td colspan="7">
+            <td colspan="8">
               <table class="grid">
                 <thead><tr><th>Стока</th><th>Мярка</th><th class="num">Кол.</th><th class="num">Цена</th><th class="num">Отст. %</th><th class="num">Сума</th></tr></thead>
                 <tbody>
@@ -119,9 +125,14 @@ else
     await Load();
   }
 
+  private IReadOnlyDictionary<Guid, string> _userNames = new Dictionary<Guid, string>();
+
+  private void NewSale() => Navigation.NavigateTo("sales/checkout");
+
   private async Task Load()
   {
     _view = await DailySales.HandleAsync(_day);
+    _userNames = await UserDirectory.GetDisplayNamesAsync([.. _view.Sales.Where(s => s.UserId is not null).Select(s => s.UserId!.Value).Distinct()]);
     _details = null;
   }
 

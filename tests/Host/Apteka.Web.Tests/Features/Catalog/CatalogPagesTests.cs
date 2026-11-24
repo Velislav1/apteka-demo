@@ -23,6 +23,9 @@ public class CatalogPagesTests : BunitContext
 
     public CatalogPagesTests()
     {
+        // The lists load a small script for the F5 key; the tests do not need it.
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
         Services.AddSingleton<IProductQueries>(_queries);
         Services.AddSingleton<IProductRepository>(_repository);
         Services.AddScoped<SearchProductsHandler>();

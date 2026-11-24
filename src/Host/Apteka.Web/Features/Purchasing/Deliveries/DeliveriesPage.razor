@@ -3,13 +3,16 @@
 @using Apteka.Purchasing.Domain.Deliveries
 @using Apteka.Web.Features.Shared
 @inject ListDeliveriesHandler ListDeliveries
+@inject NavigationManager Navigation
 
-<PageTitle>Доставки</PageTitle>
+<PageTitle>Складови разписки</PageTitle>
 
-<h1>Доставки</h1>
+<ListKeys OnAdd="@(() => Navigation.NavigateTo("purchasing/deliveries/new"))" />
+
+<h1>Складови разписки</h1>
 
 <div class="toolbar">
-  <a class="button" href="purchasing/deliveries/new">Нова доставка</a>
+  <a class="button" href="purchasing/deliveries/new"><Icon Name="plus" /> Складова разписка <kbd>F5</kbd></a>
   <select aria-label="Статус" @bind="_status" @bind:after="Load">
     <option value="">Всички</option>
     <option value="@DeliveryStatus.Draft">Чернови</option>
