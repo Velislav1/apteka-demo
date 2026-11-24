@@ -142,7 +142,7 @@ public class IdentityTests(PostgresFixture postgres)
 
         using var pharmacist = factory.CreateClient();
         await WebLogin.LoginAsync(pharmacist, "pharmacist", WebLogin.PharmacistPassword);
-        Assert.Contains("Каса", await pharmacist.GetStringAsync("/sales/checkout", Ct));
+        Assert.Contains("Директна продажба", await pharmacist.GetStringAsync("/sales/checkout", Ct));
         var users = await pharmacist.GetAsync("/identity/users", Ct);
         var usersHtml = await users.Content.ReadAsStringAsync(Ct);
         Assert.DoesNotContain("Нов потребител", usersHtml);
