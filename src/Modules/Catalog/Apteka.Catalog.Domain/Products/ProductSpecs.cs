@@ -1,13 +1,19 @@
 namespace Apteka.Catalog.Domain.Products;
 
 /// <summary>The editable fields of a product.</summary>
+/// <param name="NhifCode">The product's code in the NHIF (НЗОК) list, if it is reimbursed.</param>
+/// <param name="DefaultSaleUnitName">Unit the till offers first; null means the largest unit.</param>
 public sealed record ProductDetails(
     string Name,
     string? AtcCode,
-    string? Manufacturer,
+    DispensingMode DispensingMode,
     decimal VatRate,
-    bool IsRx,
-    bool IsActive);
+    bool IsActive,
+    string? NhifCode = null,
+    Guid? ManufacturerId = null,
+    Guid? ProductGroupId = null,
+    Guid? ShelfId = null,
+    string? DefaultSaleUnitName = null);
 
 /// <summary>A unit as requested by the user. <paramref name="Id"/> is null for a new unit.</summary>
 public sealed record UnitSpec(Guid? Id, string Name, int Factor);

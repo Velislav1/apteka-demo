@@ -10,7 +10,12 @@ public static class CatalogErrors
 
     public static readonly Error NameRequired = new("catalog.name_required", "Въведете име на стоката.");
     public static readonly Error NameTooLong = new("catalog.name_too_long", $"Името е по-дълго от {MaxNameLength} знака.");
-    public static readonly Error ManufacturerTooLong = new("catalog.manufacturer_too_long", $"Производителят е по-дълъг от {MaxNameLength} знака.");
+    public static readonly Error InvalidDispensingMode = new("catalog.invalid_dispensing_mode", "Изберете режим на отпускане.");
+    public static readonly Error InvalidNhifCode = new("catalog.invalid_nhif_code", "Кодът по НЗОК може да съдържа само латински букви и цифри (до 20 знака).");
+    public static readonly Error DefaultSaleUnitMissing = new("catalog.default_sale_unit_missing", "Мярката за продажба трябва да е една от мерките на стоката.");
+    public static readonly Error ManufacturerNotAvailable = new("catalog.manufacturer_not_available", "Производителят не съществува или е неактивен.");
+    public static readonly Error ProductGroupNotAvailable = new("catalog.group_not_available", "Групата не съществува или е неактивна.");
+    public static readonly Error ShelfNotAvailable = new("catalog.shelf_not_available", "Рафтът не съществува или е неактивен.");
     public static readonly Error InvalidAtcCode = new("catalog.invalid_atc", "Невалиден ATC код (пример: N02BE01).");
     public static readonly Error InvalidVatRate = new("catalog.invalid_vat", "ДДС може да бъде 0, 9 или 20 %.");
 

@@ -6,14 +6,19 @@ namespace Apteka.Catalog.Application.Products;
 public sealed record ProductInput(
     string Name,
     string? AtcCode,
-    string? Manufacturer,
+    DispensingMode DispensingMode,
     decimal VatRate,
-    bool IsRx,
     bool IsActive,
     IReadOnlyList<UnitInput> Units,
-    IReadOnlyList<BarcodeInput> Barcodes)
+    IReadOnlyList<BarcodeInput> Barcodes,
+    string? NhifCode = null,
+    Guid? ManufacturerId = null,
+    Guid? ProductGroupId = null,
+    Guid? ShelfId = null,
+    string? DefaultSaleUnitName = null)
 {
-    internal ProductDetails ToDetails() => new(Name, AtcCode, Manufacturer, VatRate, IsRx, IsActive);
+    internal ProductDetails ToDetails() =>
+        new(Name, AtcCode, DispensingMode, VatRate, IsActive, NhifCode, ManufacturerId, ProductGroupId, ShelfId, DefaultSaleUnitName);
 
     internal List<UnitSpec> ToUnitSpecs() => Units.Select(u => new UnitSpec(u.Id, u.Name, u.Factor)).ToList();
 

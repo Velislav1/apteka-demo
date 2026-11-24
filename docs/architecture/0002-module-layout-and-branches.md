@@ -14,7 +14,8 @@
 ```
 src/Modules/<Module>/
   Apteka.<Module>.Contracts/          публичният интерфейс (напр. ICatalogLookup)
-  Apteka.<Module>.Domain/<Model>/     ентитети, правила, грешки на модела (напр. Products/)
+  Apteka.<Module>.Domain/<Model>/     ентитети, правила, грешки на модела (напр. Products/, Manufacturers/)
+  Apteka.<Module>.Domain/Common/      общо за няколко модела на модула (напр. CatalogReference)
   Apteka.<Module>.Application/<Model>/ use cases (Create…Handler, Search…Handler) и интерфейси към базата
   Apteka.<Module>.Infrastructure/
     Persistence/                      DbContext, Configurations/, Migrations/
@@ -27,8 +28,17 @@ tests/Apteka.IntegrationTests/<Module>/  интеграционни тестов
 tests/Host/Apteka.Web.Tests/Features/<Module>/  bUnit тестове на екраните
 ```
 
-Нов модел в съществуващ модул (напр. „Производители“ в Catalog) получава своя папка на всяко от тези нива.
-Преглед на модел = тези папки.
+Нов модел в съществуващ модул получава своя папка на всяко от тези нива. Пример — Catalog:
+
+| Модел | Domain | Application | Infrastructure | Екрани |
+|---|---|---|---|---|
+| Стоки | `Products/` | `Products/` | `Products/`, `Persistence/Configurations/ProductConfiguration.cs` | `Features/Catalog/Products/` |
+| Производители | `Manufacturers/` | `Manufacturers/` | `Common/ReferenceRepository.cs`, `ReferenceConfigurations.cs` | `Features/Catalog/Manufacturers/` |
+| Групи | `ProductGroups/` | `ProductGroups/` | (същото) | `Features/Catalog/ProductGroups/` |
+| Рафтове | `Shelves/` | `Shelves/` | (същото) | `Features/Catalog/Shelves/` |
+
+Еднаквото поведение на простите справочници е в папки `Common/` (един базов клас, един handler, едно хранилище,
+един Blazor компонент), за да не се повтаря три пъти. Преглед на модел = неговите папки + `Common/`.
 
 ### Общи правила за базата (потвърдени)
 

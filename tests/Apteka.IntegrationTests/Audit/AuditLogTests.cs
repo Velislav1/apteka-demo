@@ -49,10 +49,7 @@ public class AuditLogTests(PostgresFixture postgres)
         await using (var scope = provider.CreateAsyncScope())
         {
             var view = (await scope.ServiceProvider.GetRequiredService<GetProductHandler>().HandleAsync(id, Ct))!;
-            var input = new ProductInput(
-                view.Name, view.AtcCode, view.Manufacturer, 9m, view.IsRx, view.IsActive,
-                [.. view.Units.Select(u => new UnitInput(u.Id, u.Name, u.Factor))],
-                [.. view.Barcodes.Select(b => new BarcodeInput(b.Id, b.Code, b.UnitName))]);
+            var input = CatalogInputs.FromView(view) with { VatRate = 9m };
             Assert.True((await scope.ServiceProvider.GetRequiredService<UpdateProductHandler>().HandleAsync(id, input, Ct)).IsSuccess);
         }
 
@@ -80,10 +77,7 @@ public class AuditLogTests(PostgresFixture postgres)
         {
             var repository = scope.ServiceProvider.GetRequiredService<IProductRepository>();
             var input = CatalogInputs.Tablets(CatalogInputs.UniqueName("Отказана"), barcode);
-            var product = Apteka.Catalog.Domain.Products.Product.Create(
-                new(input.Name, input.AtcCode, input.Manufacturer, input.VatRate, input.IsRx, input.IsActive),
-                [.. input.Units.Select(u => new Apteka.Catalog.Domain.Products.UnitSpec(null, u.Name, u.Factor))],
-                [new Apteka.Catalog.Domain.Products.BarcodeSpec(null, barcode, "кутия")]).Value;
+            var product = CatalogInputs.ToProduct(input);
             repository.Add(product);
 
             Assert.True((await repository.SaveChangesAsync(Ct)).IsFailure);

@@ -1,10 +1,15 @@
+using Apteka.Catalog.Application.Common;
+using Apteka.Catalog.Domain.Common;
+using Apteka.Catalog.Domain.Manufacturers;
+using Apteka.Catalog.Domain.ProductGroups;
 using Apteka.Catalog.Domain.Products;
+using Apteka.Catalog.Domain.Shelves;
 using Apteka.SharedKernel;
 
 namespace Apteka.Catalog.Application.Products;
 
 /// <summary>Use case „Нова стока“.</summary>
-public sealed class CreateProductHandler(IProductRepository products)
+public sealed class CreateProductHandler(IProductRepository products, ProductReferenceRules references)
 {
     public async Task<Result<Guid>> HandleAsync(ProductInput input, CancellationToken cancellationToken = default)
     {
@@ -15,6 +20,12 @@ public sealed class CreateProductHandler(IProductRepository products)
         }
 
         var product = created.Value;
+        var available = await references.CheckAsync(product, previous: null, cancellationToken);
+        if (available.IsFailure)
+        {
+            return Result.Failure<Guid>(available.Error);
+        }
+
         var taken = await BarcodeRules.CheckNotTakenAsync(products, product, cancellationToken);
         if (taken.IsFailure)
         {
@@ -29,7 +40,7 @@ public sealed class CreateProductHandler(IProductRepository products)
 }
 
 /// <summary>Use case „Редакция на стока“.</summary>
-public sealed class UpdateProductHandler(IProductRepository products)
+public sealed class UpdateProductHandler(IProductRepository products, ProductReferenceRules references)
 {
     public async Task<Result> HandleAsync(Guid id, ProductInput input, CancellationToken cancellationToken = default)
     {
@@ -39,10 +50,17 @@ public sealed class UpdateProductHandler(IProductRepository products)
             return Result.Failure(CatalogErrors.ProductNotFound);
         }
 
+        var previous = new ProductReferences(product.ManufacturerId, product.ProductGroupId, product.ShelfId);
         var updated = product.Update(input.ToDetails(), input.ToUnitSpecs(), input.ToBarcodeSpecs());
         if (updated.IsFailure)
         {
             return updated;
+        }
+
+        var available = await references.CheckAsync(product, previous, cancellationToken);
+        if (available.IsFailure)
+        {
+            return available;
         }
 
         var taken = await BarcodeRules.CheckNotTakenAsync(products, product, cancellationToken);
@@ -66,5 +84,50 @@ internal static class BarcodeRules
         var taken = await products.FindTakenBarcodesAsync(product.Barcodes.Select(b => b.Code), product.Id, cancellationToken);
 
         return taken.Count == 0 ? Result.Success() : Result.Failure(CatalogErrors.BarcodeTaken(taken[0]));
+    }
+}
+
+internal sealed record ProductReferences(Guid? ManufacturerId, Guid? ProductGroupId, Guid? ShelfId);
+
+/// <summary>
+/// A product may point only to an existing, active manufacturer, group and shelf.
+/// A reference that did not change is kept even if that item was deactivated later.
+/// </summary>
+public sealed class ProductReferenceRules(
+    IReferenceRepository<Manufacturer> manufacturers,
+    IReferenceRepository<ProductGroup> groups,
+    IReferenceRepository<Shelf> shelves)
+{
+    internal async Task<Result> CheckAsync(Product product, ProductReferences? previous, CancellationToken cancellationToken)
+    {
+        if (!await IsAvailableAsync(manufacturers, product.ManufacturerId, previous?.ManufacturerId, cancellationToken))
+        {
+            return Result.Failure(CatalogErrors.ManufacturerNotAvailable);
+        }
+
+        if (!await IsAvailableAsync(groups, product.ProductGroupId, previous?.ProductGroupId, cancellationToken))
+        {
+            return Result.Failure(CatalogErrors.ProductGroupNotAvailable);
+        }
+
+        return await IsAvailableAsync(shelves, product.ShelfId, previous?.ShelfId, cancellationToken)
+            ? Result.Success()
+            : Result.Failure(CatalogErrors.ShelfNotAvailable);
+    }
+
+    private static async Task<bool> IsAvailableAsync<T>(
+        IReferenceRepository<T> items,
+        Guid? id,
+        Guid? previousId,
+        CancellationToken cancellationToken)
+        where T : CatalogReference
+    {
+        if (id is null || id == previousId)
+        {
+            return true;
+        }
+
+        var item = await items.GetAsync(id.Value, cancellationToken);
+        return item is { IsActive: true };
     }
 }

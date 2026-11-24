@@ -1,5 +1,6 @@
 @page "/catalog"
 @using Apteka.Catalog.Application.Products
+@using Apteka.Catalog.Domain.Products
 @inject SearchProductsHandler Search
 
 <PageTitle>Номенклатура</PageTitle>
@@ -28,6 +29,7 @@ else
       <tr>
         <th>Име</th>
         <th>Производител</th>
+        <th>Група</th>
         <th>Мярка</th>
         <th>Баркодове</th>
         <th class="num">ДДС</th>
@@ -40,12 +42,14 @@ else
         <tr class="@(item.IsActive ? null : "inactive")">
           <td>
             <a href="catalog/@item.Id">@item.Name</a>
-            @if (item.IsRx)
+            @if (DispensingModeText.Tag(item.DispensingMode) is { } tag)
             {
-              <span class="tag" title="По лекарско предписание">Rx</span>
+              <span class="tag @(item.DispensingMode == DispensingMode.Narcotic ? "narcotic" : null)"
+                    title="@DispensingModeText.Label(item.DispensingMode)">@tag</span>
             }
           </td>
           <td>@item.Manufacturer</td>
+          <td>@item.ProductGroup</td>
           <td>@item.BaseUnitName</td>
           <td>@string.Join(", ", item.Barcodes)</td>
           <td class="num">@item.VatRate.ToString("0.##") %</td>

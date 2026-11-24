@@ -16,8 +16,9 @@ public sealed record CatalogProductInfo(
     Guid ProductId,
     string Name,
     decimal VatRate,
-    bool IsRx,
+    CatalogDispensingMode DispensingMode,
     bool IsActive,
+    Guid? DefaultSaleUnitId,
     IReadOnlyList<CatalogUnit> Units);
 
 public sealed record CatalogUnit(Guid UnitId, string Name, int Factor);
@@ -26,8 +27,16 @@ public sealed record CatalogUnitInfo(
     Guid ProductId,
     string ProductName,
     decimal VatRate,
-    bool IsRx,
+    CatalogDispensingMode DispensingMode,
     bool IsActive,
     Guid UnitId,
     string UnitName,
     int Factor);
+
+/// <summary>How a product may be dispensed. Same values as the catalog's own enum.</summary>
+public enum CatalogDispensingMode
+{
+    OverTheCounter = 1,
+    Prescription = 2,
+    Narcotic = 3,
+}

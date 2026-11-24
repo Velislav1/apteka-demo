@@ -1,7 +1,15 @@
 @page "/catalog/new"
 @page "/catalog/{Id:guid}"
+@using Apteka.Catalog.Application.Common
+@using Apteka.Catalog.Application.Manufacturers
+@using Apteka.Catalog.Application.ProductGroups
 @using Apteka.Catalog.Application.Products
+@using Apteka.Catalog.Application.Shelves
+@using Apteka.Catalog.Domain.Products
 @inject GetProductHandler GetProduct
+@inject ManufacturersHandler Manufacturers
+@inject ProductGroupsHandler Groups
+@inject ShelvesHandler Shelves
 @inject CreateProductHandler CreateProduct
 @inject UpdateProductHandler UpdateProduct
 @inject NavigationManager Navigation
@@ -24,10 +32,45 @@ else if (_model is not null)
       <input id="name" @bind="_model.Name" maxlength="200" />
 
       <label for="manufacturer">Производител</label>
-      <input id="manufacturer" @bind="_model.Manufacturer" maxlength="200" />
+      <select id="manufacturer" @bind="_model.ManufacturerId">
+        <option value="">—</option>
+        @foreach (var item in Options(_manufacturers, _model.ManufacturerId))
+        {
+          <option value="@item.Id">@item.Name</option>
+        }
+      </select>
+
+      <label for="group">Група</label>
+      <select id="group" @bind="_model.ProductGroupId">
+        <option value="">—</option>
+        @foreach (var item in Options(_groups, _model.ProductGroupId))
+        {
+          <option value="@item.Id">@item.Name</option>
+        }
+      </select>
+
+      <label for="shelf">Рафт</label>
+      <select id="shelf" @bind="_model.ShelfId">
+        <option value="">—</option>
+        @foreach (var item in Options(_shelves, _model.ShelfId))
+        {
+          <option value="@item.Id">@item.Name</option>
+        }
+      </select>
 
       <label for="atc">ATC код</label>
       <input id="atc" @bind="_model.AtcCode" maxlength="7" placeholder="напр. N02BE01" />
+
+      <label for="nhif">Код по НЗОК</label>
+      <input id="nhif" @bind="_model.NhifCode" maxlength="20" />
+
+      <label for="mode">Режим на отпускане</label>
+      <select id="mode" @bind="_model.DispensingMode">
+        @foreach (var mode in Enum.GetValues<DispensingMode>())
+        {
+          <option value="@mode">@DispensingModeText.Label(mode)</option>
+        }
+      </select>
 
       <label for="vat">ДДС</label>
       <select id="vat" @bind="_model.VatRate">
@@ -36,8 +79,14 @@ else if (_model is not null)
         <option value="0">0 %</option>
       </select>
 
-      <label for="rx">По лекарско предписание</label>
-      <input id="rx" type="checkbox" @bind="_model.IsRx" />
+      <label for="saleunit">Мярка за продажба</label>
+      <select id="saleunit" @bind="_model.DefaultSaleUnitName">
+        <option value="">най-голямата</option>
+        @foreach (var unit in _model.Units.Where(u => u.Name.Length > 0))
+        {
+          <option value="@unit.Name">@unit.Name</option>
+        }
+      </select>
 
       <label for="active">Активна</label>
       <input id="active" type="checkbox" @bind="_model.IsActive" />
@@ -119,6 +168,9 @@ else if (_model is not null)
   [Parameter] public Guid? Id { get; set; }
 
   private ProductFormModel? _model;
+  private IReadOnlyList<ReferenceItemView> _manufacturers = [];
+  private IReadOnlyList<ReferenceItemView> _groups = [];
+  private IReadOnlyList<ReferenceItemView> _shelves = [];
   private bool _notFound;
   private string? _error;
   private bool _saved;
@@ -130,6 +182,9 @@ else if (_model is not null)
   {
     _error = null;
     _notFound = false;
+    _manufacturers = await Manufacturers.ListAsync();
+    _groups = await Groups.ListAsync();
+    _shelves = await Shelves.ListAsync();
 
     if (Id is not { } id)
     {
@@ -141,6 +196,10 @@ else if (_model is not null)
     _notFound = view is null;
     _model = view is null ? null : ProductFormModel.From(view);
   }
+
+  /// <summary>Active items, plus the selected one even if it was deactivated since.</summary>
+  private static IEnumerable<ReferenceItemView> Options(IReadOnlyList<ReferenceItemView> items, string selectedId) =>
+    items.Where(i => i.IsActive || i.Id.ToString() == selectedId);
 
   private void AddUnit()
   {

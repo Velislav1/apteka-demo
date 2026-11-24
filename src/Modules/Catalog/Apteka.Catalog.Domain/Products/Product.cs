@@ -28,15 +28,27 @@ public sealed partial class Product : Entity<Guid>
 
     public string? AtcCode { get; private set; }
 
-    public string? Manufacturer { get; private set; }
+    public DispensingMode DispensingMode { get; private set; }
+
+    /// <summary>Needs a prescription (ordinary or for narcotics).</summary>
+    public bool IsRx => DispensingMode != DispensingMode.OverTheCounter;
 
     /// <summary>VAT in percent: 0, 9 or 20.</summary>
     public decimal VatRate { get; private set; }
 
-    /// <summary>Sold only with a prescription.</summary>
-    public bool IsRx { get; private set; }
-
     public bool IsActive { get; private set; }
+
+    /// <summary>Code in the NHIF (НЗОК) list; prices and reimbursement belong to the future Nhif module.</summary>
+    public string? NhifCode { get; private set; }
+
+    public Guid? ManufacturerId { get; private set; }
+
+    public Guid? ProductGroupId { get; private set; }
+
+    public Guid? ShelfId { get; private set; }
+
+    /// <summary>The unit the till offers first; null means the largest unit.</summary>
+    public Guid? DefaultSaleUnitId { get; private set; }
 
     public IReadOnlyList<ProductUnit> Units => _units;
 
@@ -62,7 +74,10 @@ public sealed partial class Product : Entity<Guid>
         var requestedUnits = units.Select(u => u with { Name = u.Name.Trim() }).ToList();
         var requestedBarcodes = barcodes.Select(b => b with { Code = b.Code.Trim(), UnitName = b.UnitName.Trim() }).ToList();
 
-        var error = ValidateDetails(normalized) ?? ValidateUnits(requestedUnits) ?? ValidateBarcodes(requestedBarcodes, requestedUnits);
+        var error = ValidateDetails(normalized)
+            ?? ValidateUnits(requestedUnits)
+            ?? ValidateBarcodes(requestedBarcodes, requestedUnits)
+            ?? ValidateDefaultSaleUnit(normalized.DefaultSaleUnitName, requestedUnits);
         if (error is not null)
         {
             return Result.Failure(error);
@@ -70,13 +85,17 @@ public sealed partial class Product : Entity<Guid>
 
         Name = normalized.Name;
         AtcCode = normalized.AtcCode;
-        Manufacturer = normalized.Manufacturer;
+        DispensingMode = normalized.DispensingMode;
         VatRate = normalized.VatRate;
-        IsRx = normalized.IsRx;
         IsActive = normalized.IsActive;
+        NhifCode = normalized.NhifCode;
+        ManufacturerId = normalized.ManufacturerId;
+        ProductGroupId = normalized.ProductGroupId;
+        ShelfId = normalized.ShelfId;
 
         ApplyUnits(requestedUnits);
         ApplyBarcodes(requestedBarcodes);
+        DefaultSaleUnitId = normalized.DefaultSaleUnitName is null ? null : UnitNamed(normalized.DefaultSaleUnitName).Id;
 
         return Result.Success();
     }
@@ -85,7 +104,8 @@ public sealed partial class Product : Entity<Guid>
     {
         Name = details.Name.Trim(),
         AtcCode = string.IsNullOrWhiteSpace(details.AtcCode) ? null : details.AtcCode.Trim().ToUpperInvariant(),
-        Manufacturer = string.IsNullOrWhiteSpace(details.Manufacturer) ? null : details.Manufacturer.Trim(),
+        NhifCode = string.IsNullOrWhiteSpace(details.NhifCode) ? null : details.NhifCode.Trim().ToUpperInvariant(),
+        DefaultSaleUnitName = string.IsNullOrWhiteSpace(details.DefaultSaleUnitName) ? null : details.DefaultSaleUnitName.Trim(),
     };
 
     private static Error? ValidateDetails(ProductDetails details)
@@ -100,9 +120,14 @@ public sealed partial class Product : Entity<Guid>
             return CatalogErrors.NameTooLong;
         }
 
-        if (details.Manufacturer is { Length: > CatalogErrors.MaxNameLength })
+        if (!Enum.IsDefined(details.DispensingMode))
         {
-            return CatalogErrors.ManufacturerTooLong;
+            return CatalogErrors.InvalidDispensingMode;
+        }
+
+        if (details.NhifCode is not null && !NhifCodePattern().IsMatch(details.NhifCode))
+        {
+            return CatalogErrors.InvalidNhifCode;
         }
 
         if (details.AtcCode is not null && !AtcCodePattern().IsMatch(details.AtcCode))
@@ -195,6 +220,14 @@ public sealed partial class Product : Entity<Guid>
         return _barcodes.All(existing => barcodes.Any(b => b.Id == existing.Id)) ? null : CatalogErrors.BarcodeRemoved;
     }
 
+    private static Error? ValidateDefaultSaleUnit(string? unitName, List<UnitSpec> units) =>
+        unitName is null || units.Any(u => string.Equals(u.Name, unitName, StringComparison.CurrentCultureIgnoreCase))
+            ? null
+            : CatalogErrors.DefaultSaleUnitMissing;
+
+    private ProductUnit UnitNamed(string name) =>
+        _units.Single(u => string.Equals(u.Name, name, StringComparison.CurrentCultureIgnoreCase));
+
     private void ApplyUnits(List<UnitSpec> units)
     {
         foreach (var spec in units)
@@ -218,7 +251,7 @@ public sealed partial class Product : Entity<Guid>
     {
         foreach (var spec in barcodes)
         {
-            var unitId = _units.Single(u => string.Equals(u.Name, spec.UnitName, StringComparison.CurrentCultureIgnoreCase)).Id;
+            var unitId = UnitNamed(spec.UnitName).Id;
 
             if (spec.Id is { } id)
             {
@@ -238,4 +271,8 @@ public sealed partial class Product : Entity<Guid>
     // ATC: anatomical group letter, two digits, then optionally letter, letter, two digits (e.g. N, N02, N02B, N02BE, N02BE01).
     [GeneratedRegex("^[A-Z](\\d{2}([A-Z]([A-Z](\\d{2})?)?)?)?$", RegexOptions.CultureInvariant)]
     private static partial Regex AtcCodePattern();
+
+    // NHIF list codes are short letter/digit codes (e.g. "PG123"); the exact format is checked against NHIF later.
+    [GeneratedRegex("^[A-Z0-9]{1,20}$", RegexOptions.CultureInvariant)]
+    private static partial Regex NhifCodePattern();
 }

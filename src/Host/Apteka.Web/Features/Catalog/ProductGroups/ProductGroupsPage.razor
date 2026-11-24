@@ -1,0 +1,9 @@
+@page "/catalog/groups"
+@using Apteka.Catalog.Application.ProductGroups
+@using Apteka.Web.Features.Catalog.Common
+@inject ProductGroupsHandler Handler
+
+<ReferenceListEditor Title="Групи стоки"
+                     List="includeInactive => Handler.ListAsync(includeInactive)"
+                     Create="name => Handler.CreateAsync(name)"
+                     Update="(id, name, isActive) => Handler.UpdateAsync(id, name, isActive)" />

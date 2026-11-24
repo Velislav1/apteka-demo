@@ -1,0 +1,9 @@
+@page "/catalog/manufacturers"
+@using Apteka.Catalog.Application.Manufacturers
+@using Apteka.Web.Features.Catalog.Common
+@inject ManufacturersHandler Handler
+
+<ReferenceListEditor Title="Производители"
+                     List="includeInactive => Handler.ListAsync(includeInactive)"
+                     Create="name => Handler.CreateAsync(name)"
+                     Update="(id, name, isActive) => Handler.UpdateAsync(id, name, isActive)" />

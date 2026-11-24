@@ -6,7 +6,7 @@ public class ProductTests
 {
     private const string ValidEan = "2000000000015"; // check digit 5
 
-    private static readonly ProductDetails Details = new("Парацетамол 500 мг", "N02BE01", "Демо Фарма АД", 20m, IsRx: false, IsActive: true);
+    private static readonly ProductDetails Details = new("Парацетамол 500 мг", "N02BE01", DispensingMode.OverTheCounter, 20m, IsActive: true);
 
     private static List<UnitSpec> BoxBlisterTablet() =>
     [
@@ -40,14 +40,14 @@ public class ProductTests
     public void Input_is_trimmed_and_ATC_code_is_upper_cased()
     {
         var result = Product.Create(
-            Details with { Name = "  Аспирин  ", AtcCode = " b01ac06 ", Manufacturer = "  " },
+            Details with { Name = "  Аспирин  ", AtcCode = " b01ac06 ", NhifCode = " pg123 " },
             [new UnitSpec(null, " брой ", 1)],
             []);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("Аспирин", result.Value.Name);
         Assert.Equal("B01AC06", result.Value.AtcCode);
-        Assert.Null(result.Value.Manufacturer);
+        Assert.Equal("PG123", result.Value.NhifCode);
         Assert.Equal("брой", result.Value.BaseUnit.Name);
     }
 
@@ -219,5 +219,73 @@ public class ProductTests
         Assert.Equal("Парацетамол 500 мг", product.Name);
         Assert.Contains(product.Units, u => u.Name == "кутия");
         Assert.Single(product.Barcodes);
+    }
+
+    [Theory]
+    [InlineData(DispensingMode.OverTheCounter, false)]
+    [InlineData(DispensingMode.Prescription, true)]
+    [InlineData(DispensingMode.Narcotic, true)]
+    public void Prescription_and_narcotic_products_need_a_prescription(DispensingMode mode, bool isRx)
+    {
+        var product = Product.Create(Details with { DispensingMode = mode }, BoxBlisterTablet(), []).Value;
+
+        Assert.Equal(mode, product.DispensingMode);
+        Assert.Equal(isRx, product.IsRx);
+    }
+
+    [Fact]
+    public void Unknown_dispensing_mode_is_rejected()
+    {
+        var result = Product.Create(Details with { DispensingMode = (DispensingMode)9 }, BoxBlisterTablet(), []);
+
+        Assert.Equal(CatalogErrors.InvalidDispensingMode, result.Error);
+    }
+
+    [Theory]
+    [InlineData("PG-123")]
+    [InlineData("ПГ123")]
+    [InlineData("ABCDEFGHIJKLMNOPQRSTU")]
+    public void Malformed_NHIF_code_is_rejected(string code)
+    {
+        Assert.Equal(CatalogErrors.InvalidNhifCode, Product.Create(Details with { NhifCode = code }, BoxBlisterTablet(), []).Error);
+    }
+
+    [Fact]
+    public void Default_sale_unit_points_to_one_of_the_units()
+    {
+        var product = Product.Create(Details with { DefaultSaleUnitName = "Блистер" }, BoxBlisterTablet(), []).Value;
+
+        Assert.Equal(product.Units.Single(u => u.Name == "блистер").Id, product.DefaultSaleUnitId);
+    }
+
+    [Fact]
+    public void Default_sale_unit_that_is_not_a_unit_is_rejected()
+    {
+        var result = Product.Create(Details with { DefaultSaleUnitName = "флакон" }, BoxBlisterTablet(), []);
+
+        Assert.Equal(CatalogErrors.DefaultSaleUnitMissing, result.Error);
+    }
+
+    [Fact]
+    public void Default_sale_unit_can_be_a_unit_added_in_the_same_update()
+    {
+        var product = CreateValid();
+        var units = product.Units.Select(u => new UnitSpec(u.Id, u.Name, u.Factor)).Append(new UnitSpec(null, "стек", 300)).ToList();
+
+        Assert.True(product.Update(Details with { DefaultSaleUnitName = "стек" }, units, []).IsSuccess);
+        Assert.Equal(product.Units.Single(u => u.Name == "стек").Id, product.DefaultSaleUnitId);
+    }
+
+    [Fact]
+    public void Product_keeps_the_chosen_manufacturer_group_and_shelf()
+    {
+        var (manufacturer, group, shelf) = (Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7());
+
+        var product = Product.Create(
+            Details with { ManufacturerId = manufacturer, ProductGroupId = group, ShelfId = shelf },
+            BoxBlisterTablet(),
+            []).Value;
+
+        Assert.Equal((manufacturer, group, shelf), (product.ManufacturerId!.Value, product.ProductGroupId!.Value, product.ShelfId!.Value));
     }
 }

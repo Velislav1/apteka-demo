@@ -1,6 +1,7 @@
 using Apteka.Catalog.Application.Products;
+using Apteka.Catalog.Domain.Products;
 
-namespace Apteka.Web.Features.Catalog;
+namespace Apteka.Web.Features.Catalog.Products;
 
 /// <summary>Editable state of the product form; converted to <see cref="ProductInput"/> on save.</summary>
 public sealed class ProductFormModel
@@ -9,14 +10,24 @@ public sealed class ProductFormModel
 
     public string? AtcCode { get; set; }
 
-    public string? Manufacturer { get; set; }
+    public DispensingMode DispensingMode { get; set; } = DispensingMode.OverTheCounter;
 
     /// <summary>Whole percent (0, 9, 20): an int so that the select matches 20.00 from the database.</summary>
     public int VatRate { get; set; } = 20;
 
-    public bool IsRx { get; set; }
-
     public bool IsActive { get; set; } = true;
+
+    public string? NhifCode { get; set; }
+
+    /// <summary>Selected ids as text: "" means none (select elements bind strings reliably).</summary>
+    public string ManufacturerId { get; set; } = string.Empty;
+
+    public string ProductGroupId { get; set; } = string.Empty;
+
+    public string ShelfId { get; set; } = string.Empty;
+
+    /// <summary>"" means the largest unit.</summary>
+    public string DefaultSaleUnitName { get; set; } = string.Empty;
 
     public List<UnitRow> Units { get; } = [];
 
@@ -35,10 +46,14 @@ public sealed class ProductFormModel
         {
             Name = view.Name,
             AtcCode = view.AtcCode,
-            Manufacturer = view.Manufacturer,
+            DispensingMode = view.DispensingMode,
             VatRate = (int)view.VatRate,
-            IsRx = view.IsRx,
             IsActive = view.IsActive,
+            NhifCode = view.NhifCode,
+            ManufacturerId = view.ManufacturerId?.ToString() ?? string.Empty,
+            ProductGroupId = view.ProductGroupId?.ToString() ?? string.Empty,
+            ShelfId = view.ShelfId?.ToString() ?? string.Empty,
+            DefaultSaleUnitName = view.DefaultSaleUnitName ?? string.Empty,
         };
 
         model.Units.AddRange(view.Units.Select(u => new UnitRow { Id = u.Id, Name = u.Name, Factor = u.Factor }));
@@ -49,12 +64,18 @@ public sealed class ProductFormModel
     public ProductInput ToInput() => new(
         Name,
         AtcCode,
-        Manufacturer,
+        DispensingMode,
         VatRate,
-        IsRx,
         IsActive,
         Units.Select(u => new UnitInput(u.Id, u.Name, u.Factor)).ToList(),
-        Barcodes.Select(b => new BarcodeInput(b.Id, b.Code, b.UnitName)).ToList());
+        Barcodes.Select(b => new BarcodeInput(b.Id, b.Code, b.UnitName)).ToList(),
+        NhifCode,
+        ParseId(ManufacturerId),
+        ParseId(ProductGroupId),
+        ParseId(ShelfId),
+        string.IsNullOrEmpty(DefaultSaleUnitName) ? null : DefaultSaleUnitName);
+
+    private static Guid? ParseId(string value) => Guid.TryParse(value, out var id) ? id : null;
 
     public sealed class UnitRow
     {

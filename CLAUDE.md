@@ -102,7 +102,8 @@ apteka-demo/
 
 ## Модел на данните (демо)
 
-- `Product` — Id, Name, AtcCode?, Manufacturer?, VatRate, IsRx (по лекарско предписание), IsActive
+- `Product` — Id, Name, AtcCode?, DispensingMode (OverTheCounter / Prescription / Narcotic), VatRate, IsActive, NhifCode?, ManufacturerId?, ProductGroupId?, ShelfId?, DefaultSaleUnitId?
+- `Manufacturer`, `ProductGroup`, `Shelf` — Id, Name (уникално), IsActive; не се трият, а се деактивират
 - `ProductUnit` — Id, ProductId, Name, Factor (int ≥ 1); точно една мярка с Factor = 1 на стока
 - `Barcode` — Id, ProductId, ProductUnitId, Code (уникален)
 - `Supplier` — Id, Name, Eik, PaymentTermDays
@@ -141,3 +142,4 @@ apteka-demo/
 - Не добавяй функционалност извън демото (виж „Какво правим“). Идеи за по-късно — в `docs/BACKLOG.md`.
 - README.md на български: изисквания, как се пуска, как се тества, тестови потребители (от seed).
 - В нова сесия (напр. на друг компютър) първо прочети `docs/NEXT-STEPS.md` и `docs/PROJECT-CONTEXT.md`: там е къде сме спрели и какво е решено.
+- Старата програма „Аптека Експерт 2“ е описана в `docs/legacy/apteka-expert-2-analysis.md`; при нов модул сравни с нея.

@@ -1,4 +1,7 @@
+using Apteka.Catalog.Domain.Manufacturers;
+using Apteka.Catalog.Domain.ProductGroups;
 using Apteka.Catalog.Domain.Products;
+using Apteka.Catalog.Domain.Shelves;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -13,8 +16,10 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.Id).ValueGeneratedNever();
         builder.Property(p => p.Name).HasMaxLength(CatalogErrors.MaxNameLength).IsRequired();
         builder.Property(p => p.AtcCode).HasMaxLength(7);
-        builder.Property(p => p.Manufacturer).HasMaxLength(CatalogErrors.MaxNameLength);
+        builder.Property(p => p.DispensingMode).HasConversion<string>().HasMaxLength(20);
+        builder.Property(p => p.NhifCode).HasMaxLength(20);
         builder.Property(p => p.VatRate).HasPrecision(5, 2);
+        builder.Ignore(p => p.IsRx);
         builder.Ignore(p => p.BaseUnit);
         builder.Ignore(p => p.DomainEvents);
 
@@ -23,7 +28,15 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Navigation(p => p.Units).UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.Navigation(p => p.Barcodes).UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        builder.HasOne<Manufacturer>().WithMany().HasForeignKey(p => p.ManufacturerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ProductGroup>().WithMany().HasForeignKey(p => p.ProductGroupId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Shelf>().WithMany().HasForeignKey(p => p.ShelfId).OnDelete(DeleteBehavior.Restrict);
+
+        // No foreign key for DefaultSaleUnitId: product → unit → product would be a cycle on insert.
+        // The aggregate guarantees the unit is one of the product's own units.
+
         builder.HasIndex(p => p.Name);
+        builder.HasIndex(p => p.NhifCode);
     }
 }
 

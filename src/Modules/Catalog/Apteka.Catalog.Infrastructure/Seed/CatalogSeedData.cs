@@ -8,7 +8,26 @@ namespace Apteka.Catalog.Infrastructure.Seed;
 /// </summary>
 internal static class CatalogSeedData
 {
-    private static readonly string[] Manufacturers = ["Демо Фарма АД", "Балкан Лек ЕООД", "Примерфарм АД", "Тестова Лаборатория ООД"];
+    public static readonly string[] Manufacturers = ["Демо Фарма АД", "Балкан Лек ЕООД", "Примерфарм АД", "Тестова Лаборатория ООД"];
+
+    public static readonly string[] Shelves = ["Рафт A", "Рафт B", "Рафт C", "Хладилник", "Сейф"];
+
+    /// <summary>Groups by the first letter of the ATC code (anatomical main group).</summary>
+    public static readonly IReadOnlyDictionary<char, string> GroupsByAtc = new Dictionary<char, string>
+    {
+        ['A'] = "Храносмилателна система и метаболизъм",
+        ['B'] = "Кръв и кръвотворни органи",
+        ['C'] = "Сърдечно-съдова система",
+        ['H'] = "Хормони",
+        ['J'] = "Антиинфекциозни средства",
+        ['M'] = "Мускулно-скелетна система",
+        ['N'] = "Нервна система",
+        ['R'] = "Дихателна система",
+    };
+
+    public const string OtherGroup = "Други";
+
+    public static IEnumerable<string> Groups => GroupsByAtc.Values.Append(OtherGroup);
 
     // (name, ATC, Rx, pack form)
     private static readonly (string Name, string? Atc, bool IsRx, Pack Pack)[] Items =
@@ -39,7 +58,7 @@ internal static class CatalogSeedData
         ("Лизиноприл 10 мг таблетки", "C09AA03", true, Pack.Tablets(28, 14)),
         ("Периндоприл 5 мг таблетки", "C09AA04", true, Pack.Tablets(30, 10)),
         ("Лозартан 50 мг таблетки", "C09CA01", true, Pack.Tablets(28, 14)),
-        ("Валсартан 80 мг таблетки", "C09CA03", true, Pack.Tablets(28, 14)),
+        ("Морфин 10 мг/мл инжекционен разтвор", "N02AA01", true, Pack.Ampoules(10)),
         ("Хидрохлоротиазид 25 мг таблетки", "C03AA03", true, Pack.Tablets(20, 10)),
         ("Фуроземид 40 мг таблетки", "C03CA01", true, Pack.Tablets(20, 10)),
         ("Клопидогрел 75 мг таблетки", "B01AC04", true, Pack.Tablets(28, 14)),
@@ -65,23 +84,54 @@ internal static class CatalogSeedData
         ("Слънцезащитен крем SPF 50", null, false, Pack.Single("брой")),
     ];
 
-    public static IEnumerable<(ProductDetails Details, List<UnitSpec> Units, List<BarcodeSpec> Barcodes)> Products()
+    /// <summary>The demo products; reference lists are given by name and resolved to ids by the seeder.</summary>
+    public static IEnumerable<SeedProduct> Products()
     {
         for (var i = 0; i < Items.Length; i++)
         {
             var (name, atc, isRx, pack) = Items[i];
-            var details = new ProductDetails(
+            var mode = name.StartsWith("Морфин", StringComparison.Ordinal) ? DispensingMode.Narcotic
+                : isRx ? DispensingMode.Prescription
+                : DispensingMode.OverTheCounter;
+            var shelf = mode == DispensingMode.Narcotic ? "Сейф" : Shelves[i % 3];
+            var group = atc is null ? OtherGroup : GroupsByAtc.GetValueOrDefault(atc[0], OtherGroup);
+            var saleUnit = pack.Units[0].Name;
+
+            yield return new SeedProduct(
                 name,
                 atc,
+                mode,
                 Manufacturers[i % Manufacturers.Length],
-                VatRates.Standard,
-                isRx,
-                IsActive: true);
-
-            var barcode = new BarcodeSpec(null, Ean13(i + 1), pack.Units[0].Name);
-
-            yield return (details, pack.Units, [barcode]);
+                group,
+                shelf,
+                saleUnit,
+                pack.Units,
+                [new BarcodeSpec(null, Ean13(i + 1), saleUnit)]);
         }
+    }
+
+    internal sealed record SeedProduct(
+        string Name,
+        string? AtcCode,
+        DispensingMode DispensingMode,
+        string Manufacturer,
+        string Group,
+        string Shelf,
+        string DefaultSaleUnit,
+        List<UnitSpec> Units,
+        List<BarcodeSpec> Barcodes)
+    {
+        public ProductDetails ToDetails(Guid? manufacturerId, Guid? groupId, Guid? shelfId) => new(
+            Name,
+            AtcCode,
+            DispensingMode,
+            VatRates.Standard,
+            IsActive: true,
+            NhifCode: null,
+            manufacturerId,
+            groupId,
+            shelfId,
+            DefaultSaleUnit);
     }
 
     /// <summary>EAN-13 starting with 200 (in-store range) and a valid check digit.</summary>

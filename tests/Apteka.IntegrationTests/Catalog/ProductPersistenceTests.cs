@@ -1,3 +1,4 @@
+using Apteka.Catalog.Application.Manufacturers;
 using Apteka.Catalog.Application.Products;
 using Apteka.Catalog.Contracts;
 using Apteka.Catalog.Domain.Products;
@@ -48,19 +49,27 @@ public class ProductPersistenceTests(PostgresFixture postgres)
         await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);
         var id = await CreateAsync(provider, CatalogInputs.UniqueName("Редакция"), TestBarcodes.Next());
         var extraBarcode = TestBarcodes.Next();
+        Guid manufacturer;
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            manufacturer = (await scope.ServiceProvider.GetRequiredService<ManufacturersHandler>()
+                .CreateAsync(CatalogInputs.UniqueName("Друг производител"), Ct)).Value;
+        }
 
         await using (var scope = provider.CreateAsyncScope())
         {
             var view = (await scope.ServiceProvider.GetRequiredService<GetProductHandler>().HandleAsync(id, Ct))!;
-            var input = new ProductInput(
-                view.Name,
-                view.AtcCode,
-                "Друг производител",
-                9m,
-                view.IsRx,
-                IsActive: false,
-                [.. view.Units.Select(u => new UnitInput(u.Id, u.Name == "кутия" ? "опаковка" : u.Name, u.Factor)), new UnitInput(null, "стек", 200)],
-                [.. view.Barcodes.Select(b => new BarcodeInput(b.Id, b.Code, b.UnitName == "кутия" ? "опаковка" : b.UnitName)), new BarcodeInput(null, extraBarcode, "стек")]);
+            var input = CatalogInputs.FromView(view) with
+            {
+                ManufacturerId = manufacturer,
+                VatRate = 9m,
+                IsActive = false,
+                DispensingMode = DispensingMode.Narcotic,
+                NhifCode = "pg123",
+                DefaultSaleUnitName = "стек",
+                Units = [.. view.Units.Select(u => new UnitInput(u.Id, u.Name == "кутия" ? "опаковка" : u.Name, u.Factor)), new UnitInput(null, "стек", 200)],
+                Barcodes = [.. view.Barcodes.Select(b => new BarcodeInput(b.Id, b.Code, b.UnitName == "кутия" ? "опаковка" : b.UnitName)), new BarcodeInput(null, extraBarcode, "стек")],
+            };
 
             var updated = await scope.ServiceProvider.GetRequiredService<UpdateProductHandler>().HandleAsync(id, input, Ct);
             Assert.True(updated.IsSuccess, updated.IsFailure ? updated.Error.Message : null);
@@ -70,7 +79,10 @@ public class ProductPersistenceTests(PostgresFixture postgres)
         {
             var view = (await scope.ServiceProvider.GetRequiredService<GetProductHandler>().HandleAsync(id, Ct))!;
 
-            Assert.Equal("Друг производител", view.Manufacturer);
+            Assert.Equal(manufacturer, view.ManufacturerId);
+            Assert.Equal(DispensingMode.Narcotic, view.DispensingMode);
+            Assert.Equal("PG123", view.NhifCode);
+            Assert.Equal("стек", view.DefaultSaleUnitName);
             Assert.Equal(9m, view.VatRate);
             Assert.False(view.IsActive);
             Assert.Equal(["стек", "опаковка", "блистер", "таблетка"], view.Units.Select(u => u.Name));
@@ -103,10 +115,7 @@ public class ProductPersistenceTests(PostgresFixture postgres)
         await using var scopeA = provider.CreateAsyncScope();
         var repositoryA = scopeA.ServiceProvider.GetRequiredService<IProductRepository>();
         var input = CatalogInputs.Tablets(CatalogInputs.UniqueName("Състезание A"), barcode);
-        var productA = Product.Create(
-            new ProductDetails(input.Name, input.AtcCode, input.Manufacturer, input.VatRate, input.IsRx, input.IsActive),
-            [.. input.Units.Select(u => new UnitSpec(u.Id, u.Name, u.Factor))],
-            [.. input.Barcodes.Select(b => new BarcodeSpec(b.Id, b.Code, b.UnitName))]).Value;
+        var productA = CatalogInputs.ToProduct(input);
         Assert.Empty(await repositoryA.FindTakenBarcodesAsync([barcode], productA.Id, Ct));
         repositoryA.Add(productA);
 

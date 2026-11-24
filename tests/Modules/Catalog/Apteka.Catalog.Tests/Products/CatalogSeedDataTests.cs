@@ -9,7 +9,7 @@ public class CatalogSeedDataTests
     public void Seed_has_50_valid_products_with_unique_in_store_barcodes()
     {
         var products = CatalogSeedData.Products()
-            .Select(p => Product.Create(p.Details, p.Units, p.Barcodes))
+            .Select(p => Product.Create(p.ToDetails(null, null, null), p.Units, p.Barcodes))
             .ToList();
 
         Assert.Equal(50, products.Count);
@@ -19,5 +19,19 @@ public class CatalogSeedDataTests
         Assert.Equal(codes.Count, codes.Distinct().Count());
         Assert.All(codes, c => Assert.StartsWith("200", c, StringComparison.Ordinal));
         Assert.Equal(50, products.Select(p => p.Value.Name).Distinct().Count());
+    }
+
+    [Fact]
+    public void Seed_products_use_only_seed_lists_and_narcotics_are_kept_in_the_safe()
+    {
+        var products = CatalogSeedData.Products().ToList();
+
+        Assert.All(products, p => Assert.Contains(p.Manufacturer, CatalogSeedData.Manufacturers));
+        Assert.All(products, p => Assert.Contains(p.Group, CatalogSeedData.Groups));
+        Assert.All(products, p => Assert.Contains(p.Shelf, CatalogSeedData.Shelves));
+
+        var narcotic = Assert.Single(products, p => p.DispensingMode == DispensingMode.Narcotic);
+        Assert.Equal("Сейф", narcotic.Shelf);
+        Assert.Contains(products, p => p.DispensingMode == DispensingMode.OverTheCounter);
     }
 }

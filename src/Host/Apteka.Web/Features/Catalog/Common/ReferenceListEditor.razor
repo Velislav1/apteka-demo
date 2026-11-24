@@ -1,0 +1,118 @@
+@using Apteka.Catalog.Application.Common
+@using Apteka.SharedKernel
+
+@* Shared editor for the simple catalog lists (manufacturers, groups, shelves). *@
+
+<PageTitle>@Title</PageTitle>
+
+<h1>@Title</h1>
+
+<div class="toolbar">
+  <input placeholder="Ново име" aria-label="Ново име" maxlength="200" @bind="_newName" @bind:event="oninput" @onkeydown="OnNewKeyDown" />
+  <button @onclick="Add">Добави</button>
+  <label><input type="checkbox" @bind="_showInactive" @bind:after="Load" /> покажи неактивните</label>
+</div>
+
+@if (_error is not null)
+{
+  <p class="alert error" role="alert">@_error</p>
+}
+
+@if (_rows is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_rows.Count == 0)
+{
+  <p class="muted">Няма записи.</p>
+}
+else
+{
+  <table class="grid">
+    <thead><tr><th>Име</th><th>Активен</th><th></th></tr></thead>
+    <tbody>
+      @foreach (var row in _rows)
+      {
+        <tr class="@(row.IsActive ? null : "inactive")">
+          <td><input @bind="row.Name" @bind:event="oninput" maxlength="200" aria-label="Име" /></td>
+          <td><input type="checkbox" @bind="row.IsActive" aria-label="Активен" /></td>
+          <td>
+            @if (row.IsChanged)
+            {
+              <button @onclick="() => Save(row)">Запиши</button>
+            }
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
+
+@code {
+  [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+  [Parameter, EditorRequired] public Func<bool, Task<IReadOnlyList<ReferenceItemView>>> List { get; set; } = default!;
+
+  [Parameter, EditorRequired] public Func<string, Task<Result<Guid>>> Create { get; set; } = default!;
+
+  [Parameter, EditorRequired] public Func<Guid, string, bool, Task<Result>> Update { get; set; } = default!;
+
+  private List<Row>? _rows;
+  private string _newName = string.Empty;
+  private bool _showInactive;
+  private string? _error;
+
+  protected override Task OnInitializedAsync() => Load();
+
+  private async Task Load()
+  {
+    var items = await List(_showInactive);
+    _rows = items.Select(i => new Row(i)).ToList();
+  }
+
+  private async Task Add()
+  {
+    _error = null;
+    var result = await Create(_newName);
+    if (result.IsFailure)
+    {
+      _error = result.Error.Message;
+      return;
+    }
+
+    _newName = string.Empty;
+    await Load();
+  }
+
+  private async Task OnNewKeyDown(KeyboardEventArgs e)
+  {
+    if (e.Key == "Enter")
+    {
+      await Add();
+    }
+  }
+
+  private async Task Save(Row row)
+  {
+    _error = null;
+    var result = await Update(row.Id, row.Name, row.IsActive);
+    if (result.IsFailure)
+    {
+      _error = result.Error.Message;
+      return;
+    }
+
+    await Load();
+  }
+
+  private sealed class Row(ReferenceItemView item)
+  {
+    public Guid Id { get; } = item.Id;
+
+    public string Name { get; set; } = item.Name;
+
+    public bool IsActive { get; set; } = item.IsActive;
+
+    public bool IsChanged => Name != item.Name || IsActive != item.IsActive;
+  }
+}

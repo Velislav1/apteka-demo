@@ -1,3 +1,5 @@
+using Apteka.Catalog.Domain.Products;
+
 namespace Apteka.Catalog.Application.Products;
 
 /// <summary>Read side for the screens. Implemented in Infrastructure with projections (no tracking).</summary>
@@ -16,8 +18,9 @@ public sealed record ProductListItem(
     Guid Id,
     string Name,
     string? Manufacturer,
+    string? ProductGroup,
     decimal VatRate,
-    bool IsRx,
+    DispensingMode DispensingMode,
     bool IsActive,
     string BaseUnitName,
     IReadOnlyList<string> Barcodes);
@@ -26,10 +29,14 @@ public sealed record ProductView(
     Guid Id,
     string Name,
     string? AtcCode,
-    string? Manufacturer,
+    DispensingMode DispensingMode,
     decimal VatRate,
-    bool IsRx,
     bool IsActive,
+    string? NhifCode,
+    Guid? ManufacturerId,
+    Guid? ProductGroupId,
+    Guid? ShelfId,
+    string? DefaultSaleUnitName,
     IReadOnlyList<ProductUnitView> Units,
     IReadOnlyList<BarcodeView> Barcodes);
 

@@ -23,9 +23,10 @@ internal sealed class ProductQueries(CatalogDbContext context) : IProductQueries
             .Select(p => new ProductListItem(
                 p.Id,
                 p.Name,
-                p.Manufacturer,
+                context.Manufacturers.Where(m => m.Id == p.ManufacturerId).Select(m => m.Name).FirstOrDefault(),
+                context.ProductGroups.Where(g => g.Id == p.ProductGroupId).Select(g => g.Name).FirstOrDefault(),
                 p.VatRate,
-                p.IsRx,
+                p.DispensingMode,
                 p.IsActive,
                 p.Units.Where(u => u.Factor == 1).Select(u => u.Name).FirstOrDefault() ?? string.Empty,
                 p.Barcodes.OrderBy(b => b.Code).Select(b => b.Code).ToList()))
@@ -53,10 +54,14 @@ internal sealed class ProductQueries(CatalogDbContext context) : IProductQueries
             product.Id,
             product.Name,
             product.AtcCode,
-            product.Manufacturer,
+            product.DispensingMode,
             product.VatRate,
-            product.IsRx,
             product.IsActive,
+            product.NhifCode,
+            product.ManufacturerId,
+            product.ProductGroupId,
+            product.ShelfId,
+            product.DefaultSaleUnitId is { } unitId ? unitNames[unitId] : null,
             units.Select(u => new ProductUnitView(u.Id, u.Name, u.Factor)).ToList(),
             product.Barcodes
                 .OrderBy(b => b.Code)

@@ -1,0 +1,9 @@
+@page "/catalog/shelves"
+@using Apteka.Catalog.Application.Shelves
+@using Apteka.Web.Features.Catalog.Common
+@inject ShelvesHandler Handler
+
+<ReferenceListEditor Title="Рафтове"
+                     List="includeInactive => Handler.ListAsync(includeInactive)"
+                     Create="name => Handler.CreateAsync(name)"
+                     Update="(id, name, isActive) => Handler.UpdateAsync(id, name, isActive)" />

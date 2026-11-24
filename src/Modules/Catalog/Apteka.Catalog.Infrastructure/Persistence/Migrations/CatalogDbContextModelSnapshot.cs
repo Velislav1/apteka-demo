@@ -23,6 +23,58 @@ namespace Apteka.Catalog.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Apteka.Catalog.Domain.Manufacturers.Manufacturer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_manufacturers");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ux_manufacturers_name");
+
+                    b.ToTable("manufacturers", "catalog");
+                });
+
+            modelBuilder.Entity("Apteka.Catalog.Domain.ProductGroups.ProductGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_product_groups");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ux_product_groups_name");
+
+                    b.ToTable("product_groups", "catalog");
+                });
+
             modelBuilder.Entity("Apteka.Catalog.Domain.Products.Barcode", b =>
                 {
                     b.Property<Guid>("Id")
@@ -70,24 +122,42 @@ namespace Apteka.Catalog.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(7)")
                         .HasColumnName("atc_code");
 
+                    b.Property<Guid?>("DefaultSaleUnitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("default_sale_unit_id");
+
+                    b.Property<string>("DispensingMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("dispensing_mode");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
-                    b.Property<bool>("IsRx")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_rx");
-
-                    b.Property<string>("Manufacturer")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("manufacturer");
+                    b.Property<Guid?>("ManufacturerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("manufacturer_id");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
+
+                    b.Property<string>("NhifCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("nhif_code");
+
+                    b.Property<Guid?>("ProductGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_group_id");
+
+                    b.Property<Guid?>("ShelfId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shelf_id");
 
                     b.Property<decimal>("VatRate")
                         .HasPrecision(5, 2)
@@ -97,8 +167,20 @@ namespace Apteka.Catalog.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_products");
 
+                    b.HasIndex("ManufacturerId")
+                        .HasDatabaseName("ix_products_manufacturer_id");
+
                     b.HasIndex("Name")
                         .HasDatabaseName("ix_products_name");
+
+                    b.HasIndex("NhifCode")
+                        .HasDatabaseName("ix_products_nhif_code");
+
+                    b.HasIndex("ProductGroupId")
+                        .HasDatabaseName("ix_products_product_group_id");
+
+                    b.HasIndex("ShelfId")
+                        .HasDatabaseName("ix_products_shelf_id");
 
                     b.ToTable("products", "catalog");
                 });
@@ -141,6 +223,32 @@ namespace Apteka.Catalog.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Apteka.Catalog.Domain.Shelves.Shelf", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_shelves");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ux_shelves_name");
+
+                    b.ToTable("shelves", "catalog");
+                });
+
             modelBuilder.Entity("Apteka.Catalog.Domain.Products.Barcode", b =>
                 {
                     b.HasOne("Apteka.Catalog.Domain.Products.Product", null)
@@ -156,6 +264,27 @@ namespace Apteka.Catalog.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_barcodes_product_units_product_unit_id");
+                });
+
+            modelBuilder.Entity("Apteka.Catalog.Domain.Products.Product", b =>
+                {
+                    b.HasOne("Apteka.Catalog.Domain.Manufacturers.Manufacturer", null)
+                        .WithMany()
+                        .HasForeignKey("ManufacturerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_products_manufacturers_manufacturer_id");
+
+                    b.HasOne("Apteka.Catalog.Domain.ProductGroups.ProductGroup", null)
+                        .WithMany()
+                        .HasForeignKey("ProductGroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_products_product_groups_product_group_id");
+
+                    b.HasOne("Apteka.Catalog.Domain.Shelves.Shelf", null)
+                        .WithMany()
+                        .HasForeignKey("ShelfId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_products_shelves_shelf_id");
                 });
 
             modelBuilder.Entity("Apteka.Catalog.Domain.Products.ProductUnit", b =>

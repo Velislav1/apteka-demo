@@ -52,3 +52,5 @@ legend { font-weight: 600; padding: 0 0.3rem; }
 .muted { color: #7b8794; }
 .tag { margin-left: 0.4rem; font-size: 0.8rem; padding: 0.05rem 0.4rem; border-radius: 3px; background: #fde68a; }
 .form-grid input[type=checkbox] { justify-self: start; }
+.tag.narcotic { background: #fecaca; }
+.top-bar nav { display: flex; gap: 1.25rem; flex-wrap: wrap; }
