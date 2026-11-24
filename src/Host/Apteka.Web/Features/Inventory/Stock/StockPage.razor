@@ -7,6 +7,8 @@
 @inject ICatalogLookup Catalog
 @inject TimeProvider Clock
 
+@implements IDisposable
+
 <PageTitle>Стокова наличност</PageTitle>
 
 <h1>Стокова наличност</h1>
@@ -110,6 +112,10 @@ else
 }
 
 @code {
+  private readonly OneAtATime _loads = new();
+
+  private Task Load() => _loads.RunAsync(LoadNow);
+
   private const int ExpiringDays = 90;
   private const int MaxProducts = 200;
 
@@ -139,7 +145,7 @@ else
     await Load();
   }
 
-  private async Task Load()
+  private async Task LoadNow()
   {
     IReadOnlyCollection<Guid>? productIds = null;
     if (_query.Trim().Length > 0)
@@ -206,4 +212,6 @@ else
 
     public IReadOnlyList<BatchStock>? Batches { get; set; }
   }
+
+  public void Dispose() => _loads.Dispose();
 }

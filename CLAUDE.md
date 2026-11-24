@@ -102,7 +102,7 @@ apteka-demo/
 
 ## Модел на данните (демо)
 
-- `Product` — Id, Code (вътрешен код от sequence `catalog.product_codes`, уникален), Name, LatinName?, GenericName?, AtcCode?, DispensingMode (OverTheCounter / Prescription / Narcotic), VatRate, IsActive, NhifCode?, ManufacturerId?, ProductGroupId?, ShelfId?, DefaultSaleUnitId?, MarkupPercent?, MinStock?, MaxStock? (в най-малка мярка)
+- `Product` — Id, Code (вътрешен код от sequence `catalog.product_codes`, уникален), Name, LatinName?, GenericName?, ActiveSubstance?, AtcCode?, DispensingMode (OverTheCounter / Prescription / Narcotic), VatRate, IsActive, NhifCode?, ManufacturerId?, ProductGroupId?, ShelfId?, DefaultSaleUnitId?, MarkupPercent?, MinStock?, MaxStock? (в най-малка мярка)
 - `Manufacturer`, `ProductGroup`, `Shelf` — Id, Name (уникално), IsActive; не се трият, а се деактивират; `ProductGroup` има и MarkupPercent?
 - Надценка по подразбиране при доставка: на стоката, иначе на групата, иначе 25 %
 - `ProductUnit` — Id, ProductId, Name, Factor (int ≥ 1); точно една мярка с Factor = 1 на стока
@@ -112,6 +112,9 @@ apteka-demo/
 - `DeliveryLine` — Id, DeliveryId, Position, ProductId, ProductUnitId, UnitFactor, Quantity (в тази мярка), UnitPurchasePrice (Цена ТЕ, без ДДС), SupplierDiscountPercent (Отстъпка ТЕ %; покупна цена = цена ТЕ × (1 − отстъпка), до 4 знака — тя влиза в сумата, партидата и надценката), MarkupPercent?, SalePrice (с ДДС), BatchNo, ExpiryDate, IsRemoved (премахнат ред от чернова)
 - `Batch` — Id, ProductId, BatchNo, ExpiryDate, PurchasePrice (за най-малка мярка, без ДДС), SalePrice (за най-малка мярка, с ДДС), PricedUnitFactor + PricedUnitSalePrice (точната цена на мярката, в която е въведена), StockType, SourceDocumentType/Id, SourceLineId (уникален)
 - `StockMovement` — Id, BatchId, QuantityDelta (int, в най-малка мярка), Kind (Delivery/Sale/Reversal/WriteOff/Correction), DocumentType, DocumentId, UserId, CreatedAt
+- `WriteOff` + `WriteOffLine` — бракуване: Number (sequence `inventory.write_off_numbers`), Reason?, UserId, CreatedAt; редове с ProductName, UnitName, UnitFactor, Quantity, BatchId, BatchNo, ExpiryDate, PurchasePrice (за най-малка мярка). Само за добавяне (тригер); движение WriteOff от избраната партида (и изтекла)
+- `DeliveryCorrection` + `DeliveryCorrectionLine` — корекционна складова разписка към приключена доставка: Number (sequence `purchasing.delivery_correction_numbers`), DeliveryId, NoteNo?, NoteDate, Reason?; редове DeliveryLineId, QuantityDelta (±, в мярката на реда), UnitPurchasePrice (нетна). Само за добавяне; движение Correction върху партидата на реда
+- `Stocktaking` + `StocktakingLine` — инвентаризация (всички / група / рафт): Number, Scope, Status (Open/Closed), StartedAt/By, ClosedAt/By; редове по партида с ExpectedQuantity, CountedQuantity?, Difference?. Най-много една отворена; докато е отворена, стоките ѝ не се продават, заприхождават, коригират и бракуват; приключването прави движения Correction; приключената не се променя (тригер)
 - `Sale` — Id, Number (от sequence), SaleType, UserId, CreatedAt, Total, VatTotal, PaymentMethod (Cash/Card), CashReceived?, Status (Completed/Reversed)
 - `SaleLine` — Id, SaleId, Position, ProductId, ProductName, ProductUnitId, UnitName, UnitFactor, Quantity, UnitPrice (с ДДС), DiscountPercent, DiscountAmount, VatRate, LineTotal, VatAmount
 - `SaleLineBatch` — Id, SaleLineId, BatchId, BaseQuantity (от кои партиди е изписан редът; FEFO може да го раздели)
@@ -128,7 +131,8 @@ apteka-demo/
 1. **Вход** — потребител + парола (две роли). Управител: всичко. Фармацевт: без „Потребители“ и без сторно. 5 грешни опита → заключване за 5 минути.
 Подредбата (меню, клавиши, думи) следва Аптека Експерт 2: `docs/legacy/apteka-expert-2-screens.md`.
 
-2. **Номенклатура** — списък, търсене по код/име/баркод, създаване и редакция на стока с мерки и баркодове; F5 нова.
+2. **Номенклатура** — списък (активни / неактивни / всички), търсене по код/име/вещество/баркод; F5 нова, F6 редакция;
+   „Данни за стоката“ в табове: Основни данни · Цени и запаси · Мерки (F11) · Баркодове.
 3. **Складова разписка** (Ctrl+F1) — 1) доставчик, фактура, дни за плащане → „Потвърди“ (чернова); 2) редове един по един
    (стока, мярка F12, количество, цена ТЕ, отстъпка ТЕ, надценка, продажна цена, партида, срок): Enter добавя и записва,
    F6 поправя, F8 трие, Ctrl+Enter два пъти приключва (публикува).
@@ -137,7 +141,12 @@ apteka-demo/
    F4 отстъпка на реда; `%10` обща отстъпка за цялата продажба; F12 мярка; F8 изтрий; F10 плащане (Enter в брой, F10 с карта);
    Ctrl+Enter приключи в брой; Esc назад, два пъти отказ. Изцяло без мишка. Rx стоки — с потвърждение на рецептата; упойващи — забранени.
 6. **Директни продажби (за деня)** — списък и сторно на продажба; F5 нова.
-7. **Справки** — картон на стока, стокова наличност, дневен опис (печалба), срок до 90 дни.
+7. **Справки** — картон на стока, стокова наличност (филтър по група), дневен опис (печалба), срок до 90 дни,
+   изтекъл срок към дата, под минимален запас.
+8. **Бракуване на стоки** (Продажби) — стока по код/баркод/име, избор на партида (и изтекла), количество; Ctrl+Enter два пъти.
+9. **Корекционна складова разписка** (Доставки) — към приключена доставка, ± по редовете; Ctrl+Enter два пъти.
+10. **Инвентаризация** (Настройки → Склад) — протокол по партиди, „Намерено“ в кутии + бройки, записва се веднага;
+    Ctrl+Enter два пъти приключва.
 
 ## Тестове (задължителни преди всяко „готово“)
 

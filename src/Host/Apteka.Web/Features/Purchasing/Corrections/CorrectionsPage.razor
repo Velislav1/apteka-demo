@@ -6,6 +6,8 @@
 @inject TimeProvider Clock
 @inject NavigationManager Navigation
 
+@implements IDisposable
+
 <PageTitle>Корекционни складови разписки</PageTitle>
 
 <ListKeys OnAdd="@(() => Navigation.NavigateTo("purchasing/corrections/new"))" />
@@ -47,6 +49,10 @@ else
 }
 
 @code {
+  private readonly OneAtATime _loads = new();
+
+  private Task Load() => _loads.RunAsync(LoadNow);
+
   private DateOnly _from;
   private DateOnly _to;
   private IReadOnlyList<CorrectionListItem>? _items;
@@ -58,5 +64,7 @@ else
     return Load();
   }
 
-  private async Task Load() => _items = await ListCorrections.HandleAsync(_from, _to);
+  private async Task LoadNow() => _items = await ListCorrections.HandleAsync(_from, _to);
+
+  public void Dispose() => _loads.Dispose();
 }

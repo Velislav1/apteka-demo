@@ -9,6 +9,8 @@
 
 @* „Справка за изтекъл срок на годност“ as in Apteka Expert 2: batches with stock whose expiry is on or before a date. *@
 
+@implements IDisposable
+
 <PageTitle>Изтекъл срок на годност</PageTitle>
 
 <h1>Изтекъл срок на годност</h1>
@@ -60,6 +62,10 @@ else
 }
 
 @code {
+  private readonly OneAtATime _loads = new();
+
+  private Task Load() => _loads.RunAsync(LoadNow);
+
   private DateOnly _date;
   private string _groupId = string.Empty;
   private IReadOnlyList<CatalogGroup> _groups = [];
@@ -74,7 +80,7 @@ else
     await Load();
   }
 
-  private async Task Load()
+  private async Task LoadNow()
   {
     IReadOnlyCollection<Guid>? productIds = Guid.TryParse(_groupId, out var groupId)
       ? (await Catalog.ListProductsAsync(groupId, withMinStockOnly: false)).Select(p => p.ProductId).ToList()
@@ -95,4 +101,6 @@ else
 
   private static string UnitName(CatalogProductInfo product, int factor) =>
     product.Units.FirstOrDefault(u => u.Factor == factor)?.Name ?? factor.ToString();
+
+  public void Dispose() => _loads.Dispose();
 }

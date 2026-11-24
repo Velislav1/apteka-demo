@@ -1,4 +1,6 @@
-.counted { width: 7rem; text-align: right; }
+.counted { width: 5.5rem; text-align: right; }
 tr.shortage td { color: var(--danger); }
 tr.surplus td { color: var(--success); }
 .badge { font-size: 0.8rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 999px; background: var(--surface-muted); border: 1px solid var(--border); vertical-align: middle; }
+.count { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.counted.big { width: 5rem; }

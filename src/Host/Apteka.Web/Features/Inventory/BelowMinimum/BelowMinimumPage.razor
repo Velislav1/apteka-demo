@@ -7,6 +7,8 @@
 
 @* Products whose stock fell below the minimum set on the product card („Мин. запас“), with how much to order up to the maximum. *@
 
+@implements IDisposable
+
 <PageTitle>Под минимален запас</PageTitle>
 
 <h1>Под минимален запас</h1>
@@ -53,6 +55,10 @@ else
 }
 
 @code {
+  private readonly OneAtATime _loads = new();
+
+  private Task Load() => _loads.RunAsync(LoadNow);
+
   private string _groupId = string.Empty;
   private IReadOnlyList<CatalogGroup> _groups = [];
   private List<Row>? _rows;
@@ -63,7 +69,7 @@ else
     await Load();
   }
 
-  private async Task Load()
+  private async Task LoadNow()
   {
     var products = await Catalog.ListProductsAsync(Guid.TryParse(_groupId, out var groupId) ? groupId : null, withMinStockOnly: true);
     var stock = (await Stock.GetProductStockAsync([.. products.Select(p => p.ProductId)], null))
@@ -79,4 +85,6 @@ else
   {
     public int ToOrder => Math.Max(0, (Product.MaxStock ?? Product.MinStock ?? 0) - OnHand);
   }
+
+  public void Dispose() => _loads.Dispose();
 }

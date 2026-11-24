@@ -61,7 +61,7 @@ else if (_view is not null)
       <thead>
         <tr>
           <th>№</th><th>Стока</th><th>Партида</th><th>Годна до</th><th>По документи</th>
-          <th class="num">Намерено (в най-малка мярка)</th><th class="num">Разлика</th>
+          <th>Намерено</th><th class="num">Разлика</th>
           @if (!IsOpen)
           {
             <th class="num">Стойност</th>
@@ -79,15 +79,27 @@ else if (_view is not null)
             <td>@line.BatchNo</td>
             <td>@Formats.Date(line.ExpiryDate)</td>
             <td>@Formats.Quantity(line.ExpectedQuantity, units) (@line.ExpectedQuantity)</td>
-            <td class="num">
+            <td>
               @if (IsOpen)
               {
-                <input type="number" min="0" class="counted" aria-label="Намерено @line.ProductName @line.BatchNo"
-                       value="@line.CountedQuantity" @onchange="e => SetCounted(line, e.Value)" />
+                var big = units.Count > 1 ? units.MaxBy(u => u.Factor) : null;
+                var small = units.FirstOrDefault(u => u.Factor == 1);
+                <span class="count">
+                  @if (big is not null)
+                  {
+                    <input type="number" min="0" class="counted big" aria-label="Намерено @big.Name @line.ProductName @line.BatchNo"
+                           value="@(line.CountedQuantity / big.Factor)" @onchange="e => SetCounted(line, e.Value, big.Factor, true)" />
+                    <span>@big.Name +</span>
+                  }
+                  <input type="number" min="0" class="counted" aria-label="Намерено @(small?.Name) @line.ProductName @line.BatchNo"
+                         value="@(big is null ? line.CountedQuantity : line.CountedQuantity % big.Factor)"
+                         @onchange="e => SetCounted(line, e.Value, big?.Factor ?? 1, false)" />
+                  <span>@(small?.Name)</span>
+                </span>
               }
               else
               {
-                @line.CountedQuantity
+                @(line.CountedQuantity is { } counted ? $"{Formats.Quantity(counted, units)} ({counted})" : null)
               }
             </td>
             <td class="num">@difference?.ToString("+0;−0;0")</td>
@@ -136,12 +148,30 @@ else if (_view is not null)
     _notFound = _view is null;
   }
 
-  private async Task SetCounted(StocktakingLineView line, object? value)
+  /// <summary>
+  /// „Намерено“ is typed as boxes + pieces (the largest and the smallest unit); the other part keeps what was there.
+  /// Both empty clears the count.
+  /// </summary>
+  private async Task SetCounted(StocktakingLineView line, object? value, int factor, bool isBig)
   {
     _error = null;
     _confirm = false;
     var text = value?.ToString()?.Trim();
-    int? counted = string.IsNullOrEmpty(text) ? null : int.TryParse(text, out var n) ? n : -1;
+    int? typed = string.IsNullOrEmpty(text) ? null : int.TryParse(text, out var n) ? n : -1;
+    int? big = factor > 1 ? line.CountedQuantity / factor : null;
+    int? rest = factor > 1 ? line.CountedQuantity % factor : line.CountedQuantity;
+    if (isBig)
+    {
+      big = typed;
+    }
+    else
+    {
+      rest = typed;
+    }
+
+    int? counted = big is null && rest is null ? null
+      : big < 0 || rest < 0 ? -1
+      : ((big ?? 0) * factor) + (rest ?? 0);
     var result = await Count.HandleAsync(Id, line.Id, counted);
     if (result.IsFailure)
     {

@@ -7,6 +7,8 @@
 @inject TimeProvider Clock
 @inject NavigationManager Navigation
 
+@implements IDisposable
+
 <PageTitle>Бракуване на стоки</PageTitle>
 
 <ListKeys OnAdd="@(() => Navigation.NavigateTo("inventory/write-offs/new"))" />
@@ -49,6 +51,10 @@ else
 }
 
 @code {
+  private readonly OneAtATime _loads = new();
+
+  private Task Load() => _loads.RunAsync(LoadNow);
+
   private DateOnly _from;
   private DateOnly _to;
   private IReadOnlyList<WriteOffListItem>? _items;
@@ -61,9 +67,11 @@ else
     return Load();
   }
 
-  private async Task Load()
+  private async Task LoadNow()
   {
     _items = await ListWriteOffs.HandleAsync(_from, _to);
     _users = await UserDirectory.GetDisplayNamesAsync([.. _items.Where(i => i.UserId is not null).Select(i => i.UserId!.Value).Distinct()]);
   }
+
+  public void Dispose() => _loads.Dispose();
 }
