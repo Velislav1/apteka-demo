@@ -12,6 +12,7 @@
 @inject AuthenticationStateProvider Authentication
 @inject Apteka.Identity.Contracts.IUserDirectory UserDirectory
 @inject NavigationManager Navigation
+@inject FindSaleHandler FindSale
 
 <PageTitle>Директни продажби</PageTitle>
 
@@ -22,6 +23,8 @@
 <div class="toolbar">
   <a class="button" href="sales/checkout"><Icon Name="plus" /> Нова продажба <kbd>F5</kbd></a>
   <input id="day" type="date" aria-label="Ден" @bind="_day" @bind:after="Load" />
+  <input id="sale-number" type="search" inputmode="numeric" placeholder="№ продажба и Enter" aria-label="Търсене по номер"
+         @bind="_number" @bind:event="oninput" @onkeydown="OnNumberKeyDown" />
   @if (_view is not null)
   {
     <span>В брой: <strong>@Formats.Euro(_view.CashTotal)</strong></span>
@@ -64,6 +67,7 @@ else
           <td>@(sale.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</td>
           <td>@(sale.Status == SaleStatus.Reversed ? "сторнирана" : "приключена")</td>
           <td>
+            <a href="sales/sales/@sale.Id">Отвори</a>
             @if (sale.Status == SaleStatus.Completed && _canReverse)
             {
               @if (_confirmId == sale.Id)
@@ -108,7 +112,48 @@ else
   </table>
 }
 
+@if (_view?.Returns is { Count: > 0 } returns)
+{
+  <h2>Корекции през деня</h2>
+  <table class="grid">
+    <thead><tr><th>№</th><th>Час</th><th>Към продажба</th><th>Основание</th><th>Плащане</th><th class="num">Върнато</th></tr></thead>
+    <tbody>
+      @foreach (var item in returns)
+      {
+        <tr>
+          <td>@item.Number</td>
+          <td>@BulgarianTime.ToLocal(item.CreatedAt).ToString("HH:mm", CultureInfo.InvariantCulture)</td>
+          <td><a href="sales/sales/@item.SaleId">№ @item.SaleNumber</a></td>
+          <td>@item.Reason</td>
+          <td>@(item.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</td>
+          <td class="num">−@Formats.Euro(item.Total)</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
+
 @code {
+  private string _number = string.Empty;
+
+  /// <summary>„№ продажба“ + Enter opens that sale, whatever its day.</summary>
+  private async Task OnNumberKeyDown(KeyboardEventArgs e)
+  {
+    if (e.Key != "Enter")
+    {
+      return;
+    }
+
+    _error = null;
+    if (long.TryParse(_number.Trim(), out var number) && await FindSale.HandleAsync(number) is { } id)
+    {
+      Navigation.NavigateTo($"sales/sales/{id}");
+      return;
+    }
+
+    _error = $"Няма продажба № {_number.Trim()}.";
+  }
+
   private DateOnly _day;
   private DailySalesView? _view;
   private SaleView? _details;

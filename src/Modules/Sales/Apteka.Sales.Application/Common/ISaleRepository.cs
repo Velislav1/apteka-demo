@@ -1,3 +1,4 @@
+using Apteka.Sales.Domain.Returns;
 using Apteka.Sales.Domain.Reversals;
 using Apteka.Sales.Domain.Sales;
 
@@ -17,5 +18,18 @@ public interface ISaleRepository
 
     void Add(Reversal reversal);
 
+    void Add(SaleReturn saleReturn);
+
+    /// <summary>The returns of one sale, oldest first, with lines and batches.</summary>
+    Task<IReadOnlyList<SaleReturn>> ListReturnsAsync(Guid saleId, CancellationToken cancellationToken);
+
+    /// <summary>Returns made in [fromUtc, toUtc), with the number and payment of their sale.</summary>
+    Task<IReadOnlyList<ReturnOfSale>> ListReturnsAsync(DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
+
+    /// <summary>The sale with this number, or null.</summary>
+    Task<Sale?> FindByNumberAsync(long number, CancellationToken cancellationToken);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
+
+public sealed record ReturnOfSale(SaleReturn Return, long SaleNumber, PaymentMethod PaymentMethod);

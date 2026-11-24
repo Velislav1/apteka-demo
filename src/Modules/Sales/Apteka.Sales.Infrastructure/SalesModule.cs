@@ -5,6 +5,7 @@ using Apteka.Sales.Application.Common;
 using Apteka.Sales.Application.Customers;
 using Apteka.Sales.Infrastructure.Customers;
 using Apteka.Sales.Application.DailySales;
+using Apteka.Sales.Application.Returns;
 using Apteka.Sales.Application.Reversals;
 using Apteka.Sales.Infrastructure.Persistence;
 using Apteka.Sales.Infrastructure.Sales;
@@ -31,6 +32,8 @@ public static class SalesModule
         services.AddScoped<DailyReportHandler>();
         services.AddScoped<GetSaleHandler>();
         services.AddScoped<CustomersHandler>();
+        services.AddScoped<CreateReturnHandler>();
+        services.AddScoped<FindSaleHandler>();
 
         return services;
     }

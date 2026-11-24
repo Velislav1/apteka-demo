@@ -1,0 +1,241 @@
+@page "/sales/sales/{Id:guid}"
+@using System.Globalization
+@using Apteka.Identity.Contracts
+@using Apteka.Sales.Application.DailySales
+@using Apteka.Sales.Application.Returns
+@using Apteka.Sales.Application.Reversals
+@using Apteka.Sales.Domain.Sales
+@using Apteka.Web.Features.Shared
+@inject GetSaleHandler GetSale
+@inject CreateReturnHandler CreateReturn
+@inject ReverseSaleHandler ReverseSale
+@inject IUserDirectory UserDirectory
+@inject AuthenticationStateProvider Authentication
+
+@* One sale, as „Корекция / рекламация / кредитно известие“ in Apteka Expert 2: type how much of each line comes back
+   (always a minus) and save with Ctrl+Enter twice; or undo the whole sale with „Сторно“. Only a manager may do either. *@
+
+<PageTitle>Продажба</PageTitle>
+
+@if (_notFound)
+{
+  <p class="alert error">Продажбата не е намерена.</p>
+}
+else if (_sale is not null)
+{
+  <h1>Продажба № @_sale.Number <span class="badge">@StatusText</span></h1>
+
+  <div class="doc-header card">
+    <div><span class="muted">Дата и час</span><strong>@Formats.LocalTime(_sale.CreatedAt)</strong></div>
+    <div><span class="muted">Потребител</span><strong>@(_userName ?? "—")</strong></div>
+    <div><span class="muted">Плащане</span><strong>@(_sale.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</strong></div>
+    <div><span class="muted">Клиент</span><strong>@if (_sale.CustomerId is { } customerId) { <a href="sales/customers/@customerId">@_sale.CustomerName</a> } else { <span>—</span> }</strong></div>
+    <div><span class="muted">Сума</span><strong>@Formats.Euro(_sale.Total)</strong></div>
+    @if (_sale.Returns is { Count: > 0 })
+    {
+      <div><span class="muted">След корекциите</span><strong>@Formats.Euro(_sale.NetTotal)</strong></div>
+    }
+  </div>
+
+  <div @onkeydown="OnKeyDown">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>Стока</th><th>Мярка</th><th class="num">Кол.</th><th class="num">Цена</th><th class="num">Отст. %</th><th class="num">Сума</th><th class="num">Върнато</th>
+          @if (CanCorrect)
+          {
+            <th class="num">Връща се −</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @foreach (var line in _sale.Lines)
+        {
+          var left = line.Quantity - line.ReturnedQuantity;
+          <tr>
+            <td>@line.ProductName</td>
+            <td>@line.UnitName</td>
+            <td class="num">@line.Quantity</td>
+            <td class="num">@Formats.Euro(line.UnitPrice)</td>
+            <td class="num">@(line.DiscountPercent == 0 ? null : line.DiscountPercent.ToString("0.##", CultureInfo.GetCultureInfo("bg-BG")))</td>
+            <td class="num">@Formats.Euro(line.LineTotal)</td>
+            <td class="num">@(line.ReturnedQuantity == 0 ? null : line.ReturnedQuantity)</td>
+            @if (CanCorrect)
+            {
+              <td class="num">
+                @if (left > 0)
+                {
+                  <input type="number" min="0" max="@left" class="back" aria-label="Връща се от @line.ProductName"
+                         value="@(_back.GetValueOrDefault(line.Id) is var b && b != 0 ? b : null)"
+                         @oninput="e => SetBack(line.Id, e.Value)" />
+                }
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    @if (CanCorrect)
+    {
+      <div class="toolbar">
+        <input placeholder="Основание (по желание)" aria-label="Основание" @bind="_reason" maxlength="200" />
+        <button @onclick="SaveReturn" disabled="@_busy">Запиши корекцията <kbd>Ctrl+Enter</kbd></button>
+        @if (_sale.Returns is not { Count: > 0 })
+        {
+          <button class="secondary" @onclick="Reverse" disabled="@_busy">Сторно на цялата продажба</button>
+        }
+      </div>
+    }
+
+    @if (_confirm is not null)
+    {
+      <p class="alert warning" role="alert">@_confirm</p>
+    }
+    @if (_error is not null)
+    {
+      <p class="alert error" role="alert">@_error</p>
+    }
+    @if (_message is not null)
+    {
+      <p class="alert success" role="status">@_message</p>
+    }
+  </div>
+
+  @if (_sale.Returns is { Count: > 0 })
+  {
+    <h2>Корекции</h2>
+    <ul>
+      @foreach (var item in _sale.Returns)
+      {
+        <li>Корекция № @item.Number от @Formats.LocalTime(item.CreatedAt) — върнати <strong>@Formats.Euro(item.Total)</strong>@(item.Reason is null ? null : $" ({item.Reason})")</li>
+      }
+    </ul>
+  }
+
+  <a class="button secondary" href="sales/daily">Към продажбите</a>
+}
+
+@code {
+  [Parameter] public Guid Id { get; set; }
+
+  private SaleView? _sale;
+  private string? _userName;
+  private bool _notFound;
+  private bool _isManager;
+  private readonly Dictionary<Guid, int> _back = [];
+  private string? _reason;
+  private string? _confirm;
+  private string? _error;
+  private string? _message;
+  private bool _busy;
+  private bool _confirmReverse;
+
+  private bool CanCorrect => _isManager && _sale is { Status: SaleStatus.Completed } && _sale.Lines.Any(l => l.Quantity > l.ReturnedQuantity);
+
+  private string StatusText => _sale!.Status == SaleStatus.Reversed ? "сторнирана" : _sale.Returns is { Count: > 0 } ? "с корекция" : "приключена";
+
+  /// <summary>About what will be refunded (the saved correction gives the exact cents).</summary>
+  private decimal BackTotal => _sale!.Lines.Sum(l => decimal.Round(l.LineTotal * _back.GetValueOrDefault(l.Id) / l.Quantity, 2, MidpointRounding.AwayFromZero));
+
+  protected override async Task OnParametersSetAsync()
+  {
+    _isManager = (await Authentication.GetAuthenticationStateAsync()).User.IsInRole(Roles.Manager);
+    await Load();
+  }
+
+  private async Task Load()
+  {
+    _sale = await GetSale.HandleAsync(Id);
+    _notFound = _sale is null;
+    _back.Clear();
+    _userName = _sale?.UserId is { } user ? (await UserDirectory.GetDisplayNamesAsync([user])).GetValueOrDefault(user) : null;
+  }
+
+  private void SetBack(Guid lineId, object? value)
+  {
+    _confirm = null;
+    _back[lineId] = int.TryParse(value?.ToString(), out var n) ? Math.Abs(n) : 0;
+  }
+
+  private async Task OnKeyDown(KeyboardEventArgs e)
+  {
+    if (e.Key == "Enter" && e.CtrlKey && CanCorrect)
+    {
+      await SaveReturn();
+    }
+    else if (e.Key == "Escape")
+    {
+      (_confirm, _confirmReverse) = (null, false);
+    }
+  }
+
+  private async Task SaveReturn()
+  {
+    _error = null;
+    _message = null;
+    _confirmReverse = false;
+    if (_busy)
+    {
+      return;
+    }
+
+    if (_confirm is null)
+    {
+      _confirm = $"Потвърди: Ctrl+Enter или бутона още веднъж (Esc — отказ). Връщат се {Formats.Euro(BackTotal)}; стоката се връща в наличност.";
+      return;
+    }
+
+    _busy = true;
+    try
+    {
+      var result = await CreateReturn.HandleAsync(Id, _back.Where(b => b.Value != 0).ToDictionary(), _reason);
+      _confirm = null;
+      if (result.IsFailure)
+      {
+        _error = result.Error.Message;
+        return;
+      }
+
+      _message = $"Корекция № {result.Value.Number}: върнете на клиента {Formats.Euro(result.Value.Total)} " +
+        (result.Value.PaymentMethod == PaymentMethod.Cash ? "в брой." : "по картата.");
+      _reason = null;
+      await Load();
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+
+  private async Task Reverse()
+  {
+    _error = null;
+    _message = null;
+    if (!_confirmReverse)
+    {
+      _confirmReverse = true;
+      _confirm = "Сторно на цялата продажба? Натиснете „Сторно“ още веднъж (Esc — отказ).";
+      return;
+    }
+
+    _busy = true;
+    try
+    {
+      var result = await ReverseSale.HandleAsync(Id, _reason);
+      (_confirm, _confirmReverse) = (null, false);
+      if (result.IsFailure)
+      {
+        _error = result.Error.Message;
+        return;
+      }
+
+      _message = "Продажбата е сторнирана. Стоката е върната в наличност.";
+      await Load();
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+}

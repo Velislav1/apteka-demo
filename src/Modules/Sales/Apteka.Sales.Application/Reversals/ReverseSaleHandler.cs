@@ -28,6 +28,11 @@ public sealed class ReverseSaleHandler(ISaleRepository sales, IStockIssuing stoc
             return Result.Failure(SalesErrors.NotFound);
         }
 
+        if ((await sales.ListReturnsAsync(saleId, cancellationToken)).Count > 0)
+        {
+            return Result.Failure(Domain.Returns.ReturnErrors.HasReturns);
+        }
+
         var reversal = sale.Reverse(reason, currentUser.UserId, clock.GetUtcNow());
         if (reversal.IsFailure)
         {

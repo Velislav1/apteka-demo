@@ -32,6 +32,40 @@ public sealed class DailyReportHandler(ISaleRepository sales, IStockQueries stoc
             })
             .ToList();
 
+        // Corrections of that day are listed as minus rows: they take back revenue and cost.
+        var returns = await sales.ListReturnsAsync(StartOfDayUtc(day), StartOfDayUtc(day.AddDays(1)), cancellationToken);
+        if (returns.Count > 0)
+        {
+            var returnPrices = await stock.GetPurchasePricesAsync(
+                [.. returns.SelectMany(r => r.Return.Lines).SelectMany(l => l.Batches).Select(b => b.BatchId).Distinct()], cancellationToken);
+            var saleLines = new Dictionary<Guid, SaleLine>();
+            foreach (var saleId in returns.Select(r => r.Return.SaleId).Distinct())
+            {
+                if (await sales.GetAsync(saleId, cancellationToken) is { } sale)
+                {
+                    foreach (var line in sale.Lines)
+                    {
+                        saleLines[line.Id] = line;
+                    }
+                }
+            }
+
+            rows.AddRange(returns.OrderBy(r => r.Return.Number).Select(r => new ReportSale(
+                r.Return.Id,
+                r.SaleNumber,
+                r.Return.CreatedAt,
+                r.Return.UserId,
+                r.PaymentMethod,
+                SaleStatus.Completed,
+                r.Return.Lines.Select(l =>
+                {
+                    var line = saleLines[l.SaleLineId];
+                    var cost = SalePricing.Round(l.Batches.Sum(b => b.BaseQuantity * returnPrices.GetValueOrDefault(b.BatchId)));
+                    return new ReportLine(line.ProductName, line.UnitName, -l.Quantity, line.UnitPrice, line.DiscountPercent, -l.Amount, -(l.Amount - l.VatAmount), -cost);
+                }).ToList(),
+                ReturnNumber: r.Return.Number)));
+        }
+
         return new DailyReportView(day, rows);
     }
 
@@ -64,8 +98,12 @@ public sealed record ReportSale(
     Guid? UserId,
     PaymentMethod PaymentMethod,
     SaleStatus Status,
-    IReadOnlyList<ReportLine> Lines)
+    IReadOnlyList<ReportLine> Lines,
+    long? ReturnNumber = null)
 {
+    /// <summary>A correction (minus row) of the sale <see cref="Number"/>.</summary>
+    public bool IsReturn => ReturnNumber is not null;
+
     public decimal Total => Lines.Sum(l => l.Total);
 
     public decimal NetRevenue => Lines.Sum(l => l.NetRevenue);
