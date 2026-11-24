@@ -39,8 +39,8 @@ apteka-demo/
       Apteka.Web/             # ASP.NET Core + Blazor; само сглобява модулите
         Features/<Module>/    # Blazor страници, групирани по модул
     BuildingBlocks/
-      Apteka.SharedKernel/            # Money, Quantity, Entity, Result, домейн събития
-      Apteka.Infrastructure.Common/   # ModuleDbContext, DatabaseStatus (по-късно: audit interceptor, транзакции)
+      Apteka.SharedKernel/            # Money, UnitPrice, Quantity, Entity, Result, IUnitOfWork, BulgarianTime
+      Apteka.Infrastructure.Common/   # ModuleDbContext, AddModuleDbContext, audit interceptor, обща транзакция (UnitOfWork)
     Modules/
       Catalog/      # стоки, мерки, баркодове, производители      (схема catalog)
       Purchasing/   # доставчици, доставки                         (схема purchasing)
@@ -106,17 +106,19 @@ apteka-demo/
 - `Manufacturer`, `ProductGroup`, `Shelf` — Id, Name (уникално), IsActive; не се трият, а се деактивират
 - `ProductUnit` — Id, ProductId, Name, Factor (int ≥ 1); точно една мярка с Factor = 1 на стока
 - `Barcode` — Id, ProductId, ProductUnitId, Code (уникален)
-- `Supplier` — Id, Name, Eik, PaymentTermDays
-- `Delivery` — Id, SupplierId, InvoiceNo, InvoiceDate, ReceivedAt, UserId, Status (Draft/Posted)
-- `DeliveryLine` — Id, DeliveryId, ProductId, ProductUnitId, Quantity, UnitPurchasePrice, BatchNo, ExpiryDate, SalePrice
-- `Batch` — Id, ProductId, BatchNo, ExpiryDate, PurchasePrice (за най-малка мярка), SalePrice (за най-малка мярка), StockType
+- `Supplier` — Id, Name (уникално), Eik (9/13 цифри с контролна цифра, уникален), PaymentTermDays, IsActive
+- `Delivery` — Id, SupplierId, InvoiceNo (уникален за доставчика), InvoiceDate, ReceivedAt, UserId, Status (Draft/Posted), PostedAt
+- `DeliveryLine` — Id, DeliveryId, Position, ProductId, ProductUnitId, UnitFactor, Quantity (в тази мярка), UnitPurchasePrice (без ДДС), MarkupPercent?, SalePrice (с ДДС), BatchNo, ExpiryDate, IsRemoved (премахнат ред от чернова)
+- `Batch` — Id, ProductId, BatchNo, ExpiryDate, PurchasePrice (за най-малка мярка, без ДДС), SalePrice (за най-малка мярка, с ДДС), PricedUnitFactor + PricedUnitSalePrice (точната цена на мярката, в която е въведена), StockType, SourceDocumentType/Id, SourceLineId (уникален)
 - `StockMovement` — Id, BatchId, QuantityDelta (int, в най-малка мярка), Kind (Delivery/Sale/Reversal/WriteOff/Correction), DocumentType, DocumentId, UserId, CreatedAt
 - `Sale` — Id, Number, SaleType, UserId, CreatedAt, Total, PaymentMethod (Cash/Card), Status (Completed/Reversed)
 - `SaleLine` — Id, SaleId, BatchId, ProductUnitId, Quantity, UnitPrice, Discount, LineTotal
 - `User` — Id, UserName, PasswordHash, Role (Manager/Pharmacist), IsActive
 - `AuditLog` — Id, UserId, At, Action, Entity, EntityId, OldValues (jsonb), NewValues (jsonb)
 
-Публикуването на доставка (`Draft → Posted`) създава партидите и движенията в една транзакция; публикувана доставка не се редактира, само се коригира.
+Публикуването на доставка (`Draft → Posted`) създава партидите и движенията в една транзакция (`IUnitOfWork`, виж `docs/architecture/0003-cross-module-transactions.md`); публикувана доставка не се редактира, само се коригира.
+
+Цени: покупната цена от фактурата е **без ДДС**, продажната е **с ДДС**. Предложена продажна цена = покупна × (1 + надценка %) × (1 + ДДС %), закръглена до цент; може да се смени ръчно.
 
 ## Екрани в демото
 

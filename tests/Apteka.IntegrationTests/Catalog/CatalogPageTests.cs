@@ -18,6 +18,7 @@ public class CatalogPageTests(PostgresFixture postgres)
 
         Assert.Contains("Номенклатура", html);
         Assert.Contains("Амброксол 30 мг таблетки", html);
-        Assert.Contains("Парацетамол 500 мг таблетки", html);
+        // Only the first products by name are listed; test products from other tests never start with „А“.
+        Assert.Contains("Азитромицин 500 мг таблетки", html);
     }
 }

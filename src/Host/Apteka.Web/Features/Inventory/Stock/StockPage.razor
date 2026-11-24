@@ -1,0 +1,133 @@
+@page "/inventory/stock"
+@using Apteka.Catalog.Contracts
+@using Apteka.Inventory.Contracts
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject IStockQueries Stock
+@inject ICatalogLookup Catalog
+@inject TimeProvider Clock
+
+<PageTitle>Наличност</PageTitle>
+
+<h1>Наличност</h1>
+
+<div class="toolbar">
+  <input type="search" placeholder="Търсене по име" aria-label="Търсене" @bind="_query" @bind:event="oninput" @onkeydown="OnKeyDown" />
+  <button @onclick="Load">Търси</button>
+  <label><input id="expiring" type="checkbox" @bind="_expiringOnly" @bind:after="Load" /> изтича до @ExpiringDays дни</label>
+</div>
+
+@if (_rows is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_rows.Count == 0)
+{
+  <p class="muted">@(_expiringOnly ? $"Няма стоки, които изтичат до {ExpiringDays} дни." : "Няма наличност.")</p>
+}
+else
+{
+  <table class="grid">
+    <thead>
+      <tr><th>Стока</th><th>Количество</th><th class="num">Общо в най-малка мярка</th><th>Най-близък срок</th><th class="num">Партиди</th></tr>
+    </thead>
+    <tbody>
+      @foreach (var row in _rows)
+      {
+        <tr>
+          <td><button class="linklike" @onclick="() => Toggle(row)">@row.Product.Name</button></td>
+          <td>@Formats.Quantity(row.Stock.BaseQuantity, row.Product.Units)</td>
+          <td class="num">@row.Stock.BaseQuantity @Formats.BaseUnitName(row.Product.Units)</td>
+          <td class="expiry @ExpiryClass(row.Stock.NearestExpiry)">@Formats.Date(row.Stock.NearestExpiry)</td>
+          <td class="num">@row.Stock.BatchCount</td>
+        </tr>
+        @if (row.Batches is not null)
+        {
+          <tr class="details">
+            <td colspan="5">
+              <table class="grid">
+                <thead>
+                  <tr><th>Партида</th><th>Годна до</th><th>Количество</th><th class="num">Продажна цена</th><th class="num">Покупна за @Formats.BaseUnitName(row.Product.Units)</th><th>Заприходена</th></tr>
+                </thead>
+                <tbody>
+                  @foreach (var batch in row.Batches)
+                  {
+                    <tr>
+                      <td>@batch.BatchNo</td>
+                      <td class="expiry @ExpiryClass(batch.ExpiryDate)">@Formats.Date(batch.ExpiryDate)</td>
+                      <td>@Formats.Quantity(batch.BaseQuantity, row.Product.Units) (@batch.BaseQuantity)</td>
+                      <td class="num">@Formats.Price(batch.PricedUnitSalePrice) / @UnitName(row.Product, batch.PricedUnitFactor)</td>
+                      <td class="num">@Formats.Price(batch.PurchasePricePerBaseUnit)</td>
+                      <td>@Formats.LocalTime(batch.ReceivedAt)</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        }
+      }
+    </tbody>
+  </table>
+}
+
+@code {
+  private const int ExpiringDays = 90;
+  private const int MaxProducts = 200;
+
+  private string _query = string.Empty;
+  private bool _expiringOnly;
+  private List<Row>? _rows;
+
+  private DateOnly Today => BulgarianTime.Today(Clock.GetUtcNow());
+
+  protected override Task OnInitializedAsync() => Load();
+
+  private async Task Load()
+  {
+    IReadOnlyCollection<Guid>? productIds = null;
+    if (_query.Trim().Length > 0)
+    {
+      productIds = (await Catalog.SearchProductsAsync(_query, MaxProducts)).Select(p => p.ProductId).ToList();
+    }
+
+    var stock = await Stock.GetProductStockAsync(productIds, _expiringOnly ? Today.AddDays(ExpiringDays) : null);
+    var products = (await Catalog.GetProductsAsync([.. stock.Select(s => s.ProductId)])).ToDictionary(p => p.ProductId);
+
+    _rows = stock
+      .Where(s => products.ContainsKey(s.ProductId))
+      .Select(s => new Row(products[s.ProductId], s))
+      .OrderBy(r => _expiringOnly ? r.Stock.NearestExpiry.DayNumber : 0)
+      .ThenBy(r => r.Product.Name)
+      .Take(MaxProducts)
+      .ToList();
+  }
+
+  private async Task OnKeyDown(KeyboardEventArgs e)
+  {
+    if (e.Key == "Enter")
+    {
+      await Load();
+    }
+  }
+
+  private async Task Toggle(Row row) =>
+    row.Batches = row.Batches is null
+      ? await Stock.GetBatchesAsync(row.Product.ProductId, _expiringOnly ? Today.AddDays(ExpiringDays) : null)
+      : null;
+
+  private string? ExpiryClass(DateOnly expiry) =>
+    expiry < Today ? "expired" : expiry <= Today.AddDays(ExpiringDays) ? "soon" : null;
+
+  private static string UnitName(CatalogProductInfo product, int factor) =>
+    product.Units.FirstOrDefault(u => u.Factor == factor)?.Name ?? factor.ToString();
+
+  private sealed class Row(CatalogProductInfo product, ProductStock stock)
+  {
+    public CatalogProductInfo Product { get; } = product;
+
+    public ProductStock Stock { get; } = stock;
+
+    public IReadOnlyList<BatchStock>? Batches { get; set; }
+  }
+}

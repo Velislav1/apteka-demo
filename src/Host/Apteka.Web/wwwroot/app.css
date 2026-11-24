@@ -13,7 +13,7 @@ body {
 }
 
 .content {
-  max-width: 60rem;
+  max-width: 84rem;
   margin: 1.5rem auto;
   padding: 0 1.5rem;
 }
@@ -54,3 +54,15 @@ legend { font-weight: 600; padding: 0 0.3rem; }
 .form-grid input[type=checkbox] { justify-self: start; }
 .tag.narcotic { background: #fecaca; }
 .top-bar nav { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+button.linklike { background: none; border: none; padding: 0; color: #1a56db; text-decoration: underline; cursor: pointer; text-align: left; }
+.status { font-size: 0.85rem; padding: 0.1rem 0.5rem; border-radius: 3px; }
+.status.draft { background: #fde68a; }
+.status.posted { background: #c6f6d5; }
+.expired td.expiry, td.expiry.expired { color: #b42318; font-weight: 600; }
+td.expiry.soon { color: #b45309; font-weight: 600; }
+.content.wide { max-width: 90rem; }
+table.lines input { width: 100%; box-sizing: border-box; }
+table.lines td { vertical-align: middle; }
+.picker { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
+.totals { text-align: right; font-weight: 600; margin: 0.5rem 0; }
+tr.details td { background: #f8fafc; }

@@ -1,0 +1,309 @@
+@page "/purchasing/deliveries/new"
+@page "/purchasing/deliveries/{Id:guid}"
+@using Apteka.Catalog.Contracts
+@using Apteka.Purchasing.Application.Deliveries
+@using Apteka.Purchasing.Application.Suppliers
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject GetDeliveryHandler GetDelivery
+@inject SaveDeliveryDraftHandler SaveDraft
+@inject PostDeliveryHandler Post
+@inject SuppliersHandler Suppliers
+@inject ICatalogLookup Catalog
+@inject TimeProvider Clock
+@inject NavigationManager Navigation
+
+<PageTitle>Доставка</PageTitle>
+
+<h1>
+  @(Id is null ? "Нова доставка" : "Доставка")
+  @if (_model is not null && Id is not null)
+  {
+    <DeliveryStatusBadge Status="_model.Status" />
+  }
+</h1>
+
+@if (_notFound)
+{
+  <p class="alert error">Доставката не е намерена.</p>
+}
+else if (_model is not null)
+{
+  <fieldset disabled="@_model.IsReadOnly">
+    <legend>Фактура</legend>
+    <div class="form-grid">
+      <label for="supplier">Доставчик</label>
+      <select id="supplier" @bind="_model.SupplierId">
+        <option value="">— изберете —</option>
+        @foreach (var supplier in _suppliers.Where(s => s.IsActive || s.Id.ToString() == _model.SupplierId))
+        {
+          <option value="@supplier.Id">@supplier.Name</option>
+        }
+      </select>
+
+      <label for="invoice">Номер на фактура</label>
+      <input id="invoice" @bind="_model.InvoiceNo" maxlength="30" />
+
+      <label for="invoicedate">Дата на фактура</label>
+      <input id="invoicedate" type="date" @bind="_model.InvoiceDate" />
+    </div>
+  </fieldset>
+
+  <fieldset disabled="@_model.IsReadOnly">
+    <legend>Редове</legend>
+
+    @if (!_model.IsReadOnly)
+    {
+      <div class="toolbar">
+        <input id="productsearch" placeholder="Баркод или име на стока, после Enter" aria-label="Търсене на стока"
+               @bind="_search" @bind:event="oninput" @onkeydown="OnSearchKeyDown" />
+        <button class="secondary" @onclick="SearchProducts">Търси</button>
+      </div>
+      @if (_matches.Count > 0)
+      {
+        <div class="picker">
+          @foreach (var product in _matches)
+          {
+            <button class="secondary" @onclick="() => Add(product, null)">@product.Name</button>
+          }
+        </div>
+      }
+    }
+
+    @if (_model.Lines.Count == 0)
+    {
+      <p class="muted">Няма редове. Сканирайте баркод или потърсете стока по име.</p>
+    }
+    else
+    {
+      <table class="grid lines">
+        <thead>
+          <tr>
+            <th>№</th><th>Стока</th><th>Мярка</th><th class="num">Кол.</th><th>Партида</th><th>Годна до</th>
+            <th class="num">Покупна без ДДС</th><th class="num">Надценка %</th><th class="num">Продажна с ДДС</th><th class="num">Сума</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (var i = 0; i < _model.Lines.Count; i++)
+          {
+            var number = i + 1;
+            var line = _model.Lines[i];
+            <tr>
+              <td>@number</td>
+              <td>@line.ProductName</td>
+              <td>
+                <select @bind="line.UnitId" aria-label="Мярка">
+                  @foreach (var unit in line.Units.OrderByDescending(u => u.Factor))
+                  {
+                    <option value="@unit.UnitId">@unit.Name (@unit.Factor)</option>
+                  }
+                </select>
+              </td>
+              <td><input type="number" min="1" @bind="line.Quantity" aria-label="Количество" style="width:5rem" /></td>
+              <td><input @bind="line.BatchNo" maxlength="30" aria-label="Партида" style="width:8rem" /></td>
+              <td><input type="date" @bind="line.ExpiryDate" aria-label="Годна до" /></td>
+              <td><input type="number" min="0" step="0.0001" @bind="line.UnitPurchasePrice" @bind:after="line.ApplyMarkup" aria-label="Покупна цена" style="width:7rem" /></td>
+              <td><input type="number" min="0" step="0.01" @bind="line.MarkupPercent" @bind:after="line.ApplyMarkup" aria-label="Надценка" style="width:5rem" /></td>
+              <td><input type="number" min="0" step="0.01" @bind="line.SalePrice" @bind:after="() => line.MarkupPercent = null" aria-label="Продажна цена" style="width:7rem" /></td>
+              <td class="num">@line.PurchaseTotal</td>
+              <td>
+                @if (!_model.IsReadOnly)
+                {
+                  <button class="link" title="Премахни" @onclick="() => _model.Lines.Remove(line)">✕</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <p class="totals">Общо без ДДС: @Formats.Euro(_model.PurchaseTotal)</p>
+    }
+  </fieldset>
+
+  @if (_error is not null)
+  {
+    <p class="alert error" role="alert">@_error</p>
+  }
+  @if (_message is not null)
+  {
+    <p class="alert success" role="status">@_message</p>
+  }
+
+  <div class="toolbar">
+    @if (!_model.IsReadOnly)
+    {
+      <button @onclick="Save" disabled="@_busy">Запиши</button>
+      @if (_confirmPost)
+      {
+        <button @onclick="SaveAndPost" disabled="@_busy">Потвърди публикуването</button>
+        <button class="secondary" @onclick="() => _confirmPost = false">Отказ</button>
+        <span class="muted">След публикуване доставката не може да се променя.</span>
+      }
+      else
+      {
+        <button class="secondary" @onclick="() => _confirmPost = true" disabled="@_busy">Публикувай</button>
+      }
+    }
+    <a class="button secondary" href="purchasing/deliveries">Към доставките</a>
+  </div>
+}
+
+@code {
+  [Parameter] public Guid? Id { get; set; }
+
+  private const int MaxMatches = 10;
+
+  private DeliveryFormModel? _model;
+  private IReadOnlyList<SupplierView> _suppliers = [];
+  private IReadOnlyList<CatalogProductInfo> _matches = [];
+  private string _search = string.Empty;
+  private string? _error;
+  private string? _message;
+  private bool _notFound;
+  private bool _busy;
+  private bool _confirmPost;
+
+  private DateOnly Today => BulgarianTime.Today(Clock.GetUtcNow());
+
+  protected override async Task OnParametersSetAsync()
+  {
+    // _error and _message survive the move from „new“ to the saved draft's address on purpose.
+    _suppliers = await Suppliers.ListAsync();
+    _notFound = false;
+    _confirmPost = false;
+
+    if (Id is not { } id)
+    {
+      _model = DeliveryFormModel.New(Today);
+      return;
+    }
+
+    var view = await GetDelivery.HandleAsync(id);
+    _notFound = view is null;
+    _model = view is null ? null : DeliveryFormModel.From(view);
+  }
+
+  private async Task OnSearchKeyDown(KeyboardEventArgs e)
+  {
+    if (e.Key == "Enter")
+    {
+      await SearchProducts();
+    }
+  }
+
+  /// <summary>A barcode adds its product and unit at once; text shows the matching products to pick from.</summary>
+  private async Task SearchProducts()
+  {
+    _error = null;
+    var text = _search.Trim();
+    if (text.Length == 0)
+    {
+      return;
+    }
+
+    if (text.All(char.IsAsciiDigit) && await Catalog.FindByBarcodeAsync(text) is { } scanned)
+    {
+      if (await Catalog.GetProductAsync(scanned.ProductId) is { } product)
+      {
+        Add(product, scanned.UnitId);
+      }
+
+      return;
+    }
+
+    _matches = await Catalog.SearchProductsAsync(text, MaxMatches);
+    if (_matches.Count == 0)
+    {
+      _error = $"Няма стока „{text}“.";
+    }
+    else if (_matches.Count == 1)
+    {
+      Add(_matches[0], null);
+    }
+  }
+
+  private void Add(CatalogProductInfo product, Guid? unitId)
+  {
+    _model!.AddLine(product, unitId, Today);
+    _matches = [];
+    _search = string.Empty;
+    _message = null;
+  }
+
+  private async Task<Guid?> SaveDraftAsync()
+  {
+    var result = await SaveDraft.HandleAsync(Id, _model!.ToInput());
+    if (result.IsFailure)
+    {
+      _error = result.Error.Message;
+      return null;
+    }
+
+    return result.Value;
+  }
+
+  private async Task Save()
+  {
+    _busy = true;
+    _error = null;
+    _message = null;
+    try
+    {
+      if (await SaveDraftAsync() is { } id)
+      {
+        _message = "Черновата е записана.";
+        await Reload(id);
+      }
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+
+  private async Task SaveAndPost()
+  {
+    _busy = true;
+    _error = null;
+    _message = null;
+    try
+    {
+      if (await SaveDraftAsync() is not { } id)
+      {
+        return;
+      }
+
+      var posted = await Post.HandleAsync(id);
+      if (posted.IsFailure)
+      {
+        _error = posted.Error.Message;
+        await Reload(id);
+        return;
+      }
+
+      _message = "Доставката е публикувана. Стоката е заприходена.";
+      await Reload(id);
+    }
+    finally
+    {
+      _busy = false;
+      _confirmPost = false;
+    }
+  }
+
+  /// <summary>Shows the saved state (new lines get their ids); a new delivery moves to its own address.</summary>
+  private async Task Reload(Guid id)
+  {
+    if (Id != id)
+    {
+      Navigation.NavigateTo($"purchasing/deliveries/{id}");
+      return;
+    }
+
+    var message = _message;
+    var error = _error;
+    var view = await GetDelivery.HandleAsync(id);
+    _model = view is null ? _model : DeliveryFormModel.From(view);
+    (_message, _error) = (message, error);
+  }
+}

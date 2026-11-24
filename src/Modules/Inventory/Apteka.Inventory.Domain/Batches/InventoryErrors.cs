@@ -1,0 +1,16 @@
+using Apteka.SharedKernel;
+
+namespace Apteka.Inventory.Domain.Batches;
+
+/// <summary>Validation errors of the inventory. Messages are shown to the user, so they are in Bulgarian.</summary>
+public static class InventoryErrors
+{
+    public static readonly Error BatchNoRequired = new("inventory.batch_no_required", "Въведете номер на партида.");
+    public static readonly Error BatchNoTooLong = new("inventory.batch_no_too_long", $"Номерът на партида е по-дълъг от {Batch.MaxBatchNoLength} знака.");
+    public static readonly Error InvalidFactor = new("inventory.invalid_factor", "Невалиден коефициент на мярка.");
+    public static readonly Error InvalidPrice = new("inventory.invalid_price", "Покупната цена не може да е отрицателна, а продажната трябва да е по-голяма от нула.");
+    public static readonly Error InvalidStockType = new("inventory.invalid_stock_type", "Невалиден склад.");
+    public static readonly Error QuantityMustBePositive = new("inventory.quantity_positive", "Количеството трябва да е по-голямо от нула.");
+    public static readonly Error ReceiptEmpty = new("inventory.receipt_empty", "Няма редове за заприхождаване.");
+    public static readonly Error AlreadyReceived = new("inventory.already_received", "Тези редове вече са заприходени.");
+}

@@ -23,24 +23,50 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
             : new CatalogUnitInfo(row.Id, row.Name, row.VatRate, ToContract(row.DispensingMode), row.IsActive, row.UnitId, row.UnitName, row.Factor);
     }
 
-    public async Task<CatalogProductInfo?> GetProductAsync(Guid productId, CancellationToken cancellationToken = default)
+    public async Task<CatalogProductInfo?> GetProductAsync(Guid productId, CancellationToken cancellationToken = default) =>
+        (await GetProductsAsync([productId], cancellationToken)).SingleOrDefault();
+
+    public async Task<IReadOnlyList<CatalogProductInfo>> GetProductsAsync(
+        IReadOnlyCollection<Guid> productIds,
+        CancellationToken cancellationToken = default)
     {
-        var product = await context.Products
+        var products = await context.Products
             .AsNoTracking()
             .Include(p => p.Units)
-            .SingleOrDefaultAsync(p => p.Id == productId, cancellationToken);
+            .Where(p => productIds.Contains(p.Id))
+            .ToListAsync(cancellationToken);
 
-        return product is null
-            ? null
-            : new CatalogProductInfo(
-                product.Id,
-                product.Name,
-                product.VatRate,
-                ToContract(product.DispensingMode),
-                product.IsActive,
-                product.DefaultSaleUnitId,
-                product.Units.OrderBy(u => u.Factor).Select(u => new CatalogUnit(u.Id, u.Name, u.Factor)).ToList());
+        return products.Select(ToInfo).ToList();
     }
+
+    public async Task<IReadOnlyList<CatalogProductInfo>> SearchProductsAsync(
+        string text,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        var pattern = "%" + text.Trim().Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("%", "\\%", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal) + "%";
+
+        var products = await context.Products
+            .AsNoTracking()
+            .Include(p => p.Units)
+            .Where(p => p.IsActive && EF.Functions.ILike(p.Name, pattern, "\\"))
+            .OrderBy(p => p.Name)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        return products.Select(ToInfo).ToList();
+    }
+
+    private static CatalogProductInfo ToInfo(Product product) => new(
+        product.Id,
+        product.Name,
+        product.VatRate,
+        ToContract(product.DispensingMode),
+        product.IsActive,
+        product.DefaultSaleUnitId,
+        product.Units.OrderBy(u => u.Factor).Select(u => new CatalogUnit(u.Id, u.Name, u.Factor)).ToList());
 
     // The values match by design (see CatalogDispensingMode); mapping by name keeps it safe if one side changes.
     private static CatalogDispensingMode ToContract(DispensingMode mode) => Enum.Parse<CatalogDispensingMode>(mode.ToString());

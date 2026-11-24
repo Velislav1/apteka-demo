@@ -1,0 +1,90 @@
+@page "/purchasing/suppliers"
+@using Apteka.Purchasing.Application.Suppliers
+@inject SuppliersHandler Suppliers
+
+<PageTitle>Доставчици</PageTitle>
+
+<h1>Доставчици</h1>
+
+<fieldset>
+  <legend>@(_editingId is null ? "Нов доставчик" : "Редакция на доставчик")</legend>
+  <div class="form-grid">
+    <label for="name">Име</label>
+    <input id="name" @bind="_name" maxlength="200" />
+
+    <label for="eik">ЕИК</label>
+    <input id="eik" @bind="_eik" maxlength="13" inputmode="numeric" />
+
+    <label for="term">Срок за плащане (дни)</label>
+    <input id="term" type="number" min="0" max="365" @bind="_paymentTermDays" />
+
+    @if (_editingId is not null)
+    {
+      <label for="active">Активен</label>
+      <input id="active" type="checkbox" @bind="_isActive" />
+    }
+  </div>
+  <div class="toolbar">
+    <button @onclick="Save">@(_editingId is null ? "Добави" : "Запиши")</button>
+    @if (_editingId is not null)
+    {
+      <button class="secondary" @onclick="Clear">Отказ</button>
+    }
+  </div>
+  @if (_error is not null)
+  {
+    <p class="alert error" role="alert">@_error</p>
+  }
+</fieldset>
+
+<table class="grid">
+  <thead><tr><th>Име</th><th>ЕИК</th><th class="num">Срок (дни)</th><th></th></tr></thead>
+  <tbody>
+    @foreach (var supplier in _suppliers)
+    {
+      <tr class="@(supplier.IsActive ? null : "inactive")">
+        <td><button class="linklike" @onclick="() => Edit(supplier)">@supplier.Name</button></td>
+        <td>@supplier.Eik</td>
+        <td class="num">@supplier.PaymentTermDays</td>
+        <td>@(supplier.IsActive ? null : "неактивен")</td>
+      </tr>
+    }
+  </tbody>
+</table>
+
+@code {
+  private IReadOnlyList<SupplierView> _suppliers = [];
+  private Guid? _editingId;
+  private string _name = string.Empty;
+  private string _eik = string.Empty;
+  private int _paymentTermDays = 30;
+  private bool _isActive = true;
+  private string? _error;
+
+  protected override async Task OnInitializedAsync() => _suppliers = await Suppliers.ListAsync();
+
+  private void Edit(SupplierView supplier)
+  {
+    (_editingId, _name, _eik, _paymentTermDays, _isActive, _error) =
+      (supplier.Id, supplier.Name, supplier.Eik, supplier.PaymentTermDays, supplier.IsActive, null);
+  }
+
+  private void Clear() => (_editingId, _name, _eik, _paymentTermDays, _isActive, _error) = (null, string.Empty, string.Empty, 30, true, null);
+
+  private async Task Save()
+  {
+    var input = new SupplierInput(_name, _eik, _paymentTermDays, _isActive);
+    var error = _editingId is { } id
+      ? (await Suppliers.UpdateAsync(id, input)) is { IsFailure: true } updated ? updated.Error : null
+      : (await Suppliers.CreateAsync(input)) is { IsFailure: true } created ? created.Error : null;
+
+    if (error is not null)
+    {
+      _error = error.Message;
+      return;
+    }
+
+    Clear();
+    _suppliers = await Suppliers.ListAsync();
+  }
+}
