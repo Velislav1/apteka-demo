@@ -57,6 +57,30 @@ public class CodesAndMarkupsTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Report_listing_gives_a_groups_products_and_those_with_a_minimum_stock()
+    {
+        await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);
+        Guid group, withMin, without;
+
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            group = (await scope.ServiceProvider.GetRequiredService<ProductGroupsHandler>().CreateAsync(CatalogInputs.UniqueName("Справка"), Ct)).Value;
+            var create = scope.ServiceProvider.GetRequiredService<CreateProductHandler>();
+            withMin = (await create.HandleAsync(CatalogInputs.Tablets(CatalogInputs.UniqueName("С минимум"), TestBarcodes.Next()) with { ProductGroupId = group, MinStock = 20, MaxStock = 60 }, Ct)).Value;
+            without = (await create.HandleAsync(CatalogInputs.Tablets(CatalogInputs.UniqueName("Без минимум"), TestBarcodes.Next()) with { ProductGroupId = group }, Ct)).Value;
+        }
+
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var lookup = scope.ServiceProvider.GetRequiredService<ICatalogLookup>();
+            Assert.Equal(new[] { without, withMin }.Order(), (await lookup.ListProductsAsync(group, false, Ct)).Select(p => p.ProductId).Order());
+            var limited = Assert.Single(await lookup.ListProductsAsync(group, true, Ct));
+            Assert.Equal((withMin, 20, 60, (Guid?)group), (limited.ProductId, limited.MinStock!.Value, limited.MaxStock!.Value, limited.ProductGroupId));
+            Assert.Contains(await lookup.ListGroupsAsync(Ct), g => g.Id == group);
+        }
+    }
+
+    [Fact]
     public async Task Markup_is_the_products_else_the_groups_else_25_percent()
     {
         await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);

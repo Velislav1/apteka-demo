@@ -1,0 +1,98 @@
+@page "/inventory/expired"
+@using Apteka.Catalog.Contracts
+@using Apteka.Inventory.Contracts
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject IStockQueries Stock
+@inject ICatalogLookup Catalog
+@inject TimeProvider Clock
+
+@* „Справка за изтекъл срок на годност“ as in Apteka Expert 2: batches with stock whose expiry is on or before a date. *@
+
+<PageTitle>Изтекъл срок на годност</PageTitle>
+
+<h1>Изтекъл срок на годност</h1>
+
+<div class="toolbar">
+  <label>Срок на годност до <input id="date" type="date" @bind="_date" @bind:after="Load" /></label>
+  <select id="group" aria-label="Група" @bind="_groupId" @bind:after="Load">
+    <option value="">Всички групи</option>
+    @foreach (var group in _groups)
+    {
+      <option value="@group.Id">@group.Name</option>
+    }
+  </select>
+</div>
+
+@if (_rows is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_rows.Count == 0)
+{
+  <p class="muted">Няма партиди със срок до @Formats.Date(_date).</p>
+}
+else
+{
+  <table class="grid">
+    <thead>
+      <tr><th class="num">Код</th><th>Стока</th><th>Партида</th><th>Годна до</th><th>Количество</th><th class="num">Ед. цена</th><th class="num">Стойност</th></tr>
+    </thead>
+    <tbody>
+      @foreach (var (product, batch) in _rows)
+      {
+        <tr>
+          <td class="num">@product.Code</td>
+          <td>@product.Name</td>
+          <td>@batch.BatchNo</td>
+          <td class="expiry @(batch.ExpiryDate < Today ? "expired" : "soon")">@Formats.Date(batch.ExpiryDate)</td>
+          <td>@Formats.Quantity(batch.BaseQuantity, product.Units)</td>
+          <td class="num">@Formats.Price(batch.PricedUnitSalePrice) / @UnitName(product, batch.PricedUnitFactor)</td>
+          <td class="num">@Formats.Euro(Value(batch))</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <div class="toolbar">
+    <span>Партиди: <strong>@_rows.Count</strong></span>
+    <span>Обща стойност по продажни цени: <strong>@Formats.Euro(_rows.Sum(r => Value(r.Batch)))</strong></span>
+  </div>
+}
+
+@code {
+  private DateOnly _date;
+  private string _groupId = string.Empty;
+  private IReadOnlyList<CatalogGroup> _groups = [];
+  private List<(CatalogProductInfo Product, BatchStock Batch)>? _rows;
+
+  private DateOnly Today => BulgarianTime.Today(Clock.GetUtcNow());
+
+  protected override async Task OnInitializedAsync()
+  {
+    _date = Today;
+    _groups = await Catalog.ListGroupsAsync();
+    await Load();
+  }
+
+  private async Task Load()
+  {
+    IReadOnlyCollection<Guid>? productIds = Guid.TryParse(_groupId, out var groupId)
+      ? (await Catalog.ListProductsAsync(groupId, withMinStockOnly: false)).Select(p => p.ProductId).ToList()
+      : null;
+
+    var batches = await Stock.GetAllBatchesAsync(productIds, _date);
+    var products = (await Catalog.GetProductsAsync([.. batches.Select(b => b.ProductId).Distinct()])).ToDictionary(p => p.ProductId);
+    _rows = batches
+      .Where(b => products.ContainsKey(b.ProductId))
+      .Select(b => (products[b.ProductId], b.Batch))
+      .OrderBy(r => r.Batch.ExpiryDate)
+      .ThenBy(r => r.Item1.Name)
+      .ToList();
+  }
+
+  /// <summary>The batch's stock at its sale price (price per base unit × base quantity), in cents.</summary>
+  private static decimal Value(BatchStock batch) => UnitPrice.Of(batch.SalePricePerBaseUnit).Times(batch.BaseQuantity).Amount;
+
+  private static string UnitName(CatalogProductInfo product, int factor) =>
+    product.Units.FirstOrDefault(u => u.Factor == factor)?.Name ?? factor.ToString();
+}

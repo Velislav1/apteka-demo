@@ -1,0 +1,82 @@
+@page "/inventory/below-minimum"
+@using Apteka.Catalog.Contracts
+@using Apteka.Inventory.Contracts
+@using Apteka.Web.Features.Shared
+@inject IStockQueries Stock
+@inject ICatalogLookup Catalog
+
+@* Products whose stock fell below the minimum set on the product card („Мин. запас“), with how much to order up to the maximum. *@
+
+<PageTitle>Под минимален запас</PageTitle>
+
+<h1>Под минимален запас</h1>
+
+<div class="toolbar">
+  <select id="group" aria-label="Група" @bind="_groupId" @bind:after="Load">
+    <option value="">Всички групи</option>
+    @foreach (var group in _groups)
+    {
+      <option value="@group.Id">@group.Name</option>
+    }
+  </select>
+</div>
+
+@if (_rows is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_rows.Count == 0)
+{
+  <p class="muted">Няма стоки под минималния запас. (Минималният запас се задава в картата на стоката, таб „Цени и запаси“.)</p>
+}
+else
+{
+  <table class="grid">
+    <thead>
+      <tr><th class="num">Код</th><th>Стока</th><th>Наличност</th><th class="num">Мин.</th><th class="num">Макс.</th><th>За поръчка</th></tr>
+    </thead>
+    <tbody>
+      @foreach (var row in _rows)
+      {
+        <tr>
+          <td class="num"><a href="catalog/@row.Product.ProductId">@row.Product.Code</a></td>
+          <td>@row.Product.Name</td>
+          <td>@Formats.Quantity(row.OnHand, row.Product.Units)</td>
+          <td class="num">@row.Product.MinStock</td>
+          <td class="num">@row.Product.MaxStock</td>
+          <td>@Formats.Quantity(row.ToOrder, row.Product.Units)</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <p class="muted">Количествата са в най-малката мярка; „За поръчка“ допълва до максималния запас (без максимум — до минималния).</p>
+}
+
+@code {
+  private string _groupId = string.Empty;
+  private IReadOnlyList<CatalogGroup> _groups = [];
+  private List<Row>? _rows;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _groups = await Catalog.ListGroupsAsync();
+    await Load();
+  }
+
+  private async Task Load()
+  {
+    var products = await Catalog.ListProductsAsync(Guid.TryParse(_groupId, out var groupId) ? groupId : null, withMinStockOnly: true);
+    var stock = (await Stock.GetProductStockAsync([.. products.Select(p => p.ProductId)], null))
+      .ToDictionary(s => s.ProductId, s => s.BaseQuantity);
+
+    _rows = products
+      .Select(p => new Row(p, stock.GetValueOrDefault(p.ProductId)))
+      .Where(r => r.OnHand < r.Product.MinStock)
+      .ToList();
+  }
+
+  private sealed record Row(CatalogProductInfo Product, int OnHand)
+  {
+    public int ToOrder => Math.Max(0, (Product.MaxStock ?? Product.MinStock ?? 0) - OnHand);
+  }
+}

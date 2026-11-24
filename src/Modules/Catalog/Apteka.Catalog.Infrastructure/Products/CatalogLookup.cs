@@ -65,6 +65,32 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
         return await ToInfoAsync(products, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<CatalogProductInfo>> ListProductsAsync(
+        Guid? groupId,
+        bool withMinStockOnly,
+        CancellationToken cancellationToken = default)
+    {
+        var query = context.Products.AsNoTracking().Include(p => p.Units).Where(p => p.IsActive);
+        if (groupId is { } group)
+        {
+            query = query.Where(p => p.ProductGroupId == group);
+        }
+
+        if (withMinStockOnly)
+        {
+            query = query.Where(p => p.MinStock != null);
+        }
+
+        return await ToInfoAsync(await query.OrderBy(p => p.Name).ToListAsync(cancellationToken), cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<CatalogGroup>> ListGroupsAsync(CancellationToken cancellationToken = default) =>
+        await context.ProductGroups.AsNoTracking()
+            .Where(g => g.IsActive)
+            .OrderBy(g => g.Name)
+            .Select(g => new CatalogGroup(g.Id, g.Name))
+            .ToListAsync(cancellationToken);
+
     private async Task<IReadOnlyList<CatalogProductInfo>> ToInfoAsync(List<Product> products, CancellationToken cancellationToken)
     {
         var shelfIds = products.Where(p => p.ShelfId is not null).Select(p => p.ShelfId!.Value).Distinct().ToArray();
@@ -97,7 +123,10 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
         product.Units.OrderBy(u => u.Factor).Select(u => new CatalogUnit(u.Id, u.Name, u.Factor)).ToList(),
         shelfName,
         product.Code,
-        markupPercent);
+        markupPercent,
+        product.ProductGroupId,
+        product.MinStock,
+        product.MaxStock);
 
     // The values match by design (see CatalogDispensingMode); mapping by name keeps it safe if one side changes.
     private static CatalogDispensingMode ToContract(DispensingMode mode) => Enum.Parse<CatalogDispensingMode>(mode.ToString());

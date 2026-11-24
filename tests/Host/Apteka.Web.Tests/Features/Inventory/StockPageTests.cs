@@ -1,5 +1,7 @@
 using Apteka.Catalog.Contracts;
 using Apteka.Inventory.Contracts;
+using Apteka.Web.Features.Inventory.BelowMinimum;
+using Apteka.Web.Features.Inventory.Expired;
 using Apteka.Web.Features.Inventory.Stock;
 using Apteka.Web.Tests.Features.Purchasing;
 using Bunit;
@@ -11,12 +13,16 @@ public class StockPageTests : BunitContext
 {
     private readonly FakeCatalogLookup _catalog = new();
     private readonly FakeStockQueries _stock = new();
+    private readonly CatalogGroup _group = new(Guid.CreateVersion7(), "Обезболяващи");
+    private readonly CatalogProductInfo _product;
 
     public StockPageTests()
     {
-        var product = new CatalogProductInfo(
+        var product = _product = new CatalogProductInfo(
             Guid.CreateVersion7(), "Ибупрофен 400 мг", 20m, CatalogDispensingMode.OverTheCounter, true, null,
-            [new CatalogUnit(Guid.CreateVersion7(), "таблетка", 1), new CatalogUnit(Guid.CreateVersion7(), "кутия", 30)]);
+            [new CatalogUnit(Guid.CreateVersion7(), "таблетка", 1), new CatalogUnit(Guid.CreateVersion7(), "кутия", 30)],
+            Code: 7, ProductGroupId: _group.Id, MinStock: 90, MaxStock: 150);
+        _catalog.Groups.Add(_group);
         _catalog.Products.Add(product);
         _stock.Stock.Add(new ProductStock(product.ProductId, 65, DateOnly.FromDateTime(DateTime.Today).AddDays(-1), 2));
 
@@ -48,20 +54,70 @@ public class StockPageTests : BunitContext
         Assert.InRange(_stock.LastExpiringFilter!.Value.DayNumber, expected.DayNumber - 1, expected.DayNumber + 1);
     }
 
+    [Fact]
+    public void Group_filter_asks_only_for_the_groups_products()
+    {
+        var other = _product with { ProductId = Guid.CreateVersion7(), Name = "Друга", ProductGroupId = null };
+        _catalog.Products.Add(other);
+        var page = Render<StockPage>();
+
+        page.Find("#group").Change(_group.Id.ToString());
+
+        Assert.Equal([_product.ProductId], _stock.LastProductIds);
+    }
+
+    [Fact]
+    public void Expired_report_lists_batches_by_the_date_with_their_value()
+    {
+        var expired = DateOnly.FromDateTime(DateTime.Today).AddDays(-3);
+        _stock.Batches.Add(new ProductBatchStock(_product.ProductId, new BatchStock(Guid.CreateVersion7(), "EXP1", expired, 45, 0.2m, 0.3m, 30, 9m, DateTimeOffset.UtcNow)));
+
+        var page = Render<ExpiredPage>();
+
+        var row = page.Find("tbody tr");
+        Assert.Contains("EXP1", row.TextContent);
+        Assert.Contains("1 × кутия + 15 × таблетка", row.TextContent);
+        Assert.Contains("13,50", row.TextContent); // 45 × 0,30
+        Assert.Contains("expired", row.QuerySelector("td.expiry")!.ClassName);
+        Assert.NotNull(_stock.LastExpiringFilter);
+    }
+
+    [Fact]
+    public void Below_minimum_report_shows_products_under_their_minimum_and_how_much_to_order()
+    {
+        var page = Render<BelowMinimumPage>(); // 65 on hand, minimum 90, maximum 150
+
+        var row = page.Find("tbody tr");
+        Assert.Contains("Ибупрофен 400 мг", row.TextContent);
+        Assert.Contains("2 × кутия + 25 × таблетка", row.TextContent); // 150 − 65 = 85
+
+        _stock.Stock[0] = _stock.Stock[0] with { BaseQuantity = 100 };
+        page.Find("#group").Change(string.Empty);
+        Assert.Empty(page.FindAll("tbody tr"));
+    }
+
     private sealed class FakeStockQueries : IStockQueries
     {
         public List<ProductStock> Stock { get; } = [];
 
+        public List<ProductBatchStock> Batches { get; } = [];
+
         public DateOnly? LastExpiringFilter { get; private set; }
+
+        public IReadOnlyCollection<Guid>? LastProductIds { get; private set; }
 
         public Task<IReadOnlyList<ProductStock>> GetProductStockAsync(IReadOnlyCollection<Guid>? productIds, DateOnly? expiringOnOrBefore, CancellationToken cancellationToken = default)
         {
             LastExpiringFilter = expiringOnOrBefore;
-            return Task.FromResult<IReadOnlyList<ProductStock>>(Stock);
+            LastProductIds = productIds;
+            return Task.FromResult<IReadOnlyList<ProductStock>>(Stock.Where(s => productIds is null || productIds.Contains(s.ProductId)).ToList());
         }
 
-        public Task<IReadOnlyList<ProductBatchStock>> GetAllBatchesAsync(IReadOnlyCollection<Guid>? productIds, DateOnly? expiringOnOrBefore, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<ProductBatchStock>>([]);
+        public Task<IReadOnlyList<ProductBatchStock>> GetAllBatchesAsync(IReadOnlyCollection<Guid>? productIds, DateOnly? expiringOnOrBefore, CancellationToken cancellationToken = default)
+        {
+            LastExpiringFilter = expiringOnOrBefore;
+            return Task.FromResult<IReadOnlyList<ProductBatchStock>>(Batches.Where(b => expiringOnOrBefore is null || b.Batch.ExpiryDate <= expiringOnOrBefore).ToList());
+        }
 
         public Task<ProductCard> GetProductCardAsync(Guid productId, DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken = default) =>
             Task.FromResult(new ProductCard(0, []));

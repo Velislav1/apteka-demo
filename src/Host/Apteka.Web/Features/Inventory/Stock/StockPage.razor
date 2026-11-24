@@ -14,6 +14,13 @@
 <div class="toolbar">
   <input type="search" placeholder="Търсене по име" aria-label="Търсене" @bind="_query" @bind:event="oninput" @onkeydown="OnKeyDown" />
   <button @onclick="Load">Търси</button>
+  <select id="group" aria-label="Група" @bind="_groupId" @bind:after="Load">
+    <option value="">Всички групи</option>
+    @foreach (var group in _groups)
+    {
+      <option value="@group.Id">@group.Name</option>
+    }
+  </select>
   <label><input id="expiring" type="checkbox" @bind="_expiringOnly" @bind:after="Load" /> изтича до @ExpiringDays дни</label>
   <div class="segmented" role="group" aria-label="Вид">
     <button id="summary" class="@(_byBatch ? "secondary" : null)" @onclick="() => SetMode(false)">Обобщена</button>
@@ -107,6 +114,8 @@ else
   private const int MaxProducts = 200;
 
   private string _query = string.Empty;
+  private string _groupId = string.Empty;
+  private IReadOnlyList<CatalogGroup> _groups = [];
   private bool _expiringOnly;
   private List<Row>? _rows;
   private bool _byBatch;
@@ -123,10 +132,11 @@ else
   /// <summary>„?expiring=true“ opens the page with the 90-day filter on (link from the home page).</summary>
   [SupplyParameterFromQuery] public bool Expiring { get; set; }
 
-  protected override Task OnInitializedAsync()
+  protected override async Task OnInitializedAsync()
   {
     _expiringOnly = Expiring;
-    return Load();
+    _groups = await Catalog.ListGroupsAsync();
+    await Load();
   }
 
   private async Task Load()
@@ -135,6 +145,12 @@ else
     if (_query.Trim().Length > 0)
     {
       productIds = (await Catalog.SearchProductsAsync(_query, MaxProducts)).Select(p => p.ProductId).ToList();
+    }
+
+    if (Guid.TryParse(_groupId, out var groupId))
+    {
+      var inGroup = (await Catalog.ListProductsAsync(groupId, withMinStockOnly: false)).Select(p => p.ProductId);
+      productIds = productIds is null ? inGroup.ToList() : productIds.Intersect(inGroup).ToList();
     }
 
     if (_byBatch)

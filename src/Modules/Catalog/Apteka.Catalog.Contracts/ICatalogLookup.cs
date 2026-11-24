@@ -19,7 +19,18 @@ public interface ICatalogLookup
 
     /// <summary>Active products whose name contains <paramref name="text"/> (case-insensitive), by name.</summary>
     Task<IReadOnlyList<CatalogProductInfo>> SearchProductsAsync(string text, int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Active products for reports, by name: of one group (null = all) and, with <paramref name="withMinStockOnly"/>,
+    /// only those that have a minimum stock set („Под минимален запас“).
+    /// </summary>
+    Task<IReadOnlyList<CatalogProductInfo>> ListProductsAsync(Guid? groupId, bool withMinStockOnly, CancellationToken cancellationToken = default);
+
+    /// <summary>Active product groups by name, for report filters.</summary>
+    Task<IReadOnlyList<CatalogGroup>> ListGroupsAsync(CancellationToken cancellationToken = default);
 }
+
+public sealed record CatalogGroup(Guid Id, string Name);
 
 public sealed record CatalogProductInfo(
     Guid ProductId,
@@ -31,7 +42,10 @@ public sealed record CatalogProductInfo(
     IReadOnlyList<CatalogUnit> Units,
     string? ShelfName = null,
     long Code = 0,
-    decimal MarkupPercent = 25m);
+    decimal MarkupPercent = 25m,
+    Guid? ProductGroupId = null,
+    int? MinStock = null,
+    int? MaxStock = null);
 
 public static class CatalogCodes
 {
