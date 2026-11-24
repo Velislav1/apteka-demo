@@ -111,8 +111,10 @@ apteka-demo/
 - `DeliveryLine` — Id, DeliveryId, Position, ProductId, ProductUnitId, UnitFactor, Quantity (в тази мярка), UnitPurchasePrice (без ДДС), MarkupPercent?, SalePrice (с ДДС), BatchNo, ExpiryDate, IsRemoved (премахнат ред от чернова)
 - `Batch` — Id, ProductId, BatchNo, ExpiryDate, PurchasePrice (за най-малка мярка, без ДДС), SalePrice (за най-малка мярка, с ДДС), PricedUnitFactor + PricedUnitSalePrice (точната цена на мярката, в която е въведена), StockType, SourceDocumentType/Id, SourceLineId (уникален)
 - `StockMovement` — Id, BatchId, QuantityDelta (int, в най-малка мярка), Kind (Delivery/Sale/Reversal/WriteOff/Correction), DocumentType, DocumentId, UserId, CreatedAt
-- `Sale` — Id, Number, SaleType, UserId, CreatedAt, Total, PaymentMethod (Cash/Card), Status (Completed/Reversed)
-- `SaleLine` — Id, SaleId, BatchId, ProductUnitId, Quantity, UnitPrice, Discount, LineTotal
+- `Sale` — Id, Number (от sequence), SaleType, UserId, CreatedAt, Total, VatTotal, PaymentMethod (Cash/Card), CashReceived?, Status (Completed/Reversed)
+- `SaleLine` — Id, SaleId, Position, ProductId, ProductName, ProductUnitId, UnitName, UnitFactor, Quantity, UnitPrice (с ДДС), DiscountPercent, DiscountAmount, VatRate, LineTotal, VatAmount
+- `SaleLineBatch` — Id, SaleLineId, BatchId, BaseQuantity (от кои партиди е изписан редът; FEFO може да го раздели)
+- `Reversal` — Id, SaleId (уникален), Reason?, UserId, CreatedAt (сторно на цялата продажба)
 - `User` — Id, UserName, PasswordHash, Role (Manager/Pharmacist), IsActive
 - `AuditLog` — Id, UserId, At, Action, Entity, EntityId, OldValues (jsonb), NewValues (jsonb)
 
@@ -126,7 +128,7 @@ apteka-demo/
 2. **Номенклатура** — списък, търсене по име/баркод, създаване и редакция на стока с мерки и баркодове.
 3. **Доставка** — нова доставка: доставчик, фактура, редове (стока, мярка, количество, партида, срок, цени) → „Запиши“ (Draft) → „Публикувай“.
 4. **Наличност** — по стока и по партида, с филтър „изтича до 90 дни“.
-5. **Каса** — поле за баркод с постоянен фокус; Enter добавя ред; F2 количество; F9 плащане; Esc отказ. Изцяло без мишка.
+5. **Каса** — поле за баркод с постоянен фокус; Enter добавя ред; F2 количество; F3 отстъпка %; F9 плащане (Enter в брой, F9 с карта); Esc отказ. Изцяло без мишка. Rx стоки — с потвърждение на рецептата; упойващи — забранени.
 6. **Продажби за деня** — списък и сторно на продажба.
 
 ## Тестове (задължителни преди всяко „готово“)

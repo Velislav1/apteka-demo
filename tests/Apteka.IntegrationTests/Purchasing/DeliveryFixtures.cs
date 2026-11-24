@@ -28,9 +28,19 @@ internal static class DeliveryFixtures
     }
 
     /// <summary>A product with units кутия (20), блистер (10), таблетка (1); returns its id and the box unit id.</summary>
-    public static async Task<(Guid ProductId, Guid BoxId, Guid TabletId)> ProductAsync(IServiceProvider provider)
+    public static async Task<(Guid ProductId, Guid BoxId, Guid TabletId)> ProductAsync(
+        IServiceProvider provider,
+        Apteka.Catalog.Domain.Products.DispensingMode mode = Apteka.Catalog.Domain.Products.DispensingMode.OverTheCounter)
     {
-        var productId = await ProductPersistenceTests.CreateAsync(provider, CatalogInputs.UniqueName("Доставена"), TestBarcodes.Next());
+        Guid productId;
+        await using (var create = provider.CreateAsyncScope())
+        {
+            var created = await create.ServiceProvider.GetRequiredService<CreateProductHandler>().HandleAsync(
+                CatalogInputs.Tablets(CatalogInputs.UniqueName("Доставена"), TestBarcodes.Next()) with { DispensingMode = mode }, Ct);
+            Assert.True(created.IsSuccess, created.IsFailure ? created.Error.Message : null);
+            productId = created.Value;
+        }
+
         await using var scope = provider.CreateAsyncScope();
         var view = (await scope.ServiceProvider.GetRequiredService<GetProductHandler>().HandleAsync(productId, Ct))!;
         return (productId, view.Units.Single(u => u.Name == "кутия").Id, view.Units.Single(u => u.Name == "таблетка").Id);
@@ -46,5 +56,33 @@ internal static class DeliveryFixtures
             .HandleAsync(null, new DeliveryInput(supplierId, CatalogInputs.UniqueName("Ф")[..30], Today, lines), Ct);
         Assert.True(saved.IsSuccess, saved.IsFailure ? saved.Error.Message : null);
         return saved.Value;
+    }
+}
+
+internal static class StockFixtures
+{
+    /// <summary>A product with posted stock: one batch per entry, in boxes of 20, sale price 6,00 € a box.</summary>
+    public static async Task<(Guid ProductId, Guid BoxId, Guid TabletId)> StockedProductAsync(
+        IServiceProvider provider,
+        Apteka.Catalog.Domain.Products.DispensingMode mode,
+        params (int Boxes, int ExpiresInDays)[] batches)
+    {
+        var supplier = await DeliveryFixtures.SupplierAsync(provider);
+        var product = await DeliveryFixtures.ProductAsync(provider, mode);
+        var lines = batches.Select((b, i) => DeliveryFixtures.Line(product.ProductId, product.BoxId, b.Boxes, $"B{i + 1}", b.ExpiresInDays)).ToArray();
+        var id = await DeliveryFixtures.DraftAsync(provider, supplier, lines);
+
+        await using var scope = provider.CreateAsyncScope();
+        var posted = await scope.ServiceProvider.GetRequiredService<PostDeliveryHandler>().HandleAsync(id, DeliveryFixtures.Ct);
+        Assert.True(posted.IsSuccess, posted.IsFailure ? posted.Error.Message : null);
+        return product;
+    }
+
+    public static async Task<int> StockAsync(IServiceProvider provider, Guid productId)
+    {
+        await using var scope = provider.CreateAsyncScope();
+        var stock = await scope.ServiceProvider.GetRequiredService<Apteka.Inventory.Contracts.IStockQueries>()
+            .GetProductStockAsync([productId], null, DeliveryFixtures.Ct);
+        return stock.SingleOrDefault()?.BaseQuantity ?? 0;
     }
 }

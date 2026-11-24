@@ -1,5 +1,6 @@
 using Apteka.Infrastructure.Common;
 using Apteka.Infrastructure.Common.Persistence;
+using Apteka.Inventory.Application.Issuing;
 using Apteka.Inventory.Application.Receiving;
 using Apteka.Inventory.Contracts;
 using Apteka.Inventory.Infrastructure.Batches;
@@ -18,10 +19,12 @@ public static class InventoryModule
 
         // Infrastructure
         services.AddScoped<IInventoryRepository, InventoryRepository>();
+        services.AddScoped<IStockLocking, StockLocking>();
 
         // Public API for other modules
         services.AddScoped<IStockReceiving, ReceiveStockHandler>();
         services.AddScoped<IStockQueries, StockQueries>();
+        services.AddScoped<IStockIssuing, IssueStockHandler>();
 
         return services;
     }

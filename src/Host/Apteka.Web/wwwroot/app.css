@@ -66,3 +66,10 @@ table.lines td { vertical-align: middle; }
 .picker { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
 .totals { text-align: right; font-weight: 600; margin: 0.5rem 0; }
 tr.details td { background: #f8fafc; }
+.till-prompt { display: block; font-weight: 600; margin-bottom: 0.3rem; }
+.till-input { width: 100%; box-sizing: border-box; font-size: 1.4rem; padding: 0.5rem; }
+.till-keys { color: #7b8794; font-size: 0.9rem; margin: 0.3rem 0 0.8rem; }
+.till-total { text-align: right; font-size: 1.6rem; margin-top: 0.75rem; }
+.till-lines tr.current td { background: #eef7f2; }
+.till-lines tr.short td { color: #b42318; }
+.till-matches { background: #fff; border: 1px solid #d9e2ec; padding: 0.5rem 0.5rem 0.5rem 2rem; }

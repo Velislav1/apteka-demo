@@ -37,6 +37,19 @@ tests/Host/Apteka.Web.Tests/Features/<Module>/  bUnit тестове на екр
 | Групи | `ProductGroups/` | `ProductGroups/` | (същото) | `Features/Catalog/ProductGroups/` |
 | Рафтове | `Shelves/` | `Shelves/` | (същото) | `Features/Catalog/Shelves/` |
 
+Пример — Sales и Inventory (каса):
+
+| Част | Модул и папка |
+|---|---|
+| Сметка на ред, ДДС, закръгляне | Sales / `Domain/Pricing/` |
+| Продажба, редове, партиди на реда | Sales / `Domain/Sales/` |
+| Сторно | Sales / `Domain/Reversals/`, `Application/Reversals/` |
+| Приключване на продажба (F9) | Sales / `Application/Checkout/` |
+| Продажби за деня | Sales / `Application/DailySales/` |
+| FEFO избор на партида | Inventory / `Domain/Allocation/` |
+| Изписване със заключване (`FOR UPDATE`) | Inventory / `Application/Issuing/`, `Infrastructure/Batches/StockLocking.cs` |
+| Екрани | `Features/Sales/Checkout/` (+ `CheckoutPage.razor.js` за клавишите), `Features/Sales/DailySales/` |
+
 Еднаквото поведение на простите справочници е в папки `Common/` (един базов клас, един handler, едно хранилище,
 един Blazor компонент), за да не се повтаря три пъти. Преглед на модел = неговите папки + `Common/`.
 

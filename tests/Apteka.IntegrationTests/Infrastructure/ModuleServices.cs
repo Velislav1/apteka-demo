@@ -4,6 +4,7 @@ using Apteka.Infrastructure.Common;
 using Apteka.Infrastructure.Common.Users;
 using Apteka.Inventory.Infrastructure;
 using Apteka.Purchasing.Infrastructure;
+using Apteka.Sales.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Apteka.IntegrationTests.Infrastructure;
@@ -27,6 +28,7 @@ internal static class ModuleServices
         services.AddCatalogModule(connectionString);
         services.AddInventoryModule(connectionString);
         services.AddPurchasingModule(connectionString);
+        services.AddSalesModule(connectionString);
         replace?.Invoke(services);
 
         var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
