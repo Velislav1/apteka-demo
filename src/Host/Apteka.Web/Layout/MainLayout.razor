@@ -1,72 +1,132 @@
 @inherits LayoutComponentBase
+@implements IAsyncDisposable
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
 @using Apteka.Identity.Contracts
+@using Apteka.SharedKernel
 @using Apteka.Web.Features.Identity.Session
 @using Apteka.Web.Features.Shared
+@inject IJSRuntime JS
+@inject TimeProvider Clock
 
-<div class="shell @(_menuOpen ? "menu-open" : null)">
-  <aside class="sidebar">
-    <a class="brand" href="">
-      <span class="brand-mark"><Icon Name="pill" Size="20" /></span>
-      <span>Аптека</span>
-    </a>
+@* Arranged like Apteka Expert 2: menu bar on top, a toolbar with the most used functions, a status bar below. *@
+
+<div class="shell">
+  <header class="menubar">
+    <a class="brand" href=""><span class="brand-mark"><Icon Name="pill" Size="18" /></span> Аптека</a>
 
     <AuthorizeView>
-      <nav @onclick="() => _menuOpen = false">
-        <NavLink href="" Match="NavLinkMatch.All"><Icon Name="home" /> Начало</NavLink>
+      <Authorized>
+        <nav class="menus" aria-label="Главно меню">
+          <div class="menu">
+            <button class="menu-title" type="button">Доставки</button>
+            <div class="dropdown">
+              <NavLink href="purchasing/deliveries/new" Match="NavLinkMatch.All"><Icon Name="plus" /> Складова разписка <kbd>Ctrl+F1</kbd></NavLink>
+              <NavLink href="purchasing/deliveries" Match="NavLinkMatch.All"><Icon Name="truck" /> Складови разписки</NavLink>
+              <NavLink href="purchasing/suppliers"><Icon Name="building" /> Доставчици</NavLink>
+            </div>
+          </div>
+          <div class="menu">
+            <button class="menu-title" type="button">Продажби</button>
+            <div class="dropdown">
+              <NavLink href="sales/checkout"><Icon Name="till" /> Директна продажба <kbd>Ctrl+F3</kbd></NavLink>
+              <NavLink href="sales/daily"><Icon Name="receipt" /> Директни продажби (за деня)</NavLink>
+            </div>
+          </div>
+          <div class="menu">
+            <button class="menu-title" type="button">Справки</button>
+            <div class="dropdown">
+              <NavLink href="inventory/card"><Icon Name="draft" /> Картон на стока</NavLink>
+              <NavLink href="inventory/stock" Match="NavLinkMatch.All"><Icon Name="boxes" /> Стокова наличност</NavLink>
+              <NavLink href="sales/report"><Icon Name="coins" /> Дневен опис на продажбите</NavLink>
+              <NavLink href="inventory/stock?expiring=true"><Icon Name="clock" /> Срок на годност до 90 дни</NavLink>
+            </div>
+          </div>
+          <div class="menu">
+            <button class="menu-title" type="button">Настройки</button>
+            <div class="dropdown">
+              <span class="dropdown-group">Номенклатури</span>
+              <NavLink href="catalog" Match="NavLinkMatch.All"><Icon Name="pill" /> Стоки</NavLink>
+              <NavLink href="catalog/groups"><Icon Name="layers" /> Групи</NavLink>
+              <NavLink href="catalog/shelves"><Icon Name="shelf" /> Рафтове</NavLink>
+              <NavLink href="catalog/manufacturers"><Icon Name="factory" /> Производители</NavLink>
+              <NavLink href="purchasing/suppliers"><Icon Name="building" /> Доставчици</NavLink>
+              <AuthorizeView Roles="@Roles.Manager" Context="manager">
+                <span class="dropdown-group">Администрация</span>
+                <NavLink href="identity/users"><Icon Name="users" /> Потребители</NavLink>
+              </AuthorizeView>
+            </div>
+          </div>
+        </nav>
 
-        <p class="nav-group">Продажби</p>
-        <NavLink href="sales/checkout"><Icon Name="till" /> Каса</NavLink>
-        <NavLink href="sales/daily"><Icon Name="receipt" /> Продажби за деня</NavLink>
-
-        <p class="nav-group">Склад</p>
-        <NavLink href="inventory/stock"><Icon Name="boxes" /> Наличност</NavLink>
-        <NavLink href="purchasing/deliveries"><Icon Name="truck" /> Доставки</NavLink>
-        <NavLink href="purchasing/suppliers"><Icon Name="building" /> Доставчици</NavLink>
-
-        <p class="nav-group">Номенклатура</p>
-        <NavLink href="catalog" Match="NavLinkMatch.All"><Icon Name="pill" /> Стоки</NavLink>
-        <NavLink href="catalog/manufacturers"><Icon Name="factory" /> Производители</NavLink>
-        <NavLink href="catalog/groups"><Icon Name="layers" /> Групи</NavLink>
-        <NavLink href="catalog/shelves"><Icon Name="shelf" /> Рафтове</NavLink>
-
-        <AuthorizeView Roles="@Roles.Manager" Context="manager">
-          <p class="nav-group">Администрация</p>
-          <NavLink href="identity/users"><Icon Name="users" /> Потребители</NavLink>
-        </AuthorizeView>
-      </nav>
-
-      <form method="post" action="account/logout" class="user-box">
-        <AntiforgeryToken />
-        <span class="avatar">@Initials(context.User.DisplayName())</span>
-        <span class="user-name">
-          <strong>@context.User.DisplayName()</strong>
-          <small>@(context.User.IsInRole(Roles.Manager) ? "Управител" : "Фармацевт")</small>
-        </span>
-        <button type="submit" class="icon-button" title="Изход" aria-label="Изход"><Icon Name="logout" /></button>
-      </form>
+        <form method="post" action="account/logout" class="logout">
+          <AntiforgeryToken />
+          <button type="submit" class="secondary"><Icon Name="logout" /> Изход</button>
+        </form>
+      </Authorized>
     </AuthorizeView>
-  </aside>
+  </header>
 
-  <div class="main">
-    <header class="mobile-bar">
-      <button class="icon-button" @onclick="() => _menuOpen = !_menuOpen" aria-label="Меню"><Icon Name="menu" /></button>
-      <span class="brand-text">Аптека</span>
-    </header>
-    <main class="content">
-      @Body
-    </main>
-  </div>
+  <AuthorizeView>
+    <Authorized>
+      <div class="toolbar-strip" role="toolbar" aria-label="Бързи функции">
+        <a href="purchasing/deliveries/new" title="Складова разписка (Ctrl+F1)"><Icon Name="truck" Size="20" /><span>Складова разписка</span></a>
+        <a href="sales/checkout" title="Директна продажба (Ctrl+F3)"><Icon Name="till" Size="20" /><span>Продажба</span></a>
+        <span class="sep"></span>
+        <a href="inventory/stock" title="Стокова наличност"><Icon Name="boxes" Size="20" /><span>Наличност</span></a>
+        <a href="inventory/card" title="Картон на стока"><Icon Name="draft" Size="20" /><span>Картон</span></a>
+        <a href="catalog" title="Номенклатура на стоките"><Icon Name="pill" Size="20" /><span>Стоки</span></a>
+      </div>
+    </Authorized>
+  </AuthorizeView>
+
+  <main class="content">
+    @Body
+  </main>
+
+  <AuthorizeView>
+    <Authorized>
+      <footer class="statusbar">
+        <span>Ctrl+F1 — складова разписка · Ctrl+F3 — директна продажба · Ctrl+Enter — приключване</span>
+        <span class="status-right">
+          <span>@Formats.Date(BulgarianTime.Today(Clock.GetUtcNow()))</span>
+          <span>@context.User.DisplayName() · @(context.User.IsInRole(Roles.Manager) ? "Управител" : "Фармацевт")</span>
+        </span>
+      </footer>
+    </Authorized>
+  </AuthorizeView>
 </div>
 
 @code {
-  private bool _menuOpen;
+  private IJSObjectReference? _module;
 
-  /// <summary>First letters of the first two words that start with a letter („Управител (демо)“ → „УД“).</summary>
-  private static string Initials(string name) =>
-    string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-      .Select(word => word.FirstOrDefault(char.IsLetter))
-      .Where(letter => letter != default)
-      .Take(2)
-      .Select(char.ToUpperInvariant));
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (firstRender)
+    {
+      try
+      {
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./Layout/MainLayout.razor.js");
+        await _module.InvokeVoidAsync("start");
+      }
+      catch (JSDisconnectedException)
+      {
+      }
+    }
+  }
+
+  public async ValueTask DisposeAsync()
+  {
+    if (_module is not null)
+    {
+      try
+      {
+        await _module.InvokeVoidAsync("stop");
+        await _module.DisposeAsync();
+      }
+      catch (JSDisconnectedException)
+      {
+      }
+    }
+  }
 }

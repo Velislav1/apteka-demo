@@ -3,21 +3,26 @@
 @using System.Globalization
 @using Apteka.Sales.Application.Checkout
 @using Apteka.Sales.Domain.Sales
+@using Apteka.SharedKernel
 @using Apteka.Web.Features.Shared
 @using Microsoft.JSInterop
 @inject FindTillProductHandler FindProduct
 @inject CompleteSaleHandler CompleteSale
+@inject TimeProvider Clock
 @inject IJSRuntime JS
 
-<PageTitle>Каса</PageTitle>
+@* „Директна продажба“, with the keys of Apteka Expert 2. *@
 
-<h1>Каса</h1>
+<PageTitle>Директна продажба</PageTitle>
+
+<h1>Директна продажба <span class="muted till-date">@Formats.Date(BulgarianTime.Today(Clock.GetUtcNow()))</span></h1>
 
 <div class="till">
   <section class="till-main">
     <div class="till-entry card">
       <label for="till-input" class="till-prompt">@Prompt</label>
-      <input id="till-input" class="till-input" autocomplete="off" placeholder="Сканирайте баркод…" @bind="_input" @bind:event="oninput" @onkeydown="OnKeyDown" />
+      <input id="till-input" class="till-input" autocomplete="off" placeholder="Баркод, име или 3*баркод…"
+             @bind="_input" @bind:event="oninput" @onkeydown="OnKeyDown" />
 
       @if (_error is not null)
       {
@@ -33,26 +38,37 @@
           }
         </ol>
       }
+
+      @if (_cart.Current is { } current)
+      {
+        <dl class="current-item">
+          <div><dt>Стока</dt><dd>@current.Product.Name</dd></div>
+          <div><dt>Мярка</dt><dd>@current.Product.UnitName</dd></div>
+          <div><dt>Цена</dt><dd>@Formats.Euro(current.Product.UnitPrice)</dd></div>
+          <div class="@(current.ExceedsStock ? "short" : null)"><dt>Налично</dt><dd>@Formats.Quantity(current.Product.AvailableBaseQuantity, current.Product.AllUnits)</dd></div>
+          <div><dt>Рафт</dt><dd>@(current.Product.ShelfName ?? "—")</dd></div>
+        </dl>
+      }
     </div>
 
     @if (_cart.IsEmpty)
     {
       <div class="till-empty card">
         <Icon Name="till" Size="36" />
-        <p>Няма стоки в бележката. Сканирайте баркод или напишете име.</p>
+        <p>Няма стоки. Сканирайте баркод или напишете име на стока и Enter.</p>
       </div>
     }
     else
     {
       <table class="grid till-lines">
         <thead>
-          <tr><th>№</th><th>Стока</th><th>Мярка</th><th class="num">Кол.</th><th class="num">Цена</th><th class="num">Отст. %</th><th class="num">Сума</th></tr>
+          <tr><th>№</th><th>Наименование</th><th class="num">Кол.</th><th>Мярка</th><th class="num">Ед. цена</th><th class="num">ТО %</th><th class="num">Стойност</th></tr>
         </thead>
         <tbody>
           @for (var i = 0; i < _cart.Lines.Count; i++)
           {
             var line = _cart.Lines[i];
-            <tr class="@(line == _cart.Last ? "current" : null) @(line.ExceedsStock ? "short" : null)">
+            <tr class="@(i == _cart.CurrentIndex ? "current" : null) @(line.ExceedsStock ? "short" : null)">
               <td>@(i + 1)</td>
               <td>
                 @line.Product.Name
@@ -60,13 +76,9 @@
                 {
                   <span class="tag" title="Рецептата е потвърдена">Rx</span>
                 }
-                @if (line.ExceedsStock)
-                {
-                  <span class="stock-note">налични: @Formats.Quantity(line.Product.AvailableBaseQuantity, [new(line.Product.UnitId, line.Product.UnitName, line.Product.UnitFactor), new(Guid.Empty, "бр. най-малка мярка", 1)])</span>
-                }
               </td>
-              <td>@line.Product.UnitName</td>
               <td class="num">@line.Quantity</td>
+              <td>@line.Product.UnitName</td>
               <td class="num">@Formats.Euro(line.Product.UnitPrice)</td>
               <td class="num">@(line.DiscountPercent == 0 ? null : line.DiscountPercent.ToString("0.##", CultureInfo.GetCultureInfo("bg-BG")))</td>
               <td class="num">@Formats.Euro(line.Total)</td>
@@ -75,15 +87,15 @@
         </tbody>
       </table>
     }
+
+    <div class="till-sum card">
+      <span>Ст-ст без ТО: <strong>@Formats.Euro(_cart.Gross)</strong></span>
+      <span>– ТО: <strong>@Formats.Euro(_cart.Discount)</strong></span>
+      <span class="till-total">= СУМА: <strong>@Formats.Euro(_cart.Total)</strong></span>
+    </div>
   </section>
 
   <aside class="till-side">
-    <div class="till-summary card">
-      <span class="muted">За плащане</span>
-      <p class="till-total"><strong>@Formats.Euro(_cart.Total)</strong></p>
-      <span class="muted">@_cart.Lines.Count @(_cart.Lines.Count == 1 ? "ред" : "реда")</span>
-    </div>
-
     @if (_done is not null)
     {
       <div class="alert success" role="status">
@@ -94,17 +106,23 @@
     }
 
     <ul class="till-keys card">
-      <li><kbd>Enter</kbd> добави / потвърди</li>
-      <li><kbd>F2</kbd> количество</li>
-      <li><kbd>F3</kbd> отстъпка %</li>
-      <li><kbd>F9</kbd> плащане (<kbd>F9</kbd> отново — карта)</li>
+      <li><kbd>Enter</kbd> добави стока</li>
+      <li><kbd>3*</kbd> + баркод — количество 3; <kbd>3*</kbd> + Enter — количество на текущия ред</li>
+      <li><kbd>↑</kbd> <kbd>↓</kbd> избор на ред</li>
+      <li><kbd>F4</kbd> отстъпка (ТО %)</li>
+      <li><kbd>F12</kbd> смяна на мярката</li>
+      <li><kbd>F8</kbd> изтрий реда</li>
+      <li><kbd>F10</kbd> плащане и ресто</li>
+      <li><kbd>Ctrl+Enter</kbd> приключи (в брой, точна сума)</li>
       <li><kbd>Esc</kbd> назад / отказ</li>
     </ul>
+
+    <a class="button secondary" href="sales/daily"><Icon Name="receipt" /> Директни продажби (за деня)</a>
   </aside>
 </div>
 
 @code {
-  private enum Mode { Scan, Quantity, Discount, Choose, ConfirmPrescription, Payment, ConfirmCancel }
+  private enum Mode { Scan, Discount, Choose, ConfirmPrescription, Payment, ConfirmCancel }
 
   private const int MaxMatches = 9;
 
@@ -114,18 +132,18 @@
   private string? _error;
   private CompletedSale? _done;
   private IReadOnlyList<TillProduct> _matches = [];
-  private TillProduct? _pendingPrescription;
+  private (TillProduct Product, int Quantity)? _pendingPrescription;
+  private int _pendingQuantity = 1;
   private IJSObjectReference? _module;
 
   private string Prompt => _mode switch
   {
-    Mode.Quantity => $"Количество за „{_cart.Last?.Product.Name}“ и Enter (Esc — назад)",
-    Mode.Discount => $"Отстъпка в % за „{_cart.Last?.Product.Name}“ и Enter (Esc — назад)",
+    Mode.Discount => $"Отстъпка (ТО %) за „{_cart.Current?.Product.Name}“ и Enter (Esc — назад)",
     Mode.Choose => "Номер от списъка и Enter (Esc — назад)",
-    Mode.ConfirmPrescription => $"„{_pendingPrescription?.Name}“ е по лекарско предписание. Има ли рецепта? Enter — да, Esc — не",
-    Mode.Payment => $"Плащане {Formats.Euro(_cart.Total)}: сума в брой и Enter (празно — точна сума) · F9 — с карта · Esc — назад",
+    Mode.ConfirmPrescription => $"„{_pendingPrescription?.Product.Name}“ е по лекарско предписание. Има ли рецепта? Enter — да, Esc — не",
+    Mode.Payment => $"Плащане {Formats.Euro(_cart.Total)}: получена сума в брой и Enter (празно — точна сума) · F10 — с карта · Esc — назад",
     Mode.ConfirmCancel => "Отказ на цялата продажба? Esc — да, Enter — не",
-    _ => "Баркод или име на стока и Enter",
+    _ => "Стока: баркод или име и Enter",
   };
 
   protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -141,19 +159,31 @@
   {
     switch (e.Key)
     {
+      case "Enter" when e.CtrlKey:
+        await Complete();
+        break;
       case "Enter":
         await OnEnter();
         break;
-      case "F2" when _mode == Mode.Scan && _cart.Last is not null:
-        Switch(Mode.Quantity);
+      case "ArrowUp" when _mode == Mode.Scan:
+        _cart.Move(-1);
         break;
-      case "F3" when _mode == Mode.Scan && _cart.Last is not null:
+      case "ArrowDown" when _mode == Mode.Scan:
+        _cart.Move(1);
+        break;
+      case "F4" when _mode == Mode.Scan && _cart.Current is not null:
         Switch(Mode.Discount);
         break;
-      case "F9" when _mode == Mode.Scan && !_cart.IsEmpty:
+      case "F8" when _mode == Mode.Scan:
+        _cart.RemoveCurrent();
+        break;
+      case "F12" when _mode == Mode.Scan && _cart.Current is not null:
+        await ChangeUnit();
+        break;
+      case "F10" when _mode == Mode.Scan && !_cart.IsEmpty:
         Switch(Mode.Payment);
         break;
-      case "F9" when _mode == Mode.Payment:
+      case "F10" when _mode == Mode.Payment:
         await Pay(PaymentMethod.Card, null);
         break;
       case "Escape":
@@ -172,24 +202,12 @@
     {
       case Mode.Scan when text.Length > 0:
         _done = null;
-        await Find(text);
-        break;
-      case Mode.Quantity:
-        if (int.TryParse(text, out var quantity) && quantity > 0)
-        {
-          _cart.Last!.Quantity = quantity;
-          Switch(Mode.Scan);
-        }
-        else
-        {
-          _error = "Въведете цяло число, по-голямо от нула.";
-        }
-
+        await Scan(text);
         break;
       case Mode.Discount:
         if (decimal.TryParse(text.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var discount) && discount is >= 0 and <= 100)
         {
-          _cart.Last!.DiscountPercent = discount;
+          _cart.Current!.DiscountPercent = discount;
           Switch(Mode.Scan);
         }
         else
@@ -201,7 +219,7 @@
       case Mode.Choose:
         if (int.TryParse(text, out var number) && number >= 1 && number <= _matches.Count)
         {
-          Add(_matches[number - 1]);
+          Add(_matches[number - 1], _pendingQuantity);
         }
         else
         {
@@ -210,7 +228,8 @@
 
         break;
       case Mode.ConfirmPrescription:
-        _cart.Add(_pendingPrescription!, prescriptionConfirmed: true);
+        var (product, quantity) = _pendingPrescription!.Value;
+        _cart.Add(product, quantity, prescriptionConfirmed: true);
         _pendingPrescription = null;
         Switch(Mode.Scan);
         break;
@@ -235,6 +254,98 @@
     }
   }
 
+  /// <summary>„3*“ sets the quantity: alone for the current line, before a barcode or name for the new one.</summary>
+  private async Task Scan(string text)
+  {
+    var quantity = 1;
+    var star = text.IndexOf('*');
+    if (star > 0 && int.TryParse(text[..star], out var parsed) && parsed > 0)
+    {
+      quantity = parsed;
+      text = text[(star + 1)..].Trim();
+      if (text.Length == 0)
+      {
+        if (_cart.Current is { } current)
+        {
+          current.Quantity = quantity;
+        }
+
+        return;
+      }
+    }
+
+    await Find(text, quantity);
+  }
+
+  /// <summary>Digits are a barcode; anything else searches by name (one match is added at once).</summary>
+  private async Task Find(string text, int quantity)
+  {
+    if (text.All(char.IsAsciiDigit))
+    {
+      var found = await FindProduct.ByBarcodeAsync(text);
+      if (found.IsFailure)
+      {
+        _error = found.Error.Message;
+        return;
+      }
+
+      Add(found.Value, quantity);
+      return;
+    }
+
+    var matches = await FindProduct.ByNameAsync(text, MaxMatches);
+    if (matches.IsFailure)
+    {
+      _error = matches.Error.Message;
+    }
+    else if (matches.Value.Count == 1)
+    {
+      Add(matches.Value[0], quantity);
+    }
+    else
+    {
+      _matches = matches.Value;
+      _pendingQuantity = quantity;
+      Switch(Mode.Choose);
+    }
+  }
+
+  private void Add(TillProduct product, int quantity)
+  {
+    _matches = [];
+    var alreadyConfirmed = _cart.Lines.Any(l => l.Product.ProductId == product.ProductId && l.PrescriptionConfirmed);
+    if (product.NeedsPrescription && !alreadyConfirmed)
+    {
+      _pendingPrescription = (product, quantity);
+      Switch(Mode.ConfirmPrescription);
+      return;
+    }
+
+    _cart.Add(product, quantity, alreadyConfirmed);
+    Switch(Mode.Scan);
+  }
+
+  /// <summary>F12: the next unit of the product (box → blister → tablet → box …).</summary>
+  private async Task ChangeUnit()
+  {
+    var current = _cart.Current!;
+    var units = current.Product.AllUnits.OrderByDescending(u => u.Factor).ToList();
+    if (units.Count < 2)
+    {
+      return;
+    }
+
+    var next = units[(units.FindIndex(u => u.UnitId == current.Product.UnitId) + 1) % units.Count];
+    var priced = await FindProduct.InUnitAsync(current.Product.ProductId, next.UnitId);
+    if (priced.IsFailure)
+    {
+      _error = priced.Error.Message;
+      return;
+    }
+
+    _cart.ReplaceCurrent(priced.Value);
+  }
+
   private void OnEscape()
   {
     _input = string.Empty;
@@ -256,55 +367,27 @@
     }
   }
 
-  /// <summary>Digits are a barcode; anything else searches by name (one match is added at once).</summary>
-  private async Task Find(string text)
+  /// <summary>Ctrl+Enter: finish the sale. In the payment step it takes the typed cash; otherwise exact cash.</summary>
+  private async Task Complete()
   {
-    if (text.All(char.IsAsciiDigit))
+    if (_cart.IsEmpty)
     {
-      var found = await FindProduct.ByBarcodeAsync(text);
-      if (found.IsFailure)
-      {
-        _error = found.Error.Message;
-        return;
-      }
-
-      Add(found.Value);
       return;
     }
 
-    var matches = await FindProduct.ByNameAsync(text, MaxMatches);
-    if (matches.IsFailure)
+    var text = _input.Trim();
+    if (_mode == Mode.Payment && decimal.TryParse(text.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var cash))
     {
-      _error = matches.Error.Message;
-    }
-    else if (matches.Value.Count == 1)
-    {
-      Add(matches.Value[0]);
-    }
-    else
-    {
-      _matches = matches.Value;
-      Switch(Mode.Choose);
-    }
-  }
-
-  private void Add(TillProduct product)
-  {
-    _matches = [];
-    var alreadyConfirmed = _cart.Lines.Any(l => l.Product.ProductId == product.ProductId && l.PrescriptionConfirmed);
-    if (product.NeedsPrescription && !alreadyConfirmed)
-    {
-      _pendingPrescription = product;
-      Switch(Mode.ConfirmPrescription);
+      await Pay(PaymentMethod.Cash, cash);
       return;
     }
 
-    _cart.Add(product, alreadyConfirmed);
-    Switch(Mode.Scan);
+    await Pay(PaymentMethod.Cash, _cart.Total);
   }
 
   private async Task Pay(PaymentMethod method, decimal? cash)
   {
+    _input = string.Empty;
     var result = await CompleteSale.HandleAsync(new CheckoutInput(_cart.ToInput(), method, cash));
     if (result.IsFailure)
     {

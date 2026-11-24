@@ -56,22 +56,48 @@ public class CheckoutPageTests : BunitContext
 
     private static void Press(IRenderedComponent<CheckoutPage> page, string key) => page.Find("#till-input").KeyDown(key);
 
+    private static string Quantity(IRenderedComponent<CheckoutPage> page, int row = 0) =>
+        page.FindAll(".till-lines tbody tr")[row].QuerySelectorAll("td")[2].TextContent;
+
     [Fact]
-    public void Enter_adds_a_line_the_same_barcode_adds_one_more_and_F2_sets_the_quantity()
+    public void Enter_adds_a_line_the_same_barcode_adds_one_more_and_a_star_sets_the_quantity()
     {
         var page = Render<CheckoutPage>();
 
         Type(page, OtcBarcode);
         Type(page, OtcBarcode);
-        Assert.Equal("2", page.Find(".till-lines tbody tr td:nth-child(4)").TextContent);
+        Assert.Equal("2", Quantity(page));
 
-        Press(page, "F2");
-        Assert.Contains("Количество", page.Find(".till-prompt").TextContent);
-        Type(page, "5");
+        Type(page, "5*");
+        Assert.Equal("5", Quantity(page));
 
+        Type(page, "3*" + OtcBarcode);
         Assert.Single(page.FindAll(".till-lines tbody tr"));
-        Assert.Equal("5", page.Find(".till-lines tbody tr td:nth-child(4)").TextContent);
-        Assert.Contains("30,00", page.Find(".till-total").TextContent);
+        Assert.Equal("8", Quantity(page));
+        Assert.Contains("48,00", page.Find(".till-total").TextContent);
+    }
+
+    [Fact]
+    public void F4_gives_a_discount_F12_changes_the_unit_and_F8_removes_the_current_line()
+    {
+        var page = Render<CheckoutPage>();
+        Type(page, OtcBarcode);
+        Type(page, RxBarcode);
+        Type(page, string.Empty); // confirm the prescription
+
+        Press(page, "ArrowUp");
+        Press(page, "F4");
+        Type(page, "10");
+        Assert.Contains("Ст-ст без ТО", page.Find(".till-sum").TextContent);
+        Assert.Contains("0,60", page.Find(".till-sum").TextContent); // 10 % of 6,00
+
+        Press(page, "F12");
+        Assert.Equal("таблетка", page.FindAll(".till-lines tbody tr")[0].QuerySelectorAll("td")[3].TextContent);
+
+        Press(page, "F8");
+        var rows = page.FindAll(".till-lines tbody tr");
+        Assert.Single(rows);
+        Assert.Contains("Амоксицилин", rows[0].TextContent);
     }
 
     [Fact]
@@ -106,12 +132,12 @@ public class CheckoutPageTests : BunitContext
     }
 
     [Fact]
-    public void F9_then_Enter_with_cash_completes_the_sale_and_shows_the_change()
+    public void F10_then_Enter_with_cash_completes_the_sale_and_shows_the_change()
     {
         var page = Render<CheckoutPage>();
         Type(page, OtcBarcode);
 
-        Press(page, "F9");
+        Press(page, "F10");
         Assert.Contains("Плащане", page.Find(".till-prompt").TextContent);
         Type(page, "10");
 
@@ -122,15 +148,28 @@ public class CheckoutPageTests : BunitContext
     }
 
     [Fact]
-    public void F9_twice_pays_by_card()
+    public void F10_twice_pays_by_card()
     {
         var page = Render<CheckoutPage>();
         Type(page, OtcBarcode);
 
-        Press(page, "F9");
-        Press(page, "F9");
+        Press(page, "F10");
+        Press(page, "F10");
 
         Assert.Equal(PaymentMethod.Card, Assert.Single(_sales.Saved).PaymentMethod);
+    }
+
+    [Fact]
+    public void Ctrl_Enter_completes_the_sale_in_cash_with_the_exact_amount()
+    {
+        var page = Render<CheckoutPage>();
+        Type(page, OtcBarcode);
+
+        page.Find("#till-input").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter", CtrlKey = true });
+
+        var sale = Assert.Single(_sales.Saved);
+        Assert.Equal(PaymentMethod.Cash, sale.PaymentMethod);
+        Assert.Equal(0m, sale.Change);
     }
 
     /// <summary>One batch of every product: 100 tablets at 6,00 € a box of 20.</summary>

@@ -25,7 +25,8 @@ public sealed record CatalogProductInfo(
     CatalogDispensingMode DispensingMode,
     bool IsActive,
     Guid? DefaultSaleUnitId,
-    IReadOnlyList<CatalogUnit> Units);
+    IReadOnlyList<CatalogUnit> Units,
+    string? ShelfName = null);
 
 public sealed record CatalogUnit(Guid UnitId, string Name, int Factor);
 

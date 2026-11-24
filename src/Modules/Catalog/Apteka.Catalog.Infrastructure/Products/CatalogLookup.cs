@@ -36,7 +36,7 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
             .Where(p => productIds.Contains(p.Id))
             .ToListAsync(cancellationToken);
 
-        return products.Select(ToInfo).ToList();
+        return await ToInfoAsync(products, cancellationToken);
     }
 
     public async Task<IReadOnlyList<CatalogProductInfo>> SearchProductsAsync(
@@ -56,17 +56,28 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
             .Take(limit)
             .ToListAsync(cancellationToken);
 
-        return products.Select(ToInfo).ToList();
+        return await ToInfoAsync(products, cancellationToken);
     }
 
-    private static CatalogProductInfo ToInfo(Product product) => new(
+    private async Task<IReadOnlyList<CatalogProductInfo>> ToInfoAsync(List<Product> products, CancellationToken cancellationToken)
+    {
+        var shelfIds = products.Where(p => p.ShelfId is not null).Select(p => p.ShelfId!.Value).Distinct().ToArray();
+        var shelves = await context.Shelves.AsNoTracking()
+            .Where(s => shelfIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.Name, cancellationToken);
+
+        return products.Select(p => ToInfo(p, p.ShelfId is { } id ? shelves.GetValueOrDefault(id) : null)).ToList();
+    }
+
+    private static CatalogProductInfo ToInfo(Product product, string? shelfName) => new(
         product.Id,
         product.Name,
         product.VatRate,
         ToContract(product.DispensingMode),
         product.IsActive,
         product.DefaultSaleUnitId,
-        product.Units.OrderBy(u => u.Factor).Select(u => new CatalogUnit(u.Id, u.Name, u.Factor)).ToList());
+        product.Units.OrderBy(u => u.Factor).Select(u => new CatalogUnit(u.Id, u.Name, u.Factor)).ToList(),
+        shelfName);
 
     // The values match by design (see CatalogDispensingMode); mapping by name keeps it safe if one side changes.
     private static CatalogDispensingMode ToContract(DispensingMode mode) => Enum.Parse<CatalogDispensingMode>(mode.ToString());

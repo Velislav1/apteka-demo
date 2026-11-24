@@ -86,6 +86,8 @@ public sealed class FindTillProductHandler(ICatalogLookup catalog, IStockQueries
             unit.Name,
             unit.Factor,
             SalePricing.UnitPrice(unit.Factor, first.PricedUnitFactor, first.PricedUnitSalePrice, first.SalePricePerBaseUnit),
-            sellable.Sum(b => b.BaseQuantity)));
+            sellable.Sum(b => b.BaseQuantity),
+            product.ShelfName,
+            product.Units));
     }
 }
