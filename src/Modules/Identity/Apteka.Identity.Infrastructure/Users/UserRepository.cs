@@ -45,6 +45,13 @@ internal sealed class UserRepository(IdentityDbContext context) : IUserRepositor
         }
     }
 
+    public async Task<IReadOnlyList<LoginUser>> ListActiveAsync(CancellationToken cancellationToken = default) =>
+        await context.Users.AsNoTracking()
+            .Where(u => u.IsActive)
+            .OrderBy(u => u.DisplayName)
+            .Select(u => new LoginUser(u.UserName, u.DisplayName))
+            .ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyDictionary<Guid, string>> GetDisplayNamesAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken = default)
     {
         var ids = userIds.ToArray();

@@ -112,7 +112,7 @@ else if (_model is not null)
               <div class="line-grid" @onkeydown="OnLineKeyDown">
                 <label>Количество
                   <span class="qty">
-                    <input id="quantity" @ref="_quantityInput" type="number" min="1" @bind="_line.Quantity" />
+                    <input id="quantity" @ref="_quantityInput" type="number" min="1" @bind="_line.Quantity" @bind:event="oninput" />
                     <select @bind="_line.UnitId" @bind:after="ApplyLastPrice" aria-label="Мярка (F12)">
                       @foreach (var unit in _line.Units.OrderByDescending(u => u.Factor))
                       {
@@ -121,10 +121,10 @@ else if (_model is not null)
                     </select>
                   </span>
                 </label>
-                <label>Цена ТЕ без ДДС<input type="number" min="0" step="0.0001" @bind="_line.UnitPurchasePrice" @bind:after="_line.ApplyMarkup" /></label>
-                <label>Търг. надценка %<input type="number" min="0" step="0.01" @bind="_line.MarkupPercent" @bind:after="_line.ApplyMarkup" /></label>
-                <label>Продажна цена с ДДС<input type="number" min="0" step="0.01" @bind="_line.SalePrice" @bind:after="() => _line.MarkupPercent = null" /></label>
-                <label>Партида<input @bind="_line.BatchNo" maxlength="30" /></label>
+                <label>Цена ТЕ без ДДС<input type="number" min="0" step="0.0001" @bind="_line.UnitPurchasePrice" @bind:event="oninput" @bind:after="_line.ApplyMarkup" /></label>
+                <label>Търг. надценка %<input type="number" min="0" step="0.01" @bind="_line.MarkupPercent" @bind:event="oninput" @bind:after="_line.ApplyMarkup" /></label>
+                <label>Продажна цена с ДДС<input type="number" min="0" step="0.01" @bind="_line.SalePrice" @bind:event="oninput" @bind:after="() => _line.MarkupPercent = null" /></label>
+                <label>Партида<input @bind="_line.BatchNo" @bind:event="oninput" maxlength="30" /></label>
                 <label>Срок на годност<input type="date" @bind="_line.ExpiryDate" /></label>
               </div>
               <div class="toolbar entry-actions">

@@ -96,7 +96,7 @@ public class DeliveryEditTests : BunitContext
         Scan(page, "2000000000015");
         Assert.Equal(_box.ToString(), page.Find(".qty select").GetAttribute("value"));
 
-        page.Find("input[step='0.0001']").Change("2.40");
+        page.Find("input[step='0.0001']").Input("2.40");
 
         // 2,40 + 25 % markup + 20 % VAT = 3,60
         Assert.Equal("3.60", page.FindAll(".line-grid input[type=number]")[3].GetAttribute("value"));
@@ -109,9 +109,9 @@ public class DeliveryEditTests : BunitContext
         var page = Open(id);
 
         Scan(page, "2000000000015");
-        page.Find("#quantity").Change("3");
-        page.Find("input[step='0.0001']").Change("2.40");
-        page.Find(".line-grid input[maxlength='30']").Change("L1");
+        page.Find("#quantity").Input("3");
+        page.Find("input[step='0.0001']").Input("2.40");
+        page.Find(".line-grid input[maxlength='30']").Input("L1");
         page.Find(".line-grid").KeyDown("Enter");
 
         var delivery = _deliveries.Items.Single();
@@ -132,8 +132,8 @@ public class DeliveryEditTests : BunitContext
     {
         var page = Open(Draft());
         Scan(page, "2000000000015");
-        page.Find("input[step='0.0001']").Change("2.40");
-        page.Find(".line-grid input[maxlength='30']").Change("L1");
+        page.Find("input[step='0.0001']").Input("2.40");
+        page.Find(".line-grid input[maxlength='30']").Input("L1");
         page.Find(".line-grid").KeyDown("Enter");
 
         page.Find(".lines-table tbody tr").Click();
