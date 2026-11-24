@@ -9,6 +9,7 @@
 @inject GetSaleHandler GetSale
 @inject ReverseSaleHandler ReverseSale
 @inject TimeProvider Clock
+@inject AuthenticationStateProvider Authentication
 
 <PageTitle>Продажби за деня</PageTitle>
 
@@ -56,7 +57,7 @@ else
           <td>@(sale.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</td>
           <td>@(sale.Status == SaleStatus.Reversed ? "сторнирана" : "приключена")</td>
           <td>
-            @if (sale.Status == SaleStatus.Completed)
+            @if (sale.Status == SaleStatus.Completed && _canReverse)
             {
               @if (_confirmId == sale.Id)
               {
@@ -108,11 +109,14 @@ else
   private string? _reason;
   private string? _error;
   private string? _message;
+  private bool _canReverse;
 
-  protected override Task OnInitializedAsync()
+  protected override async Task OnInitializedAsync()
   {
+    // Only a manager reverses sales (the use case checks it too).
+    _canReverse = (await Authentication.GetAuthenticationStateAsync()).User.IsInRole(Roles.Manager);
     _day = BulgarianTime.Today(Clock.GetUtcNow());
-    return Load();
+    await Load();
   }
 
   private async Task Load()

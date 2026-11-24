@@ -49,8 +49,8 @@ public static class InfrastructureCommonExtensions
         services.TryAddScoped<SharedConnection>();
         services.TryAddScoped<IUnitOfWork, UnitOfWork>();
 
-        // Replaced by the Identity module once login exists.
-        services.TryAddScoped<ICurrentUser, SystemUser>();
+        services.TryAddScoped<CurrentUserAccessor>();
+        services.TryAddScoped<ICurrentUser, ScopedCurrentUser>();
         services.TryAddScoped<AuditInterceptor>();
     }
 
@@ -61,6 +61,7 @@ public static class InfrastructureCommonExtensions
         CancellationToken cancellationToken = default)
     {
         await using var scope = services.CreateAsyncScope();
+        scope.ServiceProvider.GetRequiredService<CurrentUserAccessor>().User = SystemUser.Instance;
         var initializers = scope.ServiceProvider.GetServices<IModuleDatabaseInitializer>().OrderBy(i => i.Order).ToList();
 
         foreach (var initializer in initializers)

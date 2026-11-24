@@ -83,6 +83,15 @@ internal sealed class FakeStockReceiving : IStockReceiving
     }
 }
 
+internal sealed class FakeUser(string role = "Manager") : ICurrentUser
+{
+    public Guid? UserId { get; } = Guid.CreateVersion7();
+
+    public string UserName => "test";
+
+    public bool IsInRole(string r) => r == role;
+}
+
 internal sealed class PassThroughUnitOfWork : IUnitOfWork
 {
     public Task<Result> ExecuteAsync(Func<CancellationToken, Task<Result>> work, CancellationToken cancellationToken = default) => work(cancellationToken);

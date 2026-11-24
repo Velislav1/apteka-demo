@@ -1,0 +1,34 @@
+@page "/login"
+@layout Apteka.Web.Layout.LoginLayout
+@attribute [AllowAnonymous]
+
+<PageTitle>Вход</PageTitle>
+
+<h1>Вход</h1>
+
+@if (Error == "invalid")
+{
+  <p class="alert error" role="alert">Грешно потребителско име или парола.</p>
+}
+else if (Error == "locked")
+{
+  <p class="alert error" role="alert">Твърде много грешни опити. Опитайте отново след няколко минути.</p>
+}
+
+<form method="post" action="account/login" class="login-form">
+  <AntiforgeryToken />
+  <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+  <label for="userName">Потребител</label>
+  <input id="userName" name="userName" value="@UserName" autocomplete="username" required autofocus />
+  <label for="password">Парола</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required />
+  <button type="submit">Влез</button>
+</form>
+
+@code {
+  [SupplyParameterFromQuery] public string? Error { get; set; }
+
+  [SupplyParameterFromQuery] public string? UserName { get; set; }
+
+  [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+}

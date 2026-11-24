@@ -4,7 +4,7 @@ using Apteka.SharedKernel;
 namespace Apteka.Purchasing.Application.Suppliers;
 
 /// <summary>Use cases of the „Доставчици“ screen.</summary>
-public sealed class SuppliersHandler(ISupplierRepository suppliers)
+public sealed class SuppliersHandler(ISupplierRepository suppliers, IUnitOfWork unitOfWork)
 {
     public Task<IReadOnlyList<SupplierView>> ListAsync(bool includeInactive = true, CancellationToken cancellationToken = default) =>
         suppliers.ListAsync(includeInactive, cancellationToken);
@@ -28,7 +28,11 @@ public sealed class SuppliersHandler(ISupplierRepository suppliers)
         return saved.IsSuccess ? Result.Success(created.Value.Id) : Result.Failure<Guid>(saved.Error);
     }
 
-    public async Task<Result> UpdateAsync(Guid id, SupplierInput input, CancellationToken cancellationToken = default)
+    /// <summary>Runs in <see cref="IUnitOfWork"/>: a refused change is rolled back and forgotten.</summary>
+    public Task<Result> UpdateAsync(Guid id, SupplierInput input, CancellationToken cancellationToken = default) =>
+        unitOfWork.ExecuteAsync(ct => UpdateCoreAsync(id, input, ct), cancellationToken);
+
+    private async Task<Result> UpdateCoreAsync(Guid id, SupplierInput input, CancellationToken cancellationToken)
     {
         var supplier = await suppliers.GetAsync(id, cancellationToken);
         if (supplier is null)

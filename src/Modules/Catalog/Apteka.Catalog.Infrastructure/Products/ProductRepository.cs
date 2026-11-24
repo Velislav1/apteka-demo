@@ -49,22 +49,13 @@ internal sealed class ProductRepository(CatalogDbContext context) : IProductRepo
             ConstraintName: BarcodeConfiguration.UniqueCodeIndex,
         })
         {
-            // Another user saved the same barcode a moment earlier.
-            var pending = context.ChangeTracker.Entries<Barcode>()
+            // Another user saved the same barcode a moment earlier. The transaction is aborted now,
+            // so no further query is possible: name the first barcode this save tried to write.
+            var code = context.ChangeTracker.Entries<Barcode>()
                 .Where(e => e.State is EntityState.Added or EntityState.Modified)
-                .Select(e => (e.Entity.Code, e.Entity.ProductId))
-                .ToList();
+                .Select(e => e.Entity.Code)
+                .FirstOrDefault() ?? string.Empty;
             context.ChangeTracker.Clear();
-
-            var code = string.Empty;
-            foreach (var (candidate, productId) in pending)
-            {
-                if ((await FindTakenBarcodesAsync([candidate], productId, cancellationToken)).Count > 0)
-                {
-                    code = candidate;
-                    break;
-                }
-            }
 
             return Result.Failure(CatalogErrors.BarcodeTaken(code));
         }

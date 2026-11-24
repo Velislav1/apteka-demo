@@ -7,13 +7,19 @@ using Apteka.SharedKernel;
 namespace Apteka.Purchasing.Application.Deliveries;
 
 /// <summary>Use case „Запиши“: creates a draft delivery or saves changes to one.</summary>
+/// <remarks>Runs in <see cref="IUnitOfWork"/>: if a check fails after the draft was changed, the change is rolled back and forgotten.</remarks>
 public sealed class SaveDeliveryDraftHandler(
     IDeliveryRepository deliveries,
     ISupplierRepository suppliers,
     ICatalogLookup catalog,
+    IUnitOfWork unitOfWork,
+    ICurrentUser currentUser,
     TimeProvider clock)
 {
-    public async Task<Result<Guid>> HandleAsync(Guid? id, DeliveryInput input, CancellationToken cancellationToken = default)
+    public Task<Result<Guid>> HandleAsync(Guid? id, DeliveryInput input, CancellationToken cancellationToken = default) =>
+        unitOfWork.ExecuteAsync(ct => SaveAsync(id, input, ct), cancellationToken);
+
+    private async Task<Result<Guid>> SaveAsync(Guid? id, DeliveryInput input, CancellationToken cancellationToken)
     {
         Delivery delivery;
         Guid? previousSupplier = null;
@@ -36,7 +42,7 @@ public sealed class SaveDeliveryDraftHandler(
         }
         else
         {
-            var created = Delivery.Create(input.SupplierId, input.InvoiceNo, input.InvoiceDate, clock.GetUtcNow(), userId: null);
+            var created = Delivery.Create(input.SupplierId, input.InvoiceNo, input.InvoiceDate, clock.GetUtcNow(), currentUser.UserId);
             if (created.IsFailure)
             {
                 return Result.Failure<Guid>(created.Error);

@@ -34,6 +34,7 @@ public class DeliveryEditTests : BunitContext
         Services.AddSingleton<ISupplierRepository>(_suppliers);
         Services.AddSingleton<IStockReceiving>(_stock);
         Services.AddSingleton<IUnitOfWork>(new PassThroughUnitOfWork());
+        Services.AddSingleton<ICurrentUser>(new FakeUser());
         Services.AddSingleton(TimeProvider.System);
         Services.AddScoped<SuppliersHandler>();
         Services.AddScoped<SaveDeliveryDraftHandler>();

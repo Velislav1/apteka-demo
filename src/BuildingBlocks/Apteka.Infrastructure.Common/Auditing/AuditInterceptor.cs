@@ -1,7 +1,8 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using Apteka.Infrastructure.Common.Users;
+using System.Reflection;
+using Apteka.SharedKernel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -162,11 +163,17 @@ public sealed class AuditInterceptor(ICurrentUser currentUser, TimeProvider cloc
             key.Properties.Select(p => Convert.ToString(entry.Property(p.Name).CurrentValue, CultureInfo.InvariantCulture)));
     }
 
+    private const string Hidden = "***";
+
     private static string Serialize(IEnumerable<PropertyEntry> properties, Func<PropertyEntry, object?> value)
     {
-        var values = properties.ToDictionary(p => p.Metadata.Name, value);
+        var values = properties.ToDictionary(p => p.Metadata.Name, p => IsExcluded(p) ? Hidden : value(p));
         return JsonSerializer.Serialize(values, JsonOptions);
     }
+
+    /// <summary>Values of properties marked [AuditExcluded] (password hashes) are never written; only „***“.</summary>
+    private static bool IsExcluded(PropertyEntry property) =>
+        property.Metadata.PropertyInfo?.GetCustomAttribute<AuditExcludedAttribute>() is not null;
 
     private static async Task InsertAsync(DbContext context, AuditRow[] rows, CancellationToken cancellationToken)
     {

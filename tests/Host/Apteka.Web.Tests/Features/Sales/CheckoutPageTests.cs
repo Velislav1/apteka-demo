@@ -33,6 +33,7 @@ public class CheckoutPageTests : BunitContext
         Services.AddSingleton<IStockIssuing>(stock);
         Services.AddSingleton<ISaleRepository>(_sales);
         Services.AddSingleton<IUnitOfWork>(new PassThroughUnitOfWork());
+        Services.AddSingleton<ICurrentUser>(new FakeUser());
         Services.AddSingleton(TimeProvider.System);
         Services.AddScoped<FindTillProductHandler>();
         Services.AddScoped<CompleteSaleHandler>();

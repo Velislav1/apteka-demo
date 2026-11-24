@@ -7,7 +7,11 @@ using Apteka.Inventory.Infrastructure;
 using Apteka.Sales.Infrastructure;
 using Apteka.Identity.Infrastructure;
 using Apteka.Audit.Infrastructure;
+using Apteka.Identity.Infrastructure.Seed;
 using Apteka.Web.Components;
+using Apteka.Web.Features.Identity.Session;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,7 +31,24 @@ builder.Services.AddCatalogModule(connectionString);
 builder.Services.AddPurchasingModule(connectionString);
 builder.Services.AddInventoryModule(connectionString);
 builder.Services.AddSalesModule(connectionString);
-builder.Services.AddIdentityModule(connectionString);
+builder.Services.AddIdentityModule(connectionString, new IdentitySeedPasswords(
+    builder.Configuration["Identity:Seed:ManagerPassword"],
+    builder.Configuration["Identity:Seed:PharmacistPassword"]));
+
+// Login with a cookie; every screen needs it (see Features/_Imports.razor).
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = AccountEndpoints.LoginPath;
+        options.AccessDeniedPath = "/access-denied";
+        options.ExpireTimeSpan = TimeSpan.FromHours(12);
+        options.SlidingExpiration = true;
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+    });
+builder.Services.AddAuthorization();
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<CircuitHandler, UserCircuitHandler>();
 builder.Services.AddAuditModule(connectionString);
 
 var app = builder.Build();
@@ -45,8 +66,12 @@ app.UseRequestLocalization(options => options
     .AddSupportedUICultures("bg-BG"));
 
 app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseCurrentUser();
 app.UseAntiforgery();
 
+app.MapAccountEndpoints();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 await app.RunAsync();

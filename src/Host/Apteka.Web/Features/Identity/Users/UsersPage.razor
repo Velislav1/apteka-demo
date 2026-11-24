@@ -1,0 +1,146 @@
+@page "/identity/users"
+@attribute [Authorize(Roles = Roles.Manager)]
+@using Apteka.Identity.Application.Common
+@using Apteka.Identity.Application.Users
+@using Apteka.Identity.Contracts
+@using Apteka.Identity.Domain.Users
+@using Apteka.Web.Features.Shared
+@inject UsersHandler Users
+
+<PageTitle>Потребители</PageTitle>
+
+<h1>Потребители</h1>
+
+<fieldset>
+  <legend>Нов потребител</legend>
+  <div class="form-grid">
+    <label for="newUserName">Потребителско име</label>
+    <input id="newUserName" @bind="_new.UserName" maxlength="50" autocomplete="off" />
+
+    <label for="newDisplayName">Име</label>
+    <input id="newDisplayName" @bind="_new.DisplayName" maxlength="100" />
+
+    <label for="newRole">Роля</label>
+    <select id="newRole" @bind="_new.Role">
+      <option value="@UserRole.Pharmacist">@RoleText(UserRole.Pharmacist)</option>
+      <option value="@UserRole.Manager">@RoleText(UserRole.Manager)</option>
+    </select>
+
+    <label for="newPassword">Парола</label>
+    <input id="newPassword" type="password" @bind="_new.Password" autocomplete="new-password" />
+  </div>
+  <div class="toolbar"><button @onclick="Create">Добави</button></div>
+</fieldset>
+
+@if (_error is not null)
+{
+  <p class="alert error" role="alert">@_error</p>
+}
+@if (_message is not null)
+{
+  <p class="alert success" role="status">@_message</p>
+}
+
+<table class="grid">
+  <thead><tr><th>Потребител</th><th>Име</th><th>Роля</th><th>Активен</th><th>Последен вход</th><th></th><th>Нова парола</th></tr></thead>
+  <tbody>
+    @foreach (var row in _rows)
+    {
+      <tr class="@(row.IsActive ? null : "inactive")">
+        <td>@row.UserName</td>
+        <td><input @bind="row.DisplayName" maxlength="100" aria-label="Име" /></td>
+        <td>
+          <select @bind="row.Role" aria-label="Роля">
+            <option value="@UserRole.Pharmacist">@RoleText(UserRole.Pharmacist)</option>
+            <option value="@UserRole.Manager">@RoleText(UserRole.Manager)</option>
+          </select>
+        </td>
+        <td><input type="checkbox" @bind="row.IsActive" aria-label="Активен" /></td>
+        <td>@(row.LastLoginAt is { } at ? Formats.LocalTime(at) : "—")</td>
+        <td>
+          @if (row.IsChanged)
+          {
+            <button @onclick="() => Save(row)">Запиши</button>
+          }
+        </td>
+        <td>
+          <input type="password" @bind="row.NewPassword" autocomplete="new-password" aria-label="Нова парола" style="width:9rem" />
+          <button class="secondary" @onclick="() => SetPassword(row)" disabled="@string.IsNullOrEmpty(row.NewPassword)">Смени</button>
+        </td>
+      </tr>
+    }
+  </tbody>
+</table>
+
+@code {
+  private NewUser _new = new();
+  private List<Row> _rows = [];
+  private string? _error;
+  private string? _message;
+
+  protected override Task OnInitializedAsync() => Load();
+
+  private async Task Load() => _rows = (await Users.ListAsync()).Select(u => new Row(u)).ToList();
+
+  private static string RoleText(UserRole role) => role == UserRole.Manager ? "Управител" : "Фармацевт";
+
+  private async Task Create()
+  {
+    var result = await Users.CreateAsync(new NewUserInput(_new.UserName, _new.DisplayName, _new.Role, _new.Password));
+    if (Show(result.IsFailure ? result.Error.Message : null, "Потребителят е добавен."))
+    {
+      _new = new();
+      await Load();
+    }
+  }
+
+  private async Task Save(Row row)
+  {
+    var result = await Users.UpdateAsync(row.Id, row.DisplayName, row.Role, row.IsActive);
+    Show(result.IsFailure ? result.Error.Message : null, "Записано.");
+    await Load();
+  }
+
+  private async Task SetPassword(Row row)
+  {
+    var result = await Users.SetPasswordAsync(row.Id, row.NewPassword);
+    row.NewPassword = string.Empty;
+    Show(result.IsFailure ? result.Error.Message : null, $"Паролата на {row.UserName} е сменена.");
+  }
+
+  private bool Show(string? error, string success)
+  {
+    (_error, _message) = (error, error is null ? success : null);
+    return error is null;
+  }
+
+  private sealed class NewUser
+  {
+    public string UserName { get; set; } = string.Empty;
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    public UserRole Role { get; set; } = UserRole.Pharmacist;
+
+    public string Password { get; set; } = string.Empty;
+  }
+
+  private sealed class Row(UserView user)
+  {
+    public Guid Id { get; } = user.Id;
+
+    public string UserName { get; } = user.UserName;
+
+    public DateTimeOffset? LastLoginAt { get; } = user.LastLoginAt;
+
+    public string DisplayName { get; set; } = user.DisplayName;
+
+    public UserRole Role { get; set; } = user.Role;
+
+    public bool IsActive { get; set; } = user.IsActive;
+
+    public string NewPassword { get; set; } = string.Empty;
+
+    public bool IsChanged => DisplayName != user.DisplayName || Role != user.Role || IsActive != user.IsActive;
+  }
+}

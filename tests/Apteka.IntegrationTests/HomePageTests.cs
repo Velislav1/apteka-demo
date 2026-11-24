@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Mvc.Testing;
-
 using Apteka.IntegrationTests.Infrastructure;
 
 namespace Apteka.IntegrationTests;
@@ -8,15 +6,13 @@ namespace Apteka.IntegrationTests;
 public class HomePageTests(PostgresFixture postgres)
 {
     [Fact]
-    public async Task Home_page_is_in_Bulgarian_and_reports_a_working_database_connection()
+    public async Task Home_page_is_in_Bulgarian_and_reports_a_working_database_connection_after_login()
     {
-        // WebApplication.CreateBuilder reads environment variables, which is the reliable way to feed Program.cs.
-        Environment.SetEnvironmentVariable("ConnectionStrings__Apteka", postgres.ConnectionString);
-
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = WebLogin.Factory(postgres.ConnectionString);
         using var client = factory.CreateClient();
 
-        var html = await client.GetStringAsync("/", TestContext.Current.CancellationToken);
+        var response = await WebLogin.LoginAsync(client, "manager", WebLogin.ManagerPassword);
+        var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Contains("<html lang=\"bg\">", html);
         Assert.Contains("Аптека", html);

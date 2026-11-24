@@ -1,18 +1,33 @@
 @inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+@using Apteka.Identity.Contracts
+@using Apteka.Web.Features.Identity.Session
 
 <header class="top-bar">
   <a class="brand" href="">Аптека</a>
-  <nav>
-    <NavLink href="sales/checkout">Каса</NavLink>
-    <NavLink href="sales/daily">Продажби за деня</NavLink>
-    <NavLink href="catalog" Match="NavLinkMatch.All">Номенклатура</NavLink>
-    <NavLink href="catalog/manufacturers">Производители</NavLink>
-    <NavLink href="catalog/groups">Групи</NavLink>
-    <NavLink href="catalog/shelves">Рафтове</NavLink>
-    <NavLink href="purchasing/deliveries">Доставки</NavLink>
-    <NavLink href="purchasing/suppliers">Доставчици</NavLink>
-    <NavLink href="inventory/stock">Наличност</NavLink>
-  </nav>
+  <AuthorizeView>
+    <Authorized>
+      <nav>
+        <NavLink href="sales/checkout">Каса</NavLink>
+        <NavLink href="sales/daily">Продажби за деня</NavLink>
+        <NavLink href="catalog" Match="NavLinkMatch.All">Номенклатура</NavLink>
+        <NavLink href="catalog/manufacturers">Производители</NavLink>
+        <NavLink href="catalog/groups">Групи</NavLink>
+        <NavLink href="catalog/shelves">Рафтове</NavLink>
+        <NavLink href="purchasing/deliveries">Доставки</NavLink>
+        <NavLink href="purchasing/suppliers">Доставчици</NavLink>
+        <NavLink href="inventory/stock">Наличност</NavLink>
+        <AuthorizeView Roles="@Roles.Manager" Context="manager">
+          <NavLink href="identity/users">Потребители</NavLink>
+        </AuthorizeView>
+      </nav>
+      <form method="post" action="account/logout" class="user-box">
+        <AntiforgeryToken />
+        <span>@context.User.DisplayName()</span>
+        <button type="submit" class="secondary">Изход</button>
+      </form>
+    </Authorized>
+  </AuthorizeView>
 </header>
 <main class="content">
   @Body

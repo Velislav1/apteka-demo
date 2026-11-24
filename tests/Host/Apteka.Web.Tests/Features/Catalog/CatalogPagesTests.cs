@@ -30,6 +30,7 @@ public class CatalogPagesTests : BunitContext
         Services.AddScoped<CreateProductHandler>();
         Services.AddScoped<UpdateProductHandler>();
         Services.AddScoped<ProductReferenceRules>();
+        Services.AddSingleton<Apteka.SharedKernel.IUnitOfWork>(new Apteka.Web.Tests.Features.Purchasing.PassThroughUnitOfWork());
         Services.AddSingleton<IReferenceRepository<Manufacturer>>(_manufacturers);
         Services.AddSingleton<IReferenceRepository<ProductGroup>>(new FakeReferenceRepository<ProductGroup>());
         Services.AddSingleton<IReferenceRepository<Shelf>>(new FakeReferenceRepository<Shelf>());

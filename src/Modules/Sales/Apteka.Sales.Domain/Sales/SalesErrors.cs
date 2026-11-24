@@ -10,6 +10,7 @@ public static class SalesErrors
     public static readonly Error InvalidPayment = new("sales.invalid_payment", "Невалиден начин на плащане.");
     public static readonly Error AlreadyReversed = new("sales.already_reversed", "Продажбата вече е сторнирана.");
     public static readonly Error NotFound = new("sales.not_found", "Продажбата не е намерена.");
+    public static readonly Error ManagersOnly = new("sales.managers_only", "Само управител може да сторнира продажба.");
     public static readonly Error ReasonTooLong = new("sales.reason_too_long", "Причината е по-дълга от 200 знака.");
 
     public static Error QuantityMustBePositive(string product) =>

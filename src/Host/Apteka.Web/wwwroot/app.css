@@ -73,3 +73,7 @@ tr.details td { background: #f8fafc; }
 .till-lines tr.current td { background: #eef7f2; }
 .till-lines tr.short td { color: #b42318; }
 .till-matches { background: #fff; border: 1px solid #d9e2ec; padding: 0.5rem 0.5rem 0.5rem 2rem; }
+.user-box { margin-left: auto; display: flex; gap: 0.6rem; align-items: center; }
+.user-box button { padding: 0.2rem 0.6rem; }
+.content.narrow { max-width: 24rem; }
+.login-form { display: grid; gap: 0.5rem; }

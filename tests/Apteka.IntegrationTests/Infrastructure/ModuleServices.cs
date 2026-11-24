@@ -1,7 +1,9 @@
 using Apteka.Audit.Infrastructure;
 using Apteka.Catalog.Infrastructure;
 using Apteka.Infrastructure.Common;
-using Apteka.Infrastructure.Common.Users;
+using Apteka.Identity.Contracts;
+using Apteka.Identity.Infrastructure;
+using Apteka.SharedKernel;
 using Apteka.Inventory.Infrastructure;
 using Apteka.Purchasing.Infrastructure;
 using Apteka.Sales.Infrastructure;
@@ -18,10 +20,8 @@ internal static class ModuleServices
         Action<IServiceCollection>? replace = null)
     {
         var services = new ServiceCollection();
-        if (user is not null)
-        {
-            services.AddScoped(_ => user);
-        }
+        services.AddLogging();
+        services.AddScoped(_ => user ?? TestUser.Manager());
 
         services.AddAptekaCommon(connectionString);
         services.AddAuditModule(connectionString);
@@ -29,6 +29,7 @@ internal static class ModuleServices
         services.AddInventoryModule(connectionString);
         services.AddPurchasingModule(connectionString);
         services.AddSalesModule(connectionString);
+        services.AddIdentityModule(connectionString);
         replace?.Invoke(services);
 
         var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
@@ -37,4 +38,11 @@ internal static class ModuleServices
     }
 }
 
-internal sealed record TestUser(Guid? UserId, string UserName) : ICurrentUser;
+internal sealed record TestUser(Guid? UserId, string UserName, string Role = Roles.Manager) : ICurrentUser
+{
+    public static TestUser Manager() => new(Guid.CreateVersion7(), "test-manager");
+
+    public static TestUser Pharmacist() => new(Guid.CreateVersion7(), "test-pharmacist", Roles.Pharmacist);
+
+    public bool IsInRole(string role) => role == Role;
+}

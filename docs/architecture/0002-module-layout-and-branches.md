@@ -50,6 +50,17 @@ tests/Host/Apteka.Web.Tests/Features/<Module>/  bUnit тестове на екр
 | Изписване със заключване (`FOR UPDATE`) | Inventory / `Application/Issuing/`, `Infrastructure/Batches/StockLocking.cs` |
 | Екрани | `Features/Sales/Checkout/` (+ `CheckoutPage.razor.js` за клавишите), `Features/Sales/DailySales/` |
 
+Пример — Identity (вход):
+
+| Част | Модул и папка |
+|---|---|
+| Потребител, заключване, правила за парола | Identity / `Domain/Users/` |
+| Вход | Identity / `Application/Login/` |
+| Управление на потребители | Identity / `Application/Users/` |
+| Роли за другите модули | Identity / `Contracts/Roles.cs` |
+| „Кой работи сега“ | SharedKernel / `ICurrentUser`; Host / `Features/Identity/Session/` (бисквитка, Blazor връзка) |
+| Екрани | `Features/Identity/Login/`, `Features/Identity/Users/` |
+
 Еднаквото поведение на простите справочници е в папки `Common/` (един базов клас, един handler, едно хранилище,
 един Blazor компонент), за да не се повтаря три пъти. Преглед на модел = неговите папки + `Common/`.
 

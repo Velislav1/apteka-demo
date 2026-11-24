@@ -16,6 +16,7 @@ public sealed class CompleteSaleHandler(
     IStockIssuing stock,
     ISaleRepository sales,
     IUnitOfWork unitOfWork,
+    ICurrentUser currentUser,
     TimeProvider clock)
 {
     public const string DocumentType = "Sale";
@@ -69,7 +70,7 @@ public sealed class CompleteSaleHandler(
         foreach (var line in lines.OrderBy(l => l.Input.ProductId).ThenBy(l => l.LineId))
         {
             var issued = await stock.IssueAsync(
-                new StockIssue(DocumentType, saleId, UserId: null, today, [new StockIssueLine(line.LineId, line.Product.ProductId, line.Input.Quantity * line.Unit.Factor)]),
+                new StockIssue(DocumentType, saleId, currentUser.UserId, today, [new StockIssueLine(line.LineId, line.Product.ProductId, line.Input.Quantity * line.Unit.Factor)]),
                 cancellationToken);
             if (issued.IsFailure)
             {
@@ -93,7 +94,7 @@ public sealed class CompleteSaleHandler(
         }
 
         // Keep the order in which the lines were scanned.
-        var sale = Sale.Create(saleId, [.. lines.Select(l => specs[l.LineId])], input.PaymentMethod, input.CashReceived, userId: null, now);
+        var sale = Sale.Create(saleId, [.. lines.Select(l => specs[l.LineId])], input.PaymentMethod, input.CashReceived, currentUser.UserId, now);
         if (sale.IsFailure)
         {
             return Result.Failure<CompletedSale>(sale.Error);

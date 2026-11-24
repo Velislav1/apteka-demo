@@ -1,5 +1,4 @@
 using Apteka.IntegrationTests.Infrastructure;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Apteka.IntegrationTests.Catalog;
 
@@ -9,10 +8,9 @@ public class CatalogPageTests(PostgresFixture postgres)
     [Fact]
     public async Task Development_startup_migrates_and_seeds_so_the_catalog_page_lists_demo_products()
     {
-        Environment.SetEnvironmentVariable("ConnectionStrings__Apteka", postgres.ConnectionString);
-
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = WebLogin.Factory(postgres.ConnectionString);
         using var client = factory.CreateClient();
+        await WebLogin.LoginAsync(client, "manager", WebLogin.ManagerPassword);
 
         var html = await client.GetStringAsync("/catalog", TestContext.Current.CancellationToken);
 

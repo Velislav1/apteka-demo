@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Apteka.Identity.Application\Apteka.Identity.Application.csproj" />
     <ProjectReference Include="..\Apteka.Identity.Domain\Apteka.Identity.Domain.csproj" />
     <ProjectReference Include="..\Apteka.Identity.Contracts\Apteka.Identity.Contracts.csproj" />

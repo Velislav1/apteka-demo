@@ -39,7 +39,7 @@ apteka-demo/
       Apteka.Web/             # ASP.NET Core + Blazor; само сглобява модулите
         Features/<Module>/    # Blazor страници, групирани по модул
     BuildingBlocks/
-      Apteka.SharedKernel/            # Money, UnitPrice, Quantity, Entity, Result, IUnitOfWork, BulgarianTime
+      Apteka.SharedKernel/            # Money, UnitPrice, Quantity, Entity, Result, IUnitOfWork, ICurrentUser, BulgarianTime
       Apteka.Infrastructure.Common/   # ModuleDbContext, AddModuleDbContext, audit interceptor, обща транзакция (UnitOfWork)
     Modules/
       Catalog/      # стоки, мерки, баркодове, производители      (схема catalog)
@@ -115,7 +115,7 @@ apteka-demo/
 - `SaleLine` — Id, SaleId, Position, ProductId, ProductName, ProductUnitId, UnitName, UnitFactor, Quantity, UnitPrice (с ДДС), DiscountPercent, DiscountAmount, VatRate, LineTotal, VatAmount
 - `SaleLineBatch` — Id, SaleLineId, BatchId, BaseQuantity (от кои партиди е изписан редът; FEFO може да го раздели)
 - `Reversal` — Id, SaleId (уникален), Reason?, UserId, CreatedAt (сторно на цялата продажба)
-- `User` — Id, UserName, PasswordHash, Role (Manager/Pharmacist), IsActive
+- `User` — Id, UserName (малки букви, уникално), DisplayName, PasswordHash (никога в одита), Role (Manager/Pharmacist), IsActive, FailedLoginCount, LockedUntil, LastLoginAt
 - `AuditLog` — Id, UserId, At, Action, Entity, EntityId, OldValues (jsonb), NewValues (jsonb)
 
 Публикуването на доставка (`Draft → Posted`) създава партидите и движенията в една транзакция (`IUnitOfWork`, виж `docs/architecture/0003-cross-module-transactions.md`); публикувана доставка не се редактира, само се коригира.
@@ -124,7 +124,7 @@ apteka-demo/
 
 ## Екрани в демото
 
-1. **Вход** — потребител + парола (две роли).
+1. **Вход** — потребител + парола (две роли). Управител: всичко. Фармацевт: без „Потребители“ и без сторно. 5 грешни опита → заключване за 5 минути.
 2. **Номенклатура** — списък, търсене по име/баркод, създаване и редакция на стока с мерки и баркодове.
 3. **Доставка** — нова доставка: доставчик, фактура, редове (стока, мярка, количество, партида, срок, цени) → „Запиши“ (Draft) → „Публикувай“.
 4. **Наличност** — по стока и по партида, с филтър „изтича до 90 дни“.

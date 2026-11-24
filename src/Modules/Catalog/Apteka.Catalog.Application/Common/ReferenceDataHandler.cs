@@ -4,7 +4,7 @@ using Apteka.SharedKernel;
 namespace Apteka.Catalog.Application.Common;
 
 /// <summary>List, add, rename and (de)activate items of one catalog reference list.</summary>
-public abstract class ReferenceDataHandler<T>(IReferenceRepository<T> items, Func<string, Result<T>> create)
+public abstract class ReferenceDataHandler<T>(IReferenceRepository<T> items, Func<string, Result<T>> create, IUnitOfWork unitOfWork)
     where T : CatalogReference
 {
     public Task<IReadOnlyList<ReferenceItemView>> ListAsync(bool includeInactive = true, CancellationToken cancellationToken = default) =>
@@ -29,7 +29,11 @@ public abstract class ReferenceDataHandler<T>(IReferenceRepository<T> items, Fun
         return saved.IsSuccess ? Result.Success(item.Id) : Result.Failure<Guid>(saved.Error);
     }
 
-    public async Task<Result> UpdateAsync(Guid id, string name, bool isActive, CancellationToken cancellationToken = default)
+    /// <summary>Runs in <see cref="IUnitOfWork"/>: a refused rename is rolled back and forgotten.</summary>
+    public Task<Result> UpdateAsync(Guid id, string name, bool isActive, CancellationToken cancellationToken = default) =>
+        unitOfWork.ExecuteAsync(ct => UpdateCoreAsync(id, name, isActive, ct), cancellationToken);
+
+    private async Task<Result> UpdateCoreAsync(Guid id, string name, bool isActive, CancellationToken cancellationToken)
     {
         var item = await items.GetAsync(id, cancellationToken);
         if (item is null)

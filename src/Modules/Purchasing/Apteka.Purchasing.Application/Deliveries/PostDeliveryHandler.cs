@@ -14,6 +14,7 @@ public sealed class PostDeliveryHandler(
     ICatalogLookup catalog,
     IStockReceiving stock,
     IUnitOfWork unitOfWork,
+    ICurrentUser currentUser,
     TimeProvider clock)
 {
     public const string DocumentType = "Delivery";
@@ -49,7 +50,7 @@ public sealed class PostDeliveryHandler(
         var receipt = new StockReceipt(
             DocumentType,
             delivery.Id,
-            delivery.UserId,
+            currentUser.UserId,
             delivery.Lines.Select(l => new StockReceiptLine(
                 l.Id,
                 l.ProductId,

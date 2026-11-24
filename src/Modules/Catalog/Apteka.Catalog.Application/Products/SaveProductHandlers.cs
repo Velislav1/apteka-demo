@@ -40,9 +40,13 @@ public sealed class CreateProductHandler(IProductRepository products, ProductRef
 }
 
 /// <summary>Use case „Редакция на стока“.</summary>
-public sealed class UpdateProductHandler(IProductRepository products, ProductReferenceRules references)
+/// <remarks>Runs in <see cref="IUnitOfWork"/>: if a later check fails, the half-applied change is rolled back and forgotten.</remarks>
+public sealed class UpdateProductHandler(IProductRepository products, ProductReferenceRules references, IUnitOfWork unitOfWork)
 {
-    public async Task<Result> HandleAsync(Guid id, ProductInput input, CancellationToken cancellationToken = default)
+    public Task<Result> HandleAsync(Guid id, ProductInput input, CancellationToken cancellationToken = default) =>
+        unitOfWork.ExecuteAsync(ct => UpdateAsync(id, input, ct), cancellationToken);
+
+    private async Task<Result> UpdateAsync(Guid id, ProductInput input, CancellationToken cancellationToken)
     {
         var product = await products.GetAsync(id, cancellationToken);
         if (product is null)
