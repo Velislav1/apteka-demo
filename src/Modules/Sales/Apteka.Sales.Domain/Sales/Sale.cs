@@ -27,6 +27,9 @@ public sealed class Sale : Entity<Guid>
 
     public Guid? UserId { get; private set; }
 
+    /// <summary>„Клиент“ chosen at the till (F2), if any.</summary>
+    public Guid? CustomerId { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     public PaymentMethod PaymentMethod { get; private set; }
@@ -50,7 +53,8 @@ public sealed class Sale : Entity<Guid>
         PaymentMethod paymentMethod,
         decimal? cashReceived,
         Guid? userId,
-        DateTimeOffset at)
+        DateTimeOffset at,
+        Guid? customerId = null)
     {
         if (lines.Count == 0)
         {
@@ -79,6 +83,7 @@ public sealed class Sale : Entity<Guid>
         {
             SaleType = SaleType.Retail,
             UserId = userId,
+            CustomerId = customerId,
             CreatedAt = at,
             PaymentMethod = paymentMethod,
             Status = SaleStatus.Completed,

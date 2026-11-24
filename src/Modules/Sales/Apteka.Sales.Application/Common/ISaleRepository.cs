@@ -10,6 +10,9 @@ public interface ISaleRepository
 
     Task<IReadOnlyList<Sale>> ListAsync(DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
 
+    /// <summary>The customer's sales, newest first, without lines.</summary>
+    Task<IReadOnlyList<Sale>> ListForCustomerAsync(Guid customerId, int limit, CancellationToken cancellationToken);
+
     void Add(Sale sale);
 
     void Add(Reversal reversal);

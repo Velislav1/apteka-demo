@@ -15,6 +15,7 @@ public sealed class CompleteSaleHandler(
     ICatalogLookup catalog,
     IStockIssuing stock,
     ISaleRepository sales,
+    Customers.ICustomerRepository customers,
     IUnitOfWork unitOfWork,
     ICurrentUser currentUser,
     TimeProvider clock)
@@ -29,6 +30,11 @@ public sealed class CompleteSaleHandler(
         if (input.Lines.Count == 0)
         {
             return Result.Failure<CompletedSale>(SalesErrors.NoLines);
+        }
+
+        if (input.CustomerId is { } customerId && await customers.GetAsync(customerId, cancellationToken) is not { IsActive: true })
+        {
+            return Result.Failure<CompletedSale>(Domain.Customers.CustomerErrors.NotAvailable);
         }
 
         var products = (await catalog.GetProductsAsync([.. input.Lines.Select(l => l.ProductId).Distinct()], cancellationToken))
@@ -94,7 +100,7 @@ public sealed class CompleteSaleHandler(
         }
 
         // Keep the order in which the lines were scanned.
-        var sale = Sale.Create(saleId, [.. lines.Select(l => specs[l.LineId])], input.PaymentMethod, input.CashReceived, currentUser.UserId, now);
+        var sale = Sale.Create(saleId, [.. lines.Select(l => specs[l.LineId])], input.PaymentMethod, input.CashReceived, currentUser.UserId, now, input.CustomerId);
         if (sale.IsFailure)
         {
             return Result.Failure<CompletedSale>(sale.Error);

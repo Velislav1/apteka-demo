@@ -2,6 +2,8 @@ using Apteka.Infrastructure.Common;
 using Apteka.Infrastructure.Common.Persistence;
 using Apteka.Sales.Application.Checkout;
 using Apteka.Sales.Application.Common;
+using Apteka.Sales.Application.Customers;
+using Apteka.Sales.Infrastructure.Customers;
 using Apteka.Sales.Application.DailySales;
 using Apteka.Sales.Application.Reversals;
 using Apteka.Sales.Infrastructure.Persistence;
@@ -19,6 +21,7 @@ public static class SalesModule
 
         // Infrastructure
         services.AddScoped<ISaleRepository, SaleRepository>();
+        services.AddScoped<ICustomerRepository, CustomerRepository>();
 
         // Use cases
         services.AddScoped<FindTillProductHandler>();
@@ -27,6 +30,7 @@ public static class SalesModule
         services.AddScoped<DailySalesHandler>();
         services.AddScoped<DailyReportHandler>();
         services.AddScoped<GetSaleHandler>();
+        services.AddScoped<CustomersHandler>();
 
         return services;
     }

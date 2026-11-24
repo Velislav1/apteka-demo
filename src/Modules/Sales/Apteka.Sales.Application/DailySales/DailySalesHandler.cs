@@ -5,7 +5,7 @@ using Apteka.SharedKernel;
 namespace Apteka.Sales.Application.DailySales;
 
 /// <summary>„Продажби за деня“: the sales of one Sofia calendar day, with cash and card totals (reversed sales excluded).</summary>
-public sealed class DailySalesHandler(ISaleRepository sales)
+public sealed class DailySalesHandler(ISaleRepository sales, Customers.ICustomerRepository customers)
 {
     public async Task<DailySalesView> HandleAsync(DateOnly day, CancellationToken cancellationToken = default)
     {
@@ -14,10 +14,12 @@ public sealed class DailySalesHandler(ISaleRepository sales)
         var list = await sales.ListAsync(from, to, cancellationToken);
 
         var completed = list.Where(s => s.Status == SaleStatus.Completed).ToList();
+        var names = await customers.GetNamesAsync([.. list.Where(s => s.CustomerId is not null).Select(s => s.CustomerId!.Value).Distinct()], cancellationToken);
         return new DailySalesView(
             day,
             list.OrderByDescending(s => s.Number)
-                .Select(s => new DailySaleItem(s.Id, s.Number, s.CreatedAt, s.Lines.Count, s.Total, s.PaymentMethod, s.Status, s.UserId))
+                .Select(s => new DailySaleItem(s.Id, s.Number, s.CreatedAt, s.Lines.Count, s.Total, s.PaymentMethod, s.Status, s.UserId,
+                    s.CustomerId is { } c ? names.GetValueOrDefault(c) : null))
                 .ToList(),
             completed.Where(s => s.PaymentMethod == PaymentMethod.Cash).Sum(s => s.Total),
             completed.Where(s => s.PaymentMethod == PaymentMethod.Card).Sum(s => s.Total));
@@ -54,7 +56,7 @@ public sealed record DailySalesView(DateOnly Day, IReadOnlyList<DailySaleItem> S
     public decimal Total => CashTotal + CardTotal;
 }
 
-public sealed record DailySaleItem(Guid Id, long Number, DateTimeOffset CreatedAt, int LineCount, decimal Total, PaymentMethod PaymentMethod, SaleStatus Status, Guid? UserId = null);
+public sealed record DailySaleItem(Guid Id, long Number, DateTimeOffset CreatedAt, int LineCount, decimal Total, PaymentMethod PaymentMethod, SaleStatus Status, Guid? UserId = null, string? CustomerName = null);
 
 public sealed record SaleView(
     Guid Id,

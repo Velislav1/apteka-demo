@@ -50,7 +50,7 @@ else if (_view.Sales.Count == 0)
 else
 {
   <table class="grid">
-    <thead><tr><th>№</th><th>Час</th><th>Потребител</th><th class="num">Редове</th><th class="num">Сума</th><th>Плащане</th><th>Статус</th><th></th></tr></thead>
+    <thead><tr><th>№</th><th>Час</th><th>Потребител</th><th>Клиент</th><th class="num">Редове</th><th class="num">Сума</th><th>Плащане</th><th>Статус</th><th></th></tr></thead>
     <tbody>
       @foreach (var sale in _view.Sales)
       {
@@ -58,6 +58,7 @@ else
           <td><button class="linklike" @onclick="() => Toggle(sale.Id)">@sale.Number</button></td>
           <td>@BulgarianTime.ToLocal(sale.CreatedAt).ToString("HH:mm", CultureInfo.InvariantCulture)</td>
           <td>@(sale.UserId is { } userId ? _userNames.GetValueOrDefault(userId) : "—")</td>
+          <td>@sale.CustomerName</td>
           <td class="num">@sale.LineCount</td>
           <td class="num">@Formats.Euro(sale.Total)</td>
           <td>@(sale.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</td>
@@ -81,7 +82,7 @@ else
         @if (_details?.Id == sale.Id)
         {
           <tr class="details">
-            <td colspan="8">
+            <td colspan="9">
               <table class="grid">
                 <thead><tr><th>Стока</th><th>Мярка</th><th class="num">Кол.</th><th class="num">Цена</th><th class="num">Отст. %</th><th class="num">Сума</th></tr></thead>
                 <tbody>

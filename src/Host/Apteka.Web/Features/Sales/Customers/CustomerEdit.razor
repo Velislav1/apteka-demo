@@ -1,0 +1,155 @@
+@page "/sales/customers/new"
+@page "/sales/customers/{Id:guid}"
+@using Apteka.Sales.Application.Customers
+@using Apteka.Sales.Domain.Customers
+@using Apteka.Sales.Domain.Sales
+@using Apteka.Web.Features.Shared
+@inject CustomersHandler Customers
+@inject NavigationManager Navigation
+
+@* „Данни за клиента“ and his/her purchases (the sales made with F2 at the till). *@
+
+<PageTitle>@Title</PageTitle>
+
+<h1>@Title @if (_code > 0) { <span class="muted">№ @_code</span> }</h1>
+
+@if (_notFound)
+{
+  <p class="alert error">Клиентът не е намерен.</p>
+}
+else
+{
+  <fieldset class="header-form">
+    <legend>Данни за клиента</legend>
+    <div class="form-grid">
+      <label for="name">Име</label>
+      <input id="name" @bind="_name" maxlength="200" />
+
+      <label for="egn">ЕГН</label>
+      <span>
+        <input id="egn" @bind="_egn" @bind:event="oninput" maxlength="10" inputmode="numeric" class="mono" />
+        @if (EgnHint is { } hint)
+        {
+          <span class="muted egn-hint">@hint</span>
+        }
+      </span>
+
+      <label for="phone">Телефон</label>
+      <input id="phone" @bind="_phone" maxlength="30" inputmode="tel" />
+
+      <label for="note">Бележка</label>
+      <input id="note" @bind="_note" maxlength="200" />
+
+      <label for="active">Активен</label>
+      <input id="active" type="checkbox" @bind="_active" />
+    </div>
+  </fieldset>
+
+  @if (_error is not null)
+  {
+    <p class="alert error" role="alert">@_error</p>
+  }
+  @if (_saved)
+  {
+    <p class="alert success" role="status">Записано.</p>
+  }
+
+  <div class="toolbar">
+    <button @onclick="Save" disabled="@_busy">Запиши</button>
+    <a class="button secondary" href="sales/customers">Назад</a>
+  </div>
+
+  @if (_sales is { Count: > 0 })
+  {
+    <h2>Покупки</h2>
+    <table class="grid">
+      <thead><tr><th class="num">№</th><th>Дата и час</th><th class="num">Сума</th><th></th></tr></thead>
+      <tbody>
+        @foreach (var sale in _sales)
+        {
+          <tr class="@(sale.Status == SaleStatus.Reversed ? "inactive" : null)">
+            <td class="num"><a href="sales/sales/@sale.Id">@sale.Number</a></td>
+            <td>@Formats.LocalTime(sale.CreatedAt)</td>
+            <td class="num">@Formats.Euro(sale.Total)</td>
+            <td>@(sale.Status == SaleStatus.Reversed ? "сторнирана" : null)</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <p>Общо (без сторнираните): <strong>@Formats.Euro(_sales.Where(s => s.Status != SaleStatus.Reversed).Sum(s => s.Total))</strong></p>
+  }
+  else if (Id is not null)
+  {
+    <p class="muted">Няма покупки с този клиент.</p>
+  }
+}
+
+@code {
+  [Parameter] public Guid? Id { get; set; }
+
+  private long _code;
+  private string _name = string.Empty;
+  private string? _egn;
+  private string? _phone;
+  private string? _note;
+  private bool _active = true;
+  private IReadOnlyList<CustomerSaleItem>? _sales;
+  private bool _notFound;
+  private string? _error;
+  private bool _saved;
+  private bool _busy;
+
+  private string Title => Id is null ? "Нов клиент" : "Клиент";
+
+  /// <summary>As the ЕГН is typed: the birth date it encodes, or why it is not valid yet.</summary>
+  private string? EgnHint => string.IsNullOrWhiteSpace(_egn) ? null
+    : _egn.Trim().Length < 10 ? $"{_egn.Trim().Length} от 10 цифри"
+    : Egn.IsValid(_egn.Trim()) ? $"роден(а) на {Formats.Date(Egn.BirthDate(_egn.Trim())!.Value)}"
+    : "невалидно ЕГН";
+
+  protected override async Task OnParametersSetAsync()
+  {
+    if (Id is not { } id)
+    {
+      return;
+    }
+
+    var view = await Customers.GetAsync(id);
+    _notFound = view is null;
+    if (view is not null)
+    {
+      (_code, _name, _egn, _phone, _note, _active, _sales) = (view.Code, view.Name, view.Egn, view.Phone, view.Note, view.IsActive, view.Sales);
+    }
+  }
+
+  private async Task Save()
+  {
+    _busy = true;
+    _error = null;
+    _saved = false;
+    try
+    {
+      var details = new CustomerDetails(_name, _egn, _phone, _note, _active);
+      if (Id is { } id)
+      {
+        var updated = await Customers.UpdateAsync(id, details);
+        _error = updated.IsFailure ? updated.Error.Message : null;
+        _saved = updated.IsSuccess;
+        return;
+      }
+
+      var created = await Customers.CreateAsync(details);
+      if (created.IsFailure)
+      {
+        _error = created.Error.Message;
+        return;
+      }
+
+      Navigation.NavigateTo($"sales/customers/{created.Value}");
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+}

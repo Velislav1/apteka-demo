@@ -20,6 +20,13 @@ internal sealed class SaleRepository(SalesDbContext context) : ISaleRepository
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Sale>> ListForCustomerAsync(Guid customerId, int limit, CancellationToken cancellationToken) =>
+        await context.Sales.AsNoTracking()
+            .Where(s => s.CustomerId == customerId)
+            .OrderByDescending(s => s.Number)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
     public void Add(Sale sale) => context.Sales.Add(sale);
 
     public void Add(Reversal reversal) => context.Reversals.Add(reversal);

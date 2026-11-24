@@ -23,7 +23,65 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("customer_codes", "sales");
+
             modelBuilder.HasSequence("sale_numbers", "sales");
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Customers.Customer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("Code")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("code")
+                        .HasDefaultValueSql("nextval('sales.customer_codes')");
+
+                    b.Property<string>("Egn")
+                        .HasMaxLength(10)
+                        .HasColumnType("character(10)")
+                        .HasColumnName("egn")
+                        .IsFixedLength();
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("phone");
+
+                    b.HasKey("Id")
+                        .HasName("pk_customers");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_customers_code");
+
+                    b.HasIndex("Egn")
+                        .IsUnique()
+                        .HasDatabaseName("ix_customers_egn")
+                        .HasFilter("egn IS NOT NULL");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_customers_name");
+
+                    b.ToTable("customers", "sales");
+                });
 
             modelBuilder.Entity("Apteka.Sales.Domain.Reversals.Reversal", b =>
                 {
@@ -73,6 +131,10 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
                     b.Property<long>("Number")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
@@ -116,6 +178,9 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("ix_sales_created_at");
+
+                    b.HasIndex("CustomerId")
+                        .HasDatabaseName("ix_sales_customer_id");
 
                     b.HasIndex("Number")
                         .IsUnique()
@@ -252,6 +317,15 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_reversals_sales_sale_id");
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Sales.Sale", b =>
+                {
+                    b.HasOne("Apteka.Sales.Domain.Customers.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_sales_customers_customer_id");
                 });
 
             modelBuilder.Entity("Apteka.Sales.Domain.Sales.SaleLine", b =>
