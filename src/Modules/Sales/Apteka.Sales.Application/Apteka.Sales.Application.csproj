@@ -6,6 +6,7 @@
     <ProjectReference Include="..\..\..\BuildingBlocks\Apteka.SharedKernel\Apteka.SharedKernel.csproj" />
     <ProjectReference Include="..\..\Catalog\Apteka.Catalog.Contracts\Apteka.Catalog.Contracts.csproj" />
     <ProjectReference Include="..\..\Inventory\Apteka.Inventory.Contracts\Apteka.Inventory.Contracts.csproj" />
+    <ProjectReference Include="..\..\Identity\Apteka.Identity.Contracts\Apteka.Identity.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

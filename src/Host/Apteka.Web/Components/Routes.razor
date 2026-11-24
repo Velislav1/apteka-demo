@@ -1,6 +1,21 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Apteka.Web.Features.Identity.Session
+
 <Router AppAssembly="typeof(Program).Assembly">
   <Found Context="routeData">
-    <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+    <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+      <NotAuthorized>
+        @if (context.User.Identity?.IsAuthenticated == true)
+        {
+          <h1>Нямате достъп</h1>
+          <p>Този екран е само за управител.</p>
+        }
+        else
+        {
+          <RedirectToLogin />
+        }
+      </NotAuthorized>
+    </AuthorizeRouteView>
     <FocusOnNavigate RouteData="routeData" Selector="h1" />
   </Found>
   <NotFound>

@@ -39,8 +39,8 @@ apteka-demo/
       Apteka.Web/             # ASP.NET Core + Blazor; само сглобява модулите
         Features/<Module>/    # Blazor страници, групирани по модул
     BuildingBlocks/
-      Apteka.SharedKernel/            # Money, Quantity, Entity, Result, домейн събития
-      Apteka.Infrastructure.Common/   # ModuleDbContext, DatabaseStatus (по-късно: audit interceptor, транзакции)
+      Apteka.SharedKernel/            # Money, UnitPrice, Quantity, Entity, Result, IUnitOfWork, ICurrentUser, BulgarianTime
+      Apteka.Infrastructure.Common/   # ModuleDbContext, AddModuleDbContext, audit interceptor, обща транзакция (UnitOfWork)
     Modules/
       Catalog/      # стоки, мерки, баркодове, производители      (схема catalog)
       Purchasing/   # доставчици, доставки                         (схема purchasing)
@@ -102,28 +102,33 @@ apteka-demo/
 
 ## Модел на данните (демо)
 
-- `Product` — Id, Name, AtcCode?, Manufacturer?, VatRate, IsRx (по лекарско предписание), IsActive
+- `Product` — Id, Name, AtcCode?, DispensingMode (OverTheCounter / Prescription / Narcotic), VatRate, IsActive, NhifCode?, ManufacturerId?, ProductGroupId?, ShelfId?, DefaultSaleUnitId?
+- `Manufacturer`, `ProductGroup`, `Shelf` — Id, Name (уникално), IsActive; не се трият, а се деактивират
 - `ProductUnit` — Id, ProductId, Name, Factor (int ≥ 1); точно една мярка с Factor = 1 на стока
 - `Barcode` — Id, ProductId, ProductUnitId, Code (уникален)
-- `Supplier` — Id, Name, Eik, PaymentTermDays
-- `Delivery` — Id, SupplierId, InvoiceNo, InvoiceDate, ReceivedAt, UserId, Status (Draft/Posted)
-- `DeliveryLine` — Id, DeliveryId, ProductId, ProductUnitId, Quantity, UnitPurchasePrice, BatchNo, ExpiryDate, SalePrice
-- `Batch` — Id, ProductId, BatchNo, ExpiryDate, PurchasePrice (за най-малка мярка), SalePrice (за най-малка мярка), StockType
+- `Supplier` — Id, Name (уникално), Eik (9/13 цифри с контролна цифра, уникален), PaymentTermDays, IsActive
+- `Delivery` — Id, SupplierId, InvoiceNo (уникален за доставчика), InvoiceDate, ReceivedAt, UserId, Status (Draft/Posted), PostedAt
+- `DeliveryLine` — Id, DeliveryId, Position, ProductId, ProductUnitId, UnitFactor, Quantity (в тази мярка), UnitPurchasePrice (без ДДС), MarkupPercent?, SalePrice (с ДДС), BatchNo, ExpiryDate, IsRemoved (премахнат ред от чернова)
+- `Batch` — Id, ProductId, BatchNo, ExpiryDate, PurchasePrice (за най-малка мярка, без ДДС), SalePrice (за най-малка мярка, с ДДС), PricedUnitFactor + PricedUnitSalePrice (точната цена на мярката, в която е въведена), StockType, SourceDocumentType/Id, SourceLineId (уникален)
 - `StockMovement` — Id, BatchId, QuantityDelta (int, в най-малка мярка), Kind (Delivery/Sale/Reversal/WriteOff/Correction), DocumentType, DocumentId, UserId, CreatedAt
-- `Sale` — Id, Number, SaleType, UserId, CreatedAt, Total, PaymentMethod (Cash/Card), Status (Completed/Reversed)
-- `SaleLine` — Id, SaleId, BatchId, ProductUnitId, Quantity, UnitPrice, Discount, LineTotal
-- `User` — Id, UserName, PasswordHash, Role (Manager/Pharmacist), IsActive
+- `Sale` — Id, Number (от sequence), SaleType, UserId, CreatedAt, Total, VatTotal, PaymentMethod (Cash/Card), CashReceived?, Status (Completed/Reversed)
+- `SaleLine` — Id, SaleId, Position, ProductId, ProductName, ProductUnitId, UnitName, UnitFactor, Quantity, UnitPrice (с ДДС), DiscountPercent, DiscountAmount, VatRate, LineTotal, VatAmount
+- `SaleLineBatch` — Id, SaleLineId, BatchId, BaseQuantity (от кои партиди е изписан редът; FEFO може да го раздели)
+- `Reversal` — Id, SaleId (уникален), Reason?, UserId, CreatedAt (сторно на цялата продажба)
+- `User` — Id, UserName (малки букви, уникално), DisplayName, PasswordHash (никога в одита), Role (Manager/Pharmacist), IsActive, FailedLoginCount, LockedUntil, LastLoginAt
 - `AuditLog` — Id, UserId, At, Action, Entity, EntityId, OldValues (jsonb), NewValues (jsonb)
 
-Публикуването на доставка (`Draft → Posted`) създава партидите и движенията в една транзакция; публикувана доставка не се редактира, само се коригира.
+Публикуването на доставка (`Draft → Posted`) създава партидите и движенията в една транзакция (`IUnitOfWork`, виж `docs/architecture/0003-cross-module-transactions.md`); публикувана доставка не се редактира, само се коригира.
+
+Цени: покупната цена от фактурата е **без ДДС**, продажната е **с ДДС**. Предложена продажна цена = покупна × (1 + надценка %) × (1 + ДДС %), закръглена до цент; може да се смени ръчно.
 
 ## Екрани в демото
 
-1. **Вход** — потребител + парола (две роли).
+1. **Вход** — потребител + парола (две роли). Управител: всичко. Фармацевт: без „Потребители“ и без сторно. 5 грешни опита → заключване за 5 минути.
 2. **Номенклатура** — списък, търсене по име/баркод, създаване и редакция на стока с мерки и баркодове.
 3. **Доставка** — нова доставка: доставчик, фактура, редове (стока, мярка, количество, партида, срок, цени) → „Запиши“ (Draft) → „Публикувай“.
 4. **Наличност** — по стока и по партида, с филтър „изтича до 90 дни“.
-5. **Каса** — поле за баркод с постоянен фокус; Enter добавя ред; F2 количество; F9 плащане; Esc отказ. Изцяло без мишка.
+5. **Каса** — поле за баркод с постоянен фокус; Enter добавя ред; F2 количество; F3 отстъпка %; F9 плащане (Enter в брой, F9 с карта); Esc отказ. Изцяло без мишка. Rx стоки — с потвърждение на рецептата; упойващи — забранени.
 6. **Продажби за деня** — списък и сторно на продажба.
 
 ## Тестове (задължителни преди всяко „готово“)
@@ -135,7 +140,12 @@ apteka-demo/
 ## Как работим
 
 - Малки стъпки: една функционалност → тестове → `dotnet build` и `dotnet test` → кратко резюме.
+- Всеки модул в свой git клон (`claude/<module>-module`), сливане в `main` с PR. Вътре в модула всеки модел е в своя папка
+  на всяко ниво (`Domain/<Model>/`, `Application/<Model>/`, …). Виж `docs/architecture/0002-module-layout-and-branches.md`.
 - Преди голяма промяна (нова таблица, промяна на модела) — първо предложи план и изчакай одобрение.
+- Дизайн: общите стилове и цветове в `wwwroot/app.css`, стиловете на един екран до него (`<Екран>.razor.css`);
+  без шрифтове и библиотеки от интернет. Виж `docs/architecture/0004-ui-design-system.md`.
 - Не добавяй функционалност извън демото (виж „Какво правим“). Идеи за по-късно — в `docs/BACKLOG.md`.
 - README.md на български: изисквания, как се пуска, как се тества, тестови потребители (от seed).
 - В нова сесия (напр. на друг компютър) първо прочети `docs/NEXT-STEPS.md` и `docs/PROJECT-CONTEXT.md`: там е къде сме спрели и какво е решено.
+- Старата програма „Аптека Експерт 2“ е описана в `docs/legacy/apteka-expert-2-analysis.md`; при нов модул сравни с нея.

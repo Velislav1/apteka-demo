@@ -1,0 +1,96 @@
+# 0002 — Подредба вътре в модула, одит и клонове
+
+Статус: прието (2026-11-24)
+
+## Контекст
+
+Проектът ще е голям. При преглед на код трябва да се отваря само частта, която се променя, а не цялото решение.
+Първият модул с данни (Catalog) налага и решения, които ще важат за всички следващи.
+
+## Решение
+
+### Папки вътре в модула: по една папка на модел (агрегат)
+
+```
+src/Modules/<Module>/
+  Apteka.<Module>.Contracts/          публичният интерфейс (напр. ICatalogLookup)
+  Apteka.<Module>.Domain/<Model>/     ентитети, правила, грешки на модела (напр. Products/, Manufacturers/)
+  Apteka.<Module>.Domain/Common/      общо за няколко модела на модула (напр. CatalogReference)
+  Apteka.<Module>.Application/<Model>/ use cases (Create…Handler, Search…Handler) и интерфейси към базата
+  Apteka.<Module>.Infrastructure/
+    Persistence/                      DbContext, Configurations/, Migrations/
+    <Model>/                          репозиторита и заявки на модела
+    Seed/                             демо данни и инициализация на базата
+    <Module>Module.cs                 Add<Module>Module(): единственото място, което Host вика
+src/Host/Apteka.Web/Features/<Module>/   екраните на модула
+tests/Modules/<Module>/…/<Model>/        unit тестове на модела
+tests/Apteka.IntegrationTests/<Module>/  интеграционни тестове на модула
+tests/Host/Apteka.Web.Tests/Features/<Module>/  bUnit тестове на екраните
+```
+
+Нов модел в съществуващ модул получава своя папка на всяко от тези нива. Пример — Catalog:
+
+| Модел | Domain | Application | Infrastructure | Екрани |
+|---|---|---|---|---|
+| Стоки | `Products/` | `Products/` | `Products/`, `Persistence/Configurations/ProductConfiguration.cs` | `Features/Catalog/Products/` |
+| Производители | `Manufacturers/` | `Manufacturers/` | `Common/ReferenceRepository.cs`, `ReferenceConfigurations.cs` | `Features/Catalog/Manufacturers/` |
+| Групи | `ProductGroups/` | `ProductGroups/` | (същото) | `Features/Catalog/ProductGroups/` |
+| Рафтове | `Shelves/` | `Shelves/` | (същото) | `Features/Catalog/Shelves/` |
+
+Пример — Sales и Inventory (каса):
+
+| Част | Модул и папка |
+|---|---|
+| Сметка на ред, ДДС, закръгляне | Sales / `Domain/Pricing/` |
+| Продажба, редове, партиди на реда | Sales / `Domain/Sales/` |
+| Сторно | Sales / `Domain/Reversals/`, `Application/Reversals/` |
+| Приключване на продажба (F9) | Sales / `Application/Checkout/` |
+| Продажби за деня | Sales / `Application/DailySales/` |
+| FEFO избор на партида | Inventory / `Domain/Allocation/` |
+| Изписване със заключване (`FOR UPDATE`) | Inventory / `Application/Issuing/`, `Infrastructure/Batches/StockLocking.cs` |
+| Екрани | `Features/Sales/Checkout/` (+ `CheckoutPage.razor.js` за клавишите), `Features/Sales/DailySales/` |
+
+Пример — Identity (вход):
+
+| Част | Модул и папка |
+|---|---|
+| Потребител, заключване, правила за парола | Identity / `Domain/Users/` |
+| Вход | Identity / `Application/Login/` |
+| Управление на потребители | Identity / `Application/Users/` |
+| Роли за другите модули | Identity / `Contracts/Roles.cs` |
+| „Кой работи сега“ | SharedKernel / `ICurrentUser`; Host / `Features/Identity/Session/` (бисквитка, Blazor връзка) |
+| Екрани | `Features/Identity/Login/`, `Features/Identity/Users/` |
+
+Еднаквото поведение на простите справочници е в папки `Common/` (един базов клас, един handler, едно хранилище,
+един Blazor компонент), за да не се повтаря три пъти. Преглед на модел = неговите папки + `Common/`.
+
+### Общи правила за базата (потвърдени)
+
+- Ключове `uuid` (`Guid.CreateVersion7()`), генерирани в домейна (`ValueGeneratedNever`).
+- Без външни ключове между схеми на различни модули; вътре в модула има външни ключове.
+- Имена в базата: snake_case (`product_units.product_id`), общо за всички модули (`SnakeCaseNaming`).
+- Регистрация: `AddModuleDbContext<T>()` от `Apteka.Infrastructure.Common` (своя схема, своя история на миграциите, одит).
+- Миграции: по модул, в `Persistence/Migrations`. В Development се прилагат при стартиране (`IModuleDatabaseInitializer`, Audit първи), заедно със seed.
+
+### Одит
+
+- `AuditInterceptor` (в `Infrastructure.Common`) записва ред в `audit.audit_log` за всяка вмъкната, променена или изтрита
+  стойност, **в същата транзакция** като промяната. Ако записът се провали, няма и одит.
+- При промяна се записват само променените полета (стари и нови стойности като JSON).
+- Таблицата е собственост на модул Audit (миграцията му). Тригер забранява `UPDATE`, `DELETE` и `TRUNCATE`.
+- Потребителят идва от `ICurrentUser`. Докато няма вход (Identity), това е `system`.
+
+### Git клонове: по един на модул
+
+- `main`: само завършени и тествани модули.
+- `claude/catalog-module`, `claude/purchasing-module`, …: работата по един модул. Сливане в `main` с pull request,
+  когато `dotnet test --solution Apteka.sln` е зелен. Така прегледът на PR показва само този модул
+  (плюс малки общи промени в `BuildingBlocks`, ако модулът ги налага).
+- Модулите НЕ живеят постоянно в отделни клонове: всички са в едно решение, за да се проверяват заедно от архитектурните тестове.
+
+## Последствия
+
+- (+) Преглед по модул и по модел; ясно къде отива всеки нов файл.
+- (+) Одитът не може да бъде забравен в нов модул: идва с `AddModuleDbContext`.
+- (−) `Infrastructure.Common` знае формата на `audit.audit_log` (SQL). Пази се в синхрон от `AuditLogTests`.
+- (−) Повече папки за малък модел.

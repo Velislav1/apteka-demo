@@ -1,0 +1,7 @@
+@using Apteka.Purchasing.Domain.Deliveries
+
+<span class="status @(Status == DeliveryStatus.Posted ? "posted" : "draft")">@(Status == DeliveryStatus.Posted ? "Публикувана" : "Чернова")</span>
+
+@code {
+  [Parameter, EditorRequired] public DeliveryStatus Status { get; set; }
+}

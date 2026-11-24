@@ -1,19 +1,83 @@
 @page "/"
 @using Apteka.Infrastructure.Common
+@using Apteka.Inventory.Contracts
+@using Apteka.Purchasing.Application.Deliveries
+@using Apteka.Purchasing.Domain.Deliveries
+@using Apteka.Sales.Application.DailySales
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Identity.Session
+@using Apteka.Web.Features.Shared
 @inject DatabaseStatus Database
+@inject DailySalesHandler DailySales
+@inject IStockQueries Stock
+@inject ListDeliveriesHandler Deliveries
+@inject TimeProvider Clock
 
 <PageTitle>Аптека</PageTitle>
 
-<h1>Аптека</h1>
-<p>Системата е стартирана.</p>
-<p>
-  Връзка с базата данни:
-  <strong class="@(_databaseAvailable ? "ok" : "fail")">@(_databaseAvailable ? "налична" : "няма връзка")</strong>
-</p>
+<AuthorizeView>
+  <div class="welcome">
+    <div>
+      <h1>Добре дошли, @context.User.DisplayName()</h1>
+      <p class="muted">@Formats.Date(_today) · @(_databaseAvailable ? "базата данни е налична" : "няма връзка с базата данни")</p>
+    </div>
+    <div class="actions">
+      <a class="button" href="sales/checkout"><Icon Name="till" /> Каса</a>
+      <a class="button secondary" href="purchasing/deliveries/new"><Icon Name="plus" /> Нова доставка</a>
+      <a class="button secondary" href="catalog/new"><Icon Name="plus" /> Нова стока</a>
+    </div>
+  </div>
+</AuthorizeView>
+
+<div class="stats">
+  <a class="stat" href="sales/daily">
+    <span class="stat-icon"><Icon Name="coins" /></span>
+    <span class="stat-label">Оборот днес</span>
+    <strong class="stat-value">@Formats.Euro(_sales?.Total ?? 0)</strong>
+    <span class="stat-note">в брой @Formats.Euro(_sales?.CashTotal ?? 0) · с карта @Formats.Euro(_sales?.CardTotal ?? 0)</span>
+  </a>
+  <a class="stat" href="sales/daily">
+    <span class="stat-icon"><Icon Name="receipt" /></span>
+    <span class="stat-label">Продажби днес</span>
+    <strong class="stat-value">@(_sales?.Sales.Count ?? 0)</strong>
+    <span class="stat-note">@(_reversed) сторнирани</span>
+  </a>
+  <a class="stat @(_expiring > 0 ? "warn" : null)" href="inventory/stock?expiring=true">
+    <span class="stat-icon"><Icon Name="clock" /></span>
+    <span class="stat-label">Изтичат до 90 дни</span>
+    <strong class="stat-value">@_expiring</strong>
+    <span class="stat-note">стоки с партиди за изписване</span>
+  </a>
+  <a class="stat @(_drafts > 0 ? "info" : null)" href="purchasing/deliveries">
+    <span class="stat-icon"><Icon Name="draft" /></span>
+    <span class="stat-label">Чернови доставки</span>
+    <strong class="stat-value">@_drafts</strong>
+    <span class="stat-note">чакат публикуване</span>
+  </a>
+</div>
 
 @code {
-  private bool _databaseAvailable;
+  private const int ExpiringDays = 90;
 
-  protected override async Task OnInitializedAsync() =>
+  private bool _databaseAvailable;
+  private DateOnly _today;
+  private DailySalesView? _sales;
+  private int _reversed;
+  private int _expiring;
+  private int _drafts;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _today = BulgarianTime.Today(Clock.GetUtcNow());
     _databaseAvailable = await Database.IsAvailableAsync();
+    if (!_databaseAvailable)
+    {
+      return;
+    }
+
+    _sales = await DailySales.HandleAsync(_today);
+    _reversed = _sales.Sales.Count(s => s.Status == Apteka.Sales.Domain.Sales.SaleStatus.Reversed);
+    _expiring = (await Stock.GetProductStockAsync(null, _today.AddDays(ExpiringDays))).Count;
+    _drafts = (await Deliveries.HandleAsync(status: DeliveryStatus.Draft)).Count;
+  }
 }

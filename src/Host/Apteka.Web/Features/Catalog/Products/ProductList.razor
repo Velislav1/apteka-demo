@@ -1,0 +1,82 @@
+@page "/catalog"
+@using Apteka.Catalog.Application.Products
+@using Apteka.Catalog.Domain.Products
+@inject SearchProductsHandler Search
+
+<PageTitle>Номенклатура</PageTitle>
+
+<h1>Номенклатура</h1>
+
+<div class="toolbar">
+  <input type="search" placeholder="Търсене по име или баркод" aria-label="Търсене"
+         @bind="_query" @bind:event="oninput" @onkeydown="OnKeyDown" />
+  <button @onclick="RunSearch">Търси</button>
+  <a class="button secondary" href="catalog/new">Нова стока</a>
+</div>
+
+@if (_items is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_items.Count == 0)
+{
+  <p class="muted">Няма намерени стоки.</p>
+}
+else
+{
+  <table class="grid">
+    <thead>
+      <tr>
+        <th>Име</th>
+        <th>Производител</th>
+        <th>Група</th>
+        <th>Мярка</th>
+        <th>Баркодове</th>
+        <th class="num">ДДС</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @foreach (var item in _items)
+      {
+        <tr class="@(item.IsActive ? null : "inactive")">
+          <td>
+            <a href="catalog/@item.Id">@item.Name</a>
+            @if (DispensingModeText.Tag(item.DispensingMode) is { } tag)
+            {
+              <span class="tag @(item.DispensingMode == DispensingMode.Narcotic ? "narcotic" : null)"
+                    title="@DispensingModeText.Label(item.DispensingMode)">@tag</span>
+            }
+          </td>
+          <td>@item.Manufacturer</td>
+          <td>@item.ProductGroup</td>
+          <td>@item.BaseUnitName</td>
+          <td>@string.Join(", ", item.Barcodes)</td>
+          <td class="num">@item.VatRate.ToString("0.##") %</td>
+          <td>@(item.IsActive ? null : "неактивна")</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  @if (_items.Count == SearchProductsHandler.DefaultLimit)
+  {
+    <p class="muted">Показани са първите @SearchProductsHandler.DefaultLimit. Уточнете търсенето.</p>
+  }
+}
+
+@code {
+  private string? _query;
+  private IReadOnlyList<ProductListItem>? _items;
+
+  protected override Task OnInitializedAsync() => RunSearch();
+
+  private async Task RunSearch() => _items = await Search.HandleAsync(_query);
+
+  private async Task OnKeyDown(KeyboardEventArgs e)
+  {
+    if (e.Key == "Enter")
+    {
+      await RunSearch();
+    }
+  }
+}

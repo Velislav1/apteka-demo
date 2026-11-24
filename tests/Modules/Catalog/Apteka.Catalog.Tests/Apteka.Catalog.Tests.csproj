@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\src\Modules\Catalog\Apteka.Catalog.Infrastructure\Apteka.Catalog.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\..\src\Modules\Catalog\Apteka.Catalog.Domain\Apteka.Catalog.Domain.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Catalog\Apteka.Catalog.Application\Apteka.Catalog.Application.csproj" />
   </ItemGroup>
 
 </Project>

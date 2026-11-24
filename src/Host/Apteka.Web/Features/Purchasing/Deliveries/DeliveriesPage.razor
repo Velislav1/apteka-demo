@@ -1,0 +1,59 @@
+@page "/purchasing/deliveries"
+@using Apteka.Purchasing.Application.Deliveries
+@using Apteka.Purchasing.Domain.Deliveries
+@using Apteka.Web.Features.Shared
+@inject ListDeliveriesHandler ListDeliveries
+
+<PageTitle>Доставки</PageTitle>
+
+<h1>Доставки</h1>
+
+<div class="toolbar">
+  <a class="button" href="purchasing/deliveries/new">Нова доставка</a>
+  <select aria-label="Статус" @bind="_status" @bind:after="Load">
+    <option value="">Всички</option>
+    <option value="@DeliveryStatus.Draft">Чернови</option>
+    <option value="@DeliveryStatus.Posted">Публикувани</option>
+  </select>
+</div>
+
+@if (_items is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_items.Count == 0)
+{
+  <p class="muted">Няма доставки.</p>
+}
+else
+{
+  <table class="grid">
+    <thead>
+      <tr><th>Получена</th><th>Доставчик</th><th>Фактура</th><th>Дата на фактура</th><th class="num">Редове</th><th class="num">Сума без ДДС</th><th>Статус</th></tr>
+    </thead>
+    <tbody>
+      @foreach (var item in _items)
+      {
+        <tr>
+          <td>@Formats.LocalTime(item.ReceivedAt)</td>
+          <td>@item.SupplierName</td>
+          <td><a href="purchasing/deliveries/@item.Id">@item.InvoiceNo</a></td>
+          <td>@Formats.Date(item.InvoiceDate)</td>
+          <td class="num">@item.LineCount</td>
+          <td class="num">@Formats.Euro(item.PurchaseTotal)</td>
+          <td><DeliveryStatusBadge Status="item.Status" /></td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
+
+@code {
+  private IReadOnlyList<DeliveryListItem>? _items;
+  private string _status = string.Empty;
+
+  protected override Task OnInitializedAsync() => Load();
+
+  private async Task Load() =>
+    _items = await ListDeliveries.HandleAsync(status: Enum.TryParse<DeliveryStatus>(_status, out var status) ? status : null);
+}

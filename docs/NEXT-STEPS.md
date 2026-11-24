@@ -1,66 +1,143 @@
 # Къде сме спрели и как да продължиш
 
-Състояние към 2026-11-15.
+Състояние към 2026-11-24. Всичко е качено в GitHub (`Velislav1/apteka-demo`).
 
-## Готово
+## Накратко
 
-- Инсталирани инструменти: .NET 10 SDK, Git, Docker Desktop (с WSL 2), `dotnet-ef`, C# Dev Kit.
-- Скелет на **модулен монолит**: 6 модула (Catalog, Purchasing, Inventory, Sales, Identity, Audit),
-  по 4 проекта всеки (Contracts, Domain, Application, Infrastructure), SharedKernel, Infrastructure.Common,
-  Blazor host с начална страница на български, свързана с PostgreSQL.
-- 36 теста минават (unit, архитектурни, интеграционни с Testcontainers).
-- Бизнес функционалност още няма: няма таблици, екрани, вход, seed.
+- Демото е **готово като функционалност**: номенклатура, доставки, наличност, каса без мишка, продажби за деня
+  със сторно, вход с две роли, одит, нов дизайн. **218 теста минават.**
+- **Най-новият клон е `claude/modern-ui`** — той съдържа всичко (клоновете са един върху друг).
+  Работи от него.
+- Отворен е само PR #1 (Catalog → `main`). Останалите клонове чакат PR, по ред (виж „Клонове“).
+- **Следваща задача:** по-подробен прочит на Аптека Експерт 2 (помощен файл + снимки на екраните), за да
+  подредим менюто и екраните като в програмата, с която фармацевтите са свикнали. После — преглед (Промпт 7).
 
-## Как да продължиш на друг компютър
+## Продължаване на компютъра (Windows)
 
-1. Инсталирай Git и Visual Studio Code, после:
+### Ако проектът вече е клониран
 
-   ```
-   git clone https://github.com/Velislav1/apteka-demo
-   cd apteka-demo
-   powershell -ExecutionPolicy Bypass -File .\setup.ps1
-   ```
+```
+cd C:\Projects\apteka-demo        (или където е папката)
+git fetch origin
+git checkout claude/modern-ui
+git pull
+```
 
-   `setup.ps1` инсталира .NET 10 SDK, Docker Desktop, `dotnet-ef` и разширенията за VS Code.
-   След Docker Desktop рестартирай, отвори го и изчакай „Engine running“.
-   Ако Docker каже „Virtual Machine Platform is not enabled“, пусни в PowerShell като администратор:
-   `Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform` и рестартирай.
-   Ако иска WSL обновяване: `wsl --update`.
-2. Настройки за разработка (файлът не е в git, защото съдържа парола):
+### Ако е нов компютър
 
-   ```
-   Copy-Item src\Host\Apteka.Web\appsettings.Development.example.json src\Host\Apteka.Web\appsettings.Development.json
-   ```
-3. Провери: `docker compose up -d`, после `dotnet test --solution Apteka.sln`. Трябва да са 36 зелени теста.
-4. Отвори папката във VS Code, стартирай Claude Code. `CLAUDE.md` се чете автоматично.
-5. Git идентичност на новия компютър: `git config --global user.name "..."` и `git config --global user.email "..."`.
+```
+git clone https://github.com/Velislav1/apteka-demo
+cd apteka-demo
+git checkout claude/modern-ui
+powershell -ExecutionPolicy Bypass -File .\setup.ps1
+```
 
-## Какво следва
+`setup.ps1` инсталира .NET 10 SDK, Docker Desktop, `dotnet-ef` и разширенията за VS Code.
+След Docker Desktop рестартирай, отвори го и изчакай „Engine running“.
+(Ако Docker каже „Virtual Machine Platform is not enabled“: в PowerShell като администратор
+`Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform`, рестарт; ако иска — `wsl --update`.)
 
-Промптовете са в `PROMPTS.md`. Продължаваме модул по модул, като към всеки промпт се добавя:
-„Спазвай модулната структура и правилата в CLAUDE.md.“
+### Настройки (файлът не е в git — съдържа пароли)
 
-| Стъпка | Модул | Промпт |
+```
+Copy-Item src\Host\Apteka.Web\appsettings.Development.example.json src\Host\Apteka.Web\appsettings.Development.json
+```
+
+Отвори `appsettings.Development.json` и попълни демо паролите (поне 8 знака, буква и цифра):
+
+```json
+"Identity": { "Seed": { "ManagerPassword": "твоя-парола-1", "PharmacistPassword": "твоя-парола-2" } }
+```
+
+Ако са празни, при първото пускане програмата генерира пароли и ги показва **веднъж** в конзолата.
+Потребителите се създават само в празна база. Ако базата вече има потребители с непозната парола:
+`docker compose down -v` (изтрива локалната демо база) и пусни отново.
+
+### Пускане и проверка
+
+```
+docker compose up -d
+dotnet test --solution Apteka.sln          (трябва: 218 зелени)
+dotnet run --project src\Host\Apteka.Web
+```
+
+Отвори http://localhost:5080 и влез като `manager` (всичко) или `pharmacist` (без „Потребители“ и сторно).
+При първо пускане базата се създава сама с демо данни: 50 стоки, 3 доставчика, 2 публикувани доставки, 1 чернова.
+
+Демо баркодове за касата: `2000000000015` (Парацетамол), `2000000000107` (Амоксицилин, Rx → пита за рецепта),
+`2000000000046` (Ибупрофен 400). Клавиши: Enter, F2 количество, F3 отстъпка, F9 плащане (Enter в брой / F9 карта), Esc.
+
+### Първо съобщение към Claude Code
+
+Отвори папката във VS Code, стартирай Claude Code и напиши:
+
+```
+Прочети docs/NEXT-STEPS.md и docs/PROJECT-CONTEXT.md. Работим в клон claude/modern-ui.
+Провери, че dotnet test минава, и продължи от „Следваща задача“.
+```
+
+Git идентичност на нов компютър: `git config --global user.name "..."` и `git config --global user.email "..."`.
+
+## Следваща задача: подредба като в Аптека Експерт 2
+
+Потребителят иска дизайнът и подредбата да са по-близо до Аптека Експерт 2. Нужно е:
+
+1. **Помощният файл** `C:\Program Files (x86)\M-Soft\AptekaXP2\Bin\AptekaXP2.chm` от аптечния компютър
+   (в Харманли; достъп през TeamViewer → File Transfer). Не съдържа лични данни. Сложи го в проекта само локално
+   (напр. `docs/legacy/AptekaXP2.chm`) или го дай на Claude Code — той може да го разархивира (7-Zip чете .chm).
+2. **Снимки на екраните** (Win + Shift + S през TeamViewer): главно меню, продажба (каса), складова разписка,
+   карта на стока, нова стока, наличност / картон на стока. **Само отваряне и затваряне с Esc — нищо не се записва**
+   на аптечния компютър; без пациенти, ЕГН и рецепти на снимките.
+3. Claude прави сравнение „Аптека Експерт → нова програма“ (меню, полета, клавиши, думи) и **предлага** нова
+   подредба; чак след одобрение я прави (в нов клон, напр. `claude/expert-layout`).
+
+Правило: аптечният компютър е само за четене; нищо в програмата, базата или услугите не се променя.
+
+## Клонове
+
+| Клон | Какво добавя | PR |
 |---|---|---|
-| 1 | Catalog | 2 |
-| 2 | Purchasing и Inventory | 3 и 4 |
-| 3 | Sales | 5 и 6 |
-| 4 | Преглед | 7 |
+| `claude/catalog-module` | Номенклатура, справочници, одит, обща основа | #1 (отворен) |
+| `claude/purchasing-inventory-module` | Доставчици, доставки, партиди, наличност, `IUnitOfWork` | още няма |
+| `claude/sales-module` | Каса, FEFO със заключване, продажби за деня, сторно | още няма |
+| `claude/identity-module` | Вход, роли, потребители, истинският потребител навсякъде | още няма |
+| `claude/modern-ui` | Нов дизайн, табло | още няма |
 
-Промпт 1 (общ план на базата) е прескочен. Промпт 2 трябва да включи и таблиците на Catalog,
-първата миграция и seed с 50 измислени стоки. Claude първо дава кратък план и чака одобрение.
+Всеки е направен върху предишния. Сливане в `main` по реда в таблицата (след #1 — PR за следващия и т.н.).
+`claude/aptika-demo-w49aoe` е старият работен клон (само поправка на архитектурните тестове за Linux; вече е в останалите).
 
-Решения, които важат за всички модули (приети като препоръка, виж `docs/architecture/0001-modular-monolith.md`):
-- ключове `uuid` (`Guid.CreateVersion7()`), без външни ключове между схеми;
-- наличност = сума от `StockMovement`, с заключване на реда на партидата;
-- общ `IUnitOfWork` за транзакции между модули и общ audit interceptor, когато първата функционалност ги поиска.
+## Стъпки
+
+| Стъпка | Модул | Промпт | Състояние |
+|---|---|---|---|
+| 1 | Catalog | 2 | ✅ |
+| 2 | Purchasing и Inventory | 3 и 4 | ✅ |
+| 3 | Sales | 5 и 6 | ✅ |
+| 4 | Identity (вход, две роли) | — | ✅ |
+| 5 | Дизайн | — | ✅ (първа версия) |
+| 6 | Подредба като в Аптека Експерт | — | **следва** (чака помощния файл и снимките) |
+| 7 | Преглед | 7 | след това |
+
+## Решения (важат за всички модули)
+
+- Модулен монолит; модулите се виждат само през `Contracts`; всеки модел в своя папка на всяко ниво (ADR 0001, 0002).
+- Ключове `uuid` (v7), без външни ключове между схеми, snake_case, миграции по модул (при стартиране в Development).
+- Одит на всяка промяна в `audit.audit_log` (само за добавяне; хешът на паролата → `***`).
+- Наличност = сума от `StockMovement` (само за добавяне); обща транзакция между модули с `IUnitOfWork` (ADR 0003).
+- Покупна цена без ДДС, продажна с ДДС; надценка → предложена продажна цена.
+- Продажба: FEFO, без изтекли партиди, заключване на партидите; Rx с потвърждение, упойващи забранени;
+  отстъпка % на ред; сторно само от управител, връща в същите партиди.
+- Роли: управител — всичко; фармацевт — без „Потребители“ и сторно.
+- Дизайн: общи стилове в `wwwroot/app.css`, стиловете на екран до него; без интернет ресурси (ADR 0004).
+- Подробности и „защо“: `docs/PROJECT-CONTEXT.md`; старата програма: `docs/legacy/apteka-expert-2-analysis.md`;
+  отложено: `docs/BACKLOG.md`.
 
 ## Известни особености
 
-- **Smart App Control (Windows)** може да блокира току-що компилирани празни DLL-и. Тестовете за типове ги пропускат.
-  Ако `dotnet run` откаже да зареди DLL, това е причината.
-- Тестовете се пускат с `dotnet test --solution Apteka.sln` (xunit v3 през Microsoft Testing Platform, виж `global.json`).
+- **Smart App Control (Windows)** може да блокира току-що компилирани DLL-и при `dotnet run`/`dotnet test`.
 - Интеграционните тестове изискват работещ Docker Desktop.
+- Облачна сесия на Claude (Linux): .NET 10 с `apt-get install -y dotnet-sdk-10.0` (сървърът на Microsoft е блокиран),
+  Docker с `dockerd &`, `dotnet-ef` с `dotnet tool install --global dotnet-ef`.
 
 ## Включване на CI (GitHub Actions)
 

@@ -1,0 +1,149 @@
+@page "/sales/daily"
+@using System.Globalization
+@using Apteka.Sales.Application.DailySales
+@using Apteka.Sales.Application.Reversals
+@using Apteka.Sales.Domain.Sales
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject DailySalesHandler DailySales
+@inject GetSaleHandler GetSale
+@inject ReverseSaleHandler ReverseSale
+@inject TimeProvider Clock
+@inject AuthenticationStateProvider Authentication
+
+<PageTitle>Продажби за деня</PageTitle>
+
+<h1>Продажби за деня</h1>
+
+<div class="toolbar">
+  <input id="day" type="date" aria-label="Ден" @bind="_day" @bind:after="Load" />
+  @if (_view is not null)
+  {
+    <span>В брой: <strong>@Formats.Euro(_view.CashTotal)</strong></span>
+    <span>С карта: <strong>@Formats.Euro(_view.CardTotal)</strong></span>
+    <span>Общо: <strong>@Formats.Euro(_view.Total)</strong></span>
+  }
+</div>
+
+@if (_error is not null)
+{
+  <p class="alert error" role="alert">@_error</p>
+}
+@if (_message is not null)
+{
+  <p class="alert success" role="status">@_message</p>
+}
+
+@if (_view is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_view.Sales.Count == 0)
+{
+  <p class="muted">Няма продажби за @Formats.Date(_day).</p>
+}
+else
+{
+  <table class="grid">
+    <thead><tr><th>№</th><th>Час</th><th class="num">Редове</th><th class="num">Сума</th><th>Плащане</th><th>Статус</th><th></th></tr></thead>
+    <tbody>
+      @foreach (var sale in _view.Sales)
+      {
+        <tr class="@(sale.Status == SaleStatus.Reversed ? "inactive" : null)">
+          <td><button class="linklike" @onclick="() => Toggle(sale.Id)">@sale.Number</button></td>
+          <td>@BulgarianTime.ToLocal(sale.CreatedAt).ToString("HH:mm", CultureInfo.InvariantCulture)</td>
+          <td class="num">@sale.LineCount</td>
+          <td class="num">@Formats.Euro(sale.Total)</td>
+          <td>@(sale.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</td>
+          <td>@(sale.Status == SaleStatus.Reversed ? "сторнирана" : "приключена")</td>
+          <td>
+            @if (sale.Status == SaleStatus.Completed && _canReverse)
+            {
+              @if (_confirmId == sale.Id)
+              {
+                <input placeholder="Причина (по желание)" aria-label="Причина" @bind="_reason" maxlength="200" />
+                <button @onclick="() => Reverse(sale.Id)">Потвърди сторно</button>
+                <button class="secondary" @onclick="() => _confirmId = null">Отказ</button>
+              }
+              else
+              {
+                <button class="secondary" @onclick="() => AskReverse(sale.Id)">Сторно</button>
+              }
+            }
+          </td>
+        </tr>
+        @if (_details?.Id == sale.Id)
+        {
+          <tr class="details">
+            <td colspan="7">
+              <table class="grid">
+                <thead><tr><th>Стока</th><th>Мярка</th><th class="num">Кол.</th><th class="num">Цена</th><th class="num">Отст. %</th><th class="num">Сума</th></tr></thead>
+                <tbody>
+                  @foreach (var line in _details.Lines)
+                  {
+                    <tr>
+                      <td>@line.ProductName</td>
+                      <td>@line.UnitName</td>
+                      <td class="num">@line.Quantity</td>
+                      <td class="num">@Formats.Euro(line.UnitPrice)</td>
+                      <td class="num">@(line.DiscountPercent == 0 ? null : line.DiscountPercent.ToString("0.##", CultureInfo.GetCultureInfo("bg-BG")))</td>
+                      <td class="num">@Formats.Euro(line.LineTotal)</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              <p class="muted">ДДС в сумата: @Formats.Euro(_details.VatTotal)@(_details.CashReceived is { } cash ? $" · получени {Formats.Euro(cash)}, ресто {Formats.Euro(cash - _details.Total)}" : null)</p>
+            </td>
+          </tr>
+        }
+      }
+    </tbody>
+  </table>
+}
+
+@code {
+  private DateOnly _day;
+  private DailySalesView? _view;
+  private SaleView? _details;
+  private Guid? _confirmId;
+  private string? _reason;
+  private string? _error;
+  private string? _message;
+  private bool _canReverse;
+
+  protected override async Task OnInitializedAsync()
+  {
+    // Only a manager reverses sales (the use case checks it too).
+    _canReverse = (await Authentication.GetAuthenticationStateAsync()).User.IsInRole(Roles.Manager);
+    _day = BulgarianTime.Today(Clock.GetUtcNow());
+    await Load();
+  }
+
+  private async Task Load()
+  {
+    _view = await DailySales.HandleAsync(_day);
+    _details = null;
+  }
+
+  private async Task Toggle(Guid id) =>
+    _details = _details?.Id == id ? null : await GetSale.HandleAsync(id);
+
+  private void AskReverse(Guid id)
+  {
+    (_confirmId, _reason, _error, _message) = (id, null, null, null);
+  }
+
+  private async Task Reverse(Guid id)
+  {
+    var result = await ReverseSale.HandleAsync(id, _reason);
+    _confirmId = null;
+    if (result.IsFailure)
+    {
+      _error = result.Error.Message;
+      return;
+    }
+
+    _message = "Продажбата е сторнирана. Стоката е върната в наличност.";
+    await Load();
+  }
+}
