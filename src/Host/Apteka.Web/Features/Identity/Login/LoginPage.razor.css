@@ -1,0 +1,4 @@
+h1 { font-size: 1.25rem; margin-bottom: 1rem; }
+.login-form { display: grid; gap: 0.45rem; }
+.login-form input { width: 100%; margin-bottom: 0.5rem; }
+.login-form button { justify-content: center; margin-top: 0.5rem; padding: 0.7rem; }

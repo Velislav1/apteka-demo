@@ -1,6 +1,12 @@
 @inherits LayoutComponentBase
+@using Apteka.Web.Features.Shared
 
-<header class="top-bar"><span class="brand">Аптека</span></header>
-<main class="content narrow">
-  @Body
-</main>
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-brand">
+      <span class="brand-mark"><Icon Name="pill" Size="26" /></span>
+      <span>Аптека</span>
+    </div>
+    @Body
+  </div>
+</div>

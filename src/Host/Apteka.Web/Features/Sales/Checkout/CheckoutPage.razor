@@ -14,63 +14,93 @@
 <h1>Каса</h1>
 
 <div class="till">
-  <label for="till-input" class="till-prompt">@Prompt</label>
-  <input id="till-input" class="till-input" autocomplete="off" @bind="_input" @bind:event="oninput" @onkeydown="OnKeyDown" />
-  <p class="till-keys">Enter — добави · F2 — количество · F3 — отстъпка % · F9 — плащане · Esc — отказ</p>
+  <section class="till-main">
+    <div class="till-entry card">
+      <label for="till-input" class="till-prompt">@Prompt</label>
+      <input id="till-input" class="till-input" autocomplete="off" placeholder="Сканирайте баркод…" @bind="_input" @bind:event="oninput" @onkeydown="OnKeyDown" />
 
-  @if (_error is not null)
-  {
-    <p class="alert error" role="alert">@_error</p>
-  }
-  @if (_done is not null)
-  {
-    <p class="alert success" role="status">
-      Продажба № @_done.Number — @Formats.Euro(_done.Total)@(_done.Change is { } change ? $" · ресто {Formats.Euro(change)}" : null)
-    </p>
-  }
-
-  @if (_mode == Mode.Choose)
-  {
-    <ol class="till-matches">
-      @foreach (var match in _matches)
+      @if (_error is not null)
       {
-        <li>@match.Name — @match.UnitName — @Formats.Euro(match.UnitPrice)</li>
+        <p class="alert error" role="alert">@_error</p>
       }
-    </ol>
-  }
 
-  <table class="grid till-lines">
-    <thead>
-      <tr><th>№</th><th>Стока</th><th>Мярка</th><th class="num">Кол.</th><th class="num">Цена</th><th class="num">Отст. %</th><th class="num">Сума</th></tr>
-    </thead>
-    <tbody>
-      @for (var i = 0; i < _cart.Lines.Count; i++)
+      @if (_mode == Mode.Choose)
       {
-        var line = _cart.Lines[i];
-        <tr class="@(line == _cart.Last ? "current" : null) @(line.ExceedsStock ? "short" : null)">
-          <td>@(i + 1)</td>
-          <td>
-            @line.Product.Name
-            @if (line.PrescriptionConfirmed)
-            {
-              <span class="tag" title="Рецептата е потвърдена">Rx</span>
-            }
-            @if (line.ExceedsStock)
-            {
-              <span class="muted"> (налични: @Formats.Quantity(line.Product.AvailableBaseQuantity, [new(line.Product.UnitId, line.Product.UnitName, line.Product.UnitFactor), new(Guid.Empty, "бр. най-малка мярка", 1)]))</span>
-            }
-          </td>
-          <td>@line.Product.UnitName</td>
-          <td class="num">@line.Quantity</td>
-          <td class="num">@Formats.Euro(line.Product.UnitPrice)</td>
-          <td class="num">@(line.DiscountPercent == 0 ? null : line.DiscountPercent.ToString("0.##", CultureInfo.GetCultureInfo("bg-BG")))</td>
-          <td class="num">@Formats.Euro(line.Total)</td>
-        </tr>
+        <ol class="till-matches">
+          @foreach (var match in _matches)
+          {
+            <li><span>@match.Name</span> <span class="muted">@match.UnitName · @Formats.Euro(match.UnitPrice)</span></li>
+          }
+        </ol>
       }
-    </tbody>
-  </table>
+    </div>
 
-  <p class="till-total">Общо: <strong>@Formats.Euro(_cart.Total)</strong></p>
+    @if (_cart.IsEmpty)
+    {
+      <div class="till-empty card">
+        <Icon Name="till" Size="36" />
+        <p>Няма стоки в бележката. Сканирайте баркод или напишете име.</p>
+      </div>
+    }
+    else
+    {
+      <table class="grid till-lines">
+        <thead>
+          <tr><th>№</th><th>Стока</th><th>Мярка</th><th class="num">Кол.</th><th class="num">Цена</th><th class="num">Отст. %</th><th class="num">Сума</th></tr>
+        </thead>
+        <tbody>
+          @for (var i = 0; i < _cart.Lines.Count; i++)
+          {
+            var line = _cart.Lines[i];
+            <tr class="@(line == _cart.Last ? "current" : null) @(line.ExceedsStock ? "short" : null)">
+              <td>@(i + 1)</td>
+              <td>
+                @line.Product.Name
+                @if (line.PrescriptionConfirmed)
+                {
+                  <span class="tag" title="Рецептата е потвърдена">Rx</span>
+                }
+                @if (line.ExceedsStock)
+                {
+                  <span class="stock-note">налични: @Formats.Quantity(line.Product.AvailableBaseQuantity, [new(line.Product.UnitId, line.Product.UnitName, line.Product.UnitFactor), new(Guid.Empty, "бр. най-малка мярка", 1)])</span>
+                }
+              </td>
+              <td>@line.Product.UnitName</td>
+              <td class="num">@line.Quantity</td>
+              <td class="num">@Formats.Euro(line.Product.UnitPrice)</td>
+              <td class="num">@(line.DiscountPercent == 0 ? null : line.DiscountPercent.ToString("0.##", CultureInfo.GetCultureInfo("bg-BG")))</td>
+              <td class="num">@Formats.Euro(line.Total)</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </section>
+
+  <aside class="till-side">
+    <div class="till-summary card">
+      <span class="muted">За плащане</span>
+      <p class="till-total"><strong>@Formats.Euro(_cart.Total)</strong></p>
+      <span class="muted">@_cart.Lines.Count @(_cart.Lines.Count == 1 ? "ред" : "реда")</span>
+    </div>
+
+    @if (_done is not null)
+    {
+      <div class="alert success" role="status">
+        <span>
+          Продажба № @_done.Number — @Formats.Euro(_done.Total)@(_done.Change is { } change ? $" · ресто {Formats.Euro(change)}" : null)
+        </span>
+      </div>
+    }
+
+    <ul class="till-keys card">
+      <li><kbd>Enter</kbd> добави / потвърди</li>
+      <li><kbd>F2</kbd> количество</li>
+      <li><kbd>F3</kbd> отстъпка %</li>
+      <li><kbd>F9</kbd> плащане (<kbd>F9</kbd> отново — карта)</li>
+      <li><kbd>Esc</kbd> назад / отказ</li>
+    </ul>
+  </aside>
 </div>
 
 @code {

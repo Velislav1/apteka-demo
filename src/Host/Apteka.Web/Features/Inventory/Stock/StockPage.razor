@@ -81,7 +81,14 @@ else
 
   private DateOnly Today => BulgarianTime.Today(Clock.GetUtcNow());
 
-  protected override Task OnInitializedAsync() => Load();
+  /// <summary>„?expiring=true“ opens the page with the 90-day filter on (link from the home page).</summary>
+  [SupplyParameterFromQuery] public bool Expiring { get; set; }
+
+  protected override Task OnInitializedAsync()
+  {
+    _expiringOnly = Expiring;
+    return Load();
+  }
 
   private async Task Load()
   {
