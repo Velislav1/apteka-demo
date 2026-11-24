@@ -42,7 +42,7 @@ internal sealed class FakeCatalogLookup : ICatalogLookup
         Task.FromResult<IReadOnlyList<CatalogProductInfo>>(
             Products.Where(p => p.Name.Contains(text, StringComparison.CurrentCultureIgnoreCase)).Take(limit).ToList());
 
-    public Task<IReadOnlyList<CatalogProductInfo>> ListProductsAsync(Guid? groupId, bool withMinStockOnly, CancellationToken cancellationToken = default) =>
+    public Task<IReadOnlyList<CatalogProductInfo>> ListProductsAsync(Guid? groupId, bool withMinStockOnly, CancellationToken cancellationToken = default, Guid? shelfId = null) =>
         Task.FromResult<IReadOnlyList<CatalogProductInfo>>(Products
             .Where(p => p.IsActive && (groupId is null || p.ProductGroupId == groupId) && (!withMinStockOnly || p.MinStock is not null))
             .OrderBy(p => p.Name)
@@ -52,6 +52,9 @@ internal sealed class FakeCatalogLookup : ICatalogLookup
 
     public Task<IReadOnlyList<CatalogGroup>> ListGroupsAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<CatalogGroup>>(Groups);
+
+    public Task<IReadOnlyList<CatalogShelf>> ListShelvesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<CatalogShelf>>([]);
 }
 
 internal sealed class FakeSupplierRepository : ISupplierRepository

@@ -68,12 +68,18 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
     public async Task<IReadOnlyList<CatalogProductInfo>> ListProductsAsync(
         Guid? groupId,
         bool withMinStockOnly,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? shelfId = null)
     {
         var query = context.Products.AsNoTracking().Include(p => p.Units).Where(p => p.IsActive);
         if (groupId is { } group)
         {
             query = query.Where(p => p.ProductGroupId == group);
+        }
+
+        if (shelfId is { } shelf)
+        {
+            query = query.Where(p => p.ShelfId == shelf);
         }
 
         if (withMinStockOnly)
@@ -89,6 +95,13 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
             .Where(g => g.IsActive)
             .OrderBy(g => g.Name)
             .Select(g => new CatalogGroup(g.Id, g.Name))
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<CatalogShelf>> ListShelvesAsync(CancellationToken cancellationToken = default) =>
+        await context.Shelves.AsNoTracking()
+            .Where(s => s.IsActive)
+            .OrderBy(s => s.Name)
+            .Select(s => new CatalogShelf(s.Id, s.Name))
             .ToListAsync(cancellationToken);
 
     private async Task<IReadOnlyList<CatalogProductInfo>> ToInfoAsync(List<Product> products, CancellationToken cancellationToken)

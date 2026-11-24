@@ -1,0 +1,196 @@
+@page "/inventory/stocktakings/{Id:guid}"
+@using Apteka.Catalog.Contracts
+@using Apteka.Inventory.Application.Stocktakings
+@using Apteka.Inventory.Domain.Stocktakings
+@using Apteka.Web.Features.Shared
+@inject GetStocktakingHandler GetStocktaking
+@inject CountStocktakingHandler Count
+@inject CloseStocktakingHandler CloseStocktaking
+@inject ICatalogLookup Catalog
+
+@* „Инвентаризационен протокол“: „Намерено“ per batch, saved as it is typed. Ctrl+Enter twice closes the stocktaking:
+   every counted difference becomes a correction; lines left empty stay as they are. *@
+
+<PageTitle>Инвентаризация</PageTitle>
+
+@if (_notFound)
+{
+  <p class="alert error">Инвентаризацията не е намерена.</p>
+}
+else if (_view is not null)
+{
+  <h1>Инвентаризация № @_view.Number <span class="badge">@(IsOpen ? "отворена" : "приключена")</span></h1>
+
+  <div class="doc-header card">
+    <div><span class="muted">Обхват</span><strong>@_view.Scope</strong></div>
+    <div><span class="muted">Започната</span><strong>@Formats.LocalTime(_view.StartedAt)</strong></div>
+    @if (_view.ClosedAt is { } closed)
+    {
+      <div><span class="muted">Приключена</span><strong>@Formats.LocalTime(closed)</strong></div>
+      <div><span class="muted">Разлика (покупни цени)</span><strong>@Formats.Euro(_view.DifferenceValue)</strong></div>
+    }
+    else
+    {
+      <div><span class="muted">Преброени</span><strong>@_view.Lines.Count(l => l.CountedQuantity is not null) / @_view.Lines.Count</strong></div>
+    }
+  </div>
+
+  <div @onkeydown="OnKeyDown">
+    <div class="toolbar">
+      <input type="search" placeholder="Филтър по име или партида" aria-label="Филтър" @bind="_filter" @bind:event="oninput" />
+      @if (IsOpen)
+      {
+        <button @onclick="Close" disabled="@_busy">Приключи инвентаризацията <kbd>Ctrl+Enter</kbd></button>
+      }
+      <a class="button secondary" href="inventory/stocktakings">Към инвентаризациите</a>
+    </div>
+
+    @if (_confirm)
+    {
+      <p class="alert warning" role="alert">
+        Потвърди: Ctrl+Enter още веднъж (Esc — отказ). Разликите стават корекции в наличността;
+        непреброените редове (@_view.Lines.Count(l => l.CountedQuantity is null)) остават както са.
+      </p>
+    }
+    @if (_error is not null)
+    {
+      <p class="alert error" role="alert">@_error</p>
+    }
+
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>№</th><th>Стока</th><th>Партида</th><th>Годна до</th><th>По документи</th>
+          <th class="num">Намерено (в най-малка мярка)</th><th class="num">Разлика</th>
+          @if (!IsOpen)
+          {
+            <th class="num">Стойност</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @foreach (var line in Visible)
+        {
+          var units = _units.GetValueOrDefault(line.ProductId) ?? [];
+          var difference = IsOpen ? line.CountedQuantity - line.ExpectedQuantity : line.Difference;
+          <tr class="@(difference is < 0 ? "shortage" : difference is > 0 ? "surplus" : null)">
+            <td>@line.Position</td>
+            <td>@line.ProductName</td>
+            <td>@line.BatchNo</td>
+            <td>@Formats.Date(line.ExpiryDate)</td>
+            <td>@Formats.Quantity(line.ExpectedQuantity, units) (@line.ExpectedQuantity)</td>
+            <td class="num">
+              @if (IsOpen)
+              {
+                <input type="number" min="0" class="counted" aria-label="Намерено @line.ProductName @line.BatchNo"
+                       value="@line.CountedQuantity" @onchange="e => SetCounted(line, e.Value)" />
+              }
+              else
+              {
+                @line.CountedQuantity
+              }
+            </td>
+            <td class="num">@difference?.ToString("+0;−0;0")</td>
+            @if (!IsOpen)
+            {
+              <td class="num">@(line.Difference is null ? null : Formats.Euro(line.DifferenceValue))</td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+@code {
+  [Parameter] public Guid Id { get; set; }
+
+  private StocktakingView? _view;
+  private Dictionary<Guid, IReadOnlyList<CatalogUnit>> _units = [];
+  private bool _notFound;
+  private string _filter = string.Empty;
+  private string? _error;
+  private bool _confirm;
+  private bool _busy;
+
+  private bool IsOpen => _view?.Status == StocktakingStatus.Open;
+
+  private IEnumerable<StocktakingLineView> Visible => _view!.Lines.Where(l =>
+    _filter.Trim().Length == 0
+    || l.ProductName.Contains(_filter.Trim(), StringComparison.CurrentCultureIgnoreCase)
+    || l.BatchNo.Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase));
+
+  protected override async Task OnParametersSetAsync()
+  {
+    await Load();
+    if (_view is not null)
+    {
+      _units = (await Catalog.GetProductsAsync([.. _view.Lines.Select(l => l.ProductId).Distinct()]))
+        .ToDictionary(p => p.ProductId, p => p.Units);
+    }
+  }
+
+  private async Task Load()
+  {
+    _view = await GetStocktaking.HandleAsync(Id);
+    _notFound = _view is null;
+  }
+
+  private async Task SetCounted(StocktakingLineView line, object? value)
+  {
+    _error = null;
+    _confirm = false;
+    var text = value?.ToString()?.Trim();
+    int? counted = string.IsNullOrEmpty(text) ? null : int.TryParse(text, out var n) ? n : -1;
+    var result = await Count.HandleAsync(Id, line.Id, counted);
+    if (result.IsFailure)
+    {
+      _error = result.Error.Message;
+    }
+
+    await Load();
+  }
+
+  private async Task OnKeyDown(KeyboardEventArgs e)
+  {
+    if (e.Key == "Enter" && e.CtrlKey && IsOpen)
+    {
+      await Close();
+    }
+    else if (e.Key == "Escape")
+    {
+      _confirm = false;
+    }
+  }
+
+  private async Task Close()
+  {
+    if (_busy)
+    {
+      return;
+    }
+
+    if (!_confirm)
+    {
+      _confirm = true;
+      return;
+    }
+
+    _busy = true;
+    try
+    {
+      var result = await CloseStocktaking.HandleAsync(Id);
+      _confirm = false;
+      if (result.IsFailure)
+      {
+        _error = result.Error.Message;
+      }
+
+      await Load();
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+}

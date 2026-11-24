@@ -1,0 +1,117 @@
+@page "/inventory/stocktakings"
+@using Apteka.Catalog.Contracts
+@using Apteka.Inventory.Application.Stocktakings
+@using Apteka.Inventory.Domain.Stocktakings
+@using Apteka.Web.Features.Shared
+@inject ListStocktakingsHandler ListStocktakings
+@inject StartStocktakingHandler StartStocktaking
+@inject ICatalogLookup Catalog
+@inject NavigationManager Navigation
+
+@* „Инвентаризация“ as in Apteka Expert 2: start one for all products, a group or a shelf; then count in the protocol. *@
+
+<PageTitle>Инвентаризация</PageTitle>
+
+<h1>Инвентаризация</h1>
+
+@if (_items?.FirstOrDefault(i => i.Status == StocktakingStatus.Open) is { } open)
+{
+  <p class="alert warning" role="status">
+    Инвентаризация № @open.Number (@open.Scope) е започната — стоките в нея не могат да се продават, заприхождават и бракуват.
+    <a href="inventory/stocktakings/@open.Id">Към протокола</a>
+  </p>
+}
+else
+{
+  <fieldset class="header-form">
+    <legend>Нова инвентаризация</legend>
+    <div class="form-grid">
+      <label for="group">Група</label>
+      <select id="group" @bind="_groupId">
+        <option value="">Всички групи</option>
+        @foreach (var group in _groups)
+        {
+          <option value="@group.Id">@group.Name</option>
+        }
+      </select>
+
+      <label for="shelf">Рафт</label>
+      <select id="shelf" @bind="_shelfId">
+        <option value="">Всички рафтове</option>
+        @foreach (var shelf in _shelves)
+        {
+          <option value="@shelf.Id">@shelf.Name</option>
+        }
+      </select>
+    </div>
+    <p class="muted">В протокола влизат партидите с наличност. Докато инвентаризацията е отворена, тези стоки са спрени за продажба, доставка и брак.</p>
+    <div class="toolbar">
+      <button @onclick="Start" disabled="@_busy">Започни инвентаризация</button>
+    </div>
+  </fieldset>
+}
+
+@if (_error is not null)
+{
+  <p class="alert error" role="alert">@_error</p>
+}
+
+@if (_items is { Count: > 0 })
+{
+  <table class="grid">
+    <thead><tr><th class="num">№</th><th>Обхват</th><th>Започната</th><th>Приключена</th><th class="num">Преброени</th><th class="num">Разлика (покупни цени)</th></tr></thead>
+    <tbody>
+      @foreach (var item in _items)
+      {
+        <tr>
+          <td class="num"><a href="inventory/stocktakings/@item.Id">@item.Number</a></td>
+          <td>@item.Scope</td>
+          <td>@Formats.LocalTime(item.StartedAt)</td>
+          <td>@(item.ClosedAt is { } closed ? Formats.LocalTime(closed) : "отворена")</td>
+          <td class="num">@item.CountedCount / @item.LineCount</td>
+          <td class="num">@(item.Status == StocktakingStatus.Closed ? Formats.Euro(item.DifferenceValue) : null)</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
+
+@code {
+  private IReadOnlyList<StocktakingListItem>? _items;
+  private IReadOnlyList<CatalogGroup> _groups = [];
+  private IReadOnlyList<CatalogShelf> _shelves = [];
+  private string _groupId = string.Empty;
+  private string _shelfId = string.Empty;
+  private string? _error;
+  private bool _busy;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _groups = await Catalog.ListGroupsAsync();
+    _shelves = await Catalog.ListShelvesAsync();
+    _items = await ListStocktakings.HandleAsync();
+  }
+
+  private async Task Start()
+  {
+    _busy = true;
+    _error = null;
+    try
+    {
+      var started = await StartStocktaking.HandleAsync(new StartStocktakingInput(
+        Guid.TryParse(_groupId, out var group) ? group : null,
+        Guid.TryParse(_shelfId, out var shelf) ? shelf : null));
+      if (started.IsFailure)
+      {
+        _error = started.Error.Message;
+        return;
+      }
+
+      Navigation.NavigateTo($"inventory/stocktakings/{started.Value}");
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+}

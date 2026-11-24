@@ -48,6 +48,7 @@ public class WriteOffEditTests : BunitContext
         Services.AddSingleton<IUnitOfWork>(new PassThroughUnitOfWork());
         Services.AddSingleton<ICurrentUser>(new FakeUser());
         Services.AddSingleton(TimeProvider.System);
+        Services.AddSingleton<Apteka.Inventory.Application.Stocktakings.IStocktakingRepository>(new NoStocktakings());
         Services.AddScoped<CreateWriteOffHandler>();
     }
 
@@ -155,5 +156,26 @@ public class WriteOffEditTests : BunitContext
             Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
 
         public Task<LastReceipt?> GetLastReceiptAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<LastReceipt?>(null);
+    }
+
+    private sealed class NoStocktakings : Apteka.Inventory.Application.Stocktakings.IStocktakingRepository
+    {
+        public void Add(Apteka.Inventory.Domain.Stocktakings.Stocktaking stocktaking)
+        {
+        }
+
+        public Task<Apteka.Inventory.Domain.Stocktakings.Stocktaking?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<Apteka.Inventory.Domain.Stocktakings.Stocktaking?>(null);
+
+        public Task<bool> AnyOpenAsync(CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<long?> FindOpenForProductsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken cancellationToken) => Task.FromResult<long?>(null);
+
+        public Task<long?> FindOpenForBatchesAsync(IReadOnlyCollection<Guid> batchIds, CancellationToken cancellationToken) => Task.FromResult<long?>(null);
+
+        public Task<IReadOnlyList<Apteka.Inventory.Application.Stocktakings.StocktakingListItem>> ListAsync(int limit, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Apteka.Inventory.Application.Stocktakings.StocktakingListItem>>([]);
+
+        public Task<Result> SaveChangesAsync(CancellationToken cancellationToken) => Task.FromResult(Result.Success());
     }
 }

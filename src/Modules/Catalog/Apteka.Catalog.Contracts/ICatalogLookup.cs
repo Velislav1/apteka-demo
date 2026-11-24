@@ -22,15 +22,20 @@ public interface ICatalogLookup
 
     /// <summary>
     /// Active products for reports, by name: of one group (null = all) and, with <paramref name="withMinStockOnly"/>,
-    /// only those that have a minimum stock set („Под минимален запас“).
+    /// only those that have a minimum stock set („Под минимален запас“); <paramref name="shelfId"/> keeps one shelf.
     /// </summary>
-    Task<IReadOnlyList<CatalogProductInfo>> ListProductsAsync(Guid? groupId, bool withMinStockOnly, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CatalogProductInfo>> ListProductsAsync(Guid? groupId, bool withMinStockOnly, CancellationToken cancellationToken = default, Guid? shelfId = null);
 
     /// <summary>Active product groups by name, for report filters.</summary>
     Task<IReadOnlyList<CatalogGroup>> ListGroupsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Active shelves by name (e.g. for „Инвентаризация“ of one shelf).</summary>
+    Task<IReadOnlyList<CatalogShelf>> ListShelvesAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed record CatalogGroup(Guid Id, string Name);
+
+public sealed record CatalogShelf(Guid Id, string Name);
 
 public sealed record CatalogProductInfo(
     Guid ProductId,

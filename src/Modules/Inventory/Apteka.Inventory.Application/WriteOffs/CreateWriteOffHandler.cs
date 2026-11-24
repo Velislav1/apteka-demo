@@ -1,6 +1,8 @@
 using Apteka.Catalog.Contracts;
 using Apteka.Inventory.Application.Issuing;
 using Apteka.Inventory.Application.Receiving;
+using Apteka.Inventory.Application.Stocktakings;
+using Apteka.Inventory.Domain.Stocktakings;
 using Apteka.Inventory.Domain.StockMovements;
 using Apteka.Inventory.Domain.WriteOffs;
 using Apteka.SharedKernel;
@@ -17,6 +19,7 @@ public sealed class CreateWriteOffHandler(
     IStockLocking locking,
     IInventoryRepository inventory,
     IWriteOffRepository writeOffs,
+    IStocktakingRepository stocktakings,
     IUnitOfWork unitOfWork,
     ICurrentUser currentUser,
     TimeProvider clock)
@@ -31,6 +34,11 @@ public sealed class CreateWriteOffHandler(
         if (input.Lines.Count == 0)
         {
             return Result.Failure<Guid>(WriteOffErrors.NoLines);
+        }
+
+        if (await stocktakings.FindOpenForProductsAsync([.. input.Lines.Select(l => l.ProductId).Distinct()], cancellationToken) is { } counting)
+        {
+            return Result.Failure<Guid>(StocktakingErrors.InStocktaking(counting));
         }
 
         var products = (await catalog.GetProductsAsync([.. input.Lines.Select(l => l.ProductId).Distinct()], cancellationToken))

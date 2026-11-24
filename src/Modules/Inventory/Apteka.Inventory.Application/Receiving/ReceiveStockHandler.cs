@@ -1,4 +1,6 @@
 using Apteka.Inventory.Application.Issuing;
+using Apteka.Inventory.Application.Stocktakings;
+using Apteka.Inventory.Domain.Stocktakings;
 using Apteka.Inventory.Contracts;
 using Apteka.Inventory.Domain.Batches;
 using Apteka.Inventory.Domain.StockMovements;
@@ -7,7 +9,7 @@ using Apteka.SharedKernel;
 namespace Apteka.Inventory.Application.Receiving;
 
 /// <summary>Use case „Заприхождаване“: a new batch and a + movement for every receipt line.</summary>
-public sealed class ReceiveStockHandler(IInventoryRepository inventory, IStockLocking locking, TimeProvider clock) : IStockReceiving
+public sealed class ReceiveStockHandler(IInventoryRepository inventory, IStockLocking locking, IStocktakingRepository stocktakings, TimeProvider clock) : IStockReceiving
 {
     public async Task<Result> CorrectAsync(StockCorrection correction, CancellationToken cancellationToken = default)
     {
@@ -18,6 +20,10 @@ public sealed class ReceiveStockHandler(IInventoryRepository inventory, IStockLo
 
         var batches = (await inventory.GetBySourceLinesAsync([.. correction.Lines.Select(l => l.DocumentLineId)], cancellationToken))
             .ToDictionary(b => b.SourceLineId);
+        if (await stocktakings.FindOpenForProductsAsync([.. batches.Values.Select(b => b.ProductId).Distinct()], cancellationToken) is { } counting)
+        {
+            return Result.Failure(StocktakingErrors.InStocktaking(counting));
+        }
 
         // Lock the products in a fixed order (as the till), then check the − lines against what is left now.
         var left = new Dictionary<Guid, int>();
@@ -60,6 +66,11 @@ public sealed class ReceiveStockHandler(IInventoryRepository inventory, IStockLo
         if (receipt.Lines.Count == 0)
         {
             return Result.Failure(InventoryErrors.ReceiptEmpty);
+        }
+
+        if (await stocktakings.FindOpenForProductsAsync([.. receipt.Lines.Select(l => l.ProductId).Distinct()], cancellationToken) is { } counting)
+        {
+            return Result.Failure(StocktakingErrors.InStocktaking(counting));
         }
 
         if (await inventory.AnyReceivedAsync([.. receipt.Lines.Select(l => l.DocumentLineId)], cancellationToken))

@@ -23,6 +23,8 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("stocktaking_numbers", "inventory");
+
             modelBuilder.HasSequence("write_off_numbers", "inventory");
 
             modelBuilder.Entity("Apteka.Inventory.Domain.Batches.Batch", b =>
@@ -151,6 +153,134 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
                     b.ToTable("stock_movements", "inventory");
                 });
 
+            modelBuilder.Entity("Apteka.Inventory.Domain.Stocktakings.Stocktaking", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<Guid?>("ClosedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("closed_by");
+
+                    b.Property<long>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('inventory.stocktaking_numbers')");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("scope");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<Guid?>("StartedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("started_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_stocktakings");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_stocktakings_number");
+
+                    b.HasIndex("Status")
+                        .IsUnique()
+                        .HasDatabaseName("ux_stocktakings_one_open")
+                        .HasFilter("status = 'Open'");
+
+                    b.ToTable("stocktakings", "inventory");
+                });
+
+            modelBuilder.Entity("Apteka.Inventory.Domain.Stocktakings.StocktakingLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batch_id");
+
+                    b.Property<string>("BatchNo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("batch_no");
+
+                    b.Property<int?>("CountedQuantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("counted_quantity");
+
+                    b.Property<int?>("Difference")
+                        .HasColumnType("integer")
+                        .HasColumnName("difference");
+
+                    b.Property<int>("ExpectedQuantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("expected_quantity");
+
+                    b.Property<DateOnly>("ExpiryDate")
+                        .HasColumnType("date")
+                        .HasColumnName("expiry_date");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("product_name");
+
+                    b.Property<decimal>("PurchasePrice")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("purchase_price");
+
+                    b.Property<Guid>("StocktakingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("stocktaking_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_stocktaking_lines");
+
+                    b.HasIndex("BatchId")
+                        .HasDatabaseName("ix_stocktaking_lines_batch_id");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_stocktaking_lines_product_id");
+
+                    b.HasIndex("StocktakingId")
+                        .HasDatabaseName("ix_stocktaking_lines_stocktaking_id");
+
+                    b.ToTable("stocktaking_lines", "inventory", t =>
+                        {
+                            t.HasCheckConstraint("ck_stocktaking_lines_counted", "counted_quantity IS NULL OR counted_quantity >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Apteka.Inventory.Domain.WriteOffs.WriteOff", b =>
                 {
                     b.Property<Guid>("Id")
@@ -274,6 +404,23 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_stock_movements_batches_batch_id");
                 });
 
+            modelBuilder.Entity("Apteka.Inventory.Domain.Stocktakings.StocktakingLine", b =>
+                {
+                    b.HasOne("Apteka.Inventory.Domain.Batches.Batch", null)
+                        .WithMany()
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stocktaking_lines_batches_batch_id");
+
+                    b.HasOne("Apteka.Inventory.Domain.Stocktakings.Stocktaking", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("StocktakingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stocktaking_lines_stocktakings_stocktaking_id");
+                });
+
             modelBuilder.Entity("Apteka.Inventory.Domain.WriteOffs.WriteOffLine", b =>
                 {
                     b.HasOne("Apteka.Inventory.Domain.Batches.Batch", null)
@@ -289,6 +436,11 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_write_off_lines_write_offs_write_off_id");
+                });
+
+            modelBuilder.Entity("Apteka.Inventory.Domain.Stocktakings.Stocktaking", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("Apteka.Inventory.Domain.WriteOffs.WriteOff", b =>

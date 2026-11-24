@@ -6,7 +6,9 @@ using Apteka.Inventory.Contracts;
 using Apteka.Inventory.Infrastructure.Batches;
 using Apteka.Inventory.Infrastructure.Persistence;
 using Apteka.Inventory.Infrastructure.StockMovements;
+using Apteka.Inventory.Application.Stocktakings;
 using Apteka.Inventory.Application.WriteOffs;
+using Apteka.Inventory.Infrastructure.Stocktakings;
 using Apteka.Inventory.Infrastructure.WriteOffs;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -23,11 +25,17 @@ public static class InventoryModule
         services.AddScoped<IInventoryRepository, InventoryRepository>();
         services.AddScoped<IStockLocking, StockLocking>();
         services.AddScoped<IWriteOffRepository, WriteOffRepository>();
+        services.AddScoped<IStocktakingRepository, StocktakingRepository>();
 
         // Use cases
         services.AddScoped<CreateWriteOffHandler>();
         services.AddScoped<ListWriteOffsHandler>();
         services.AddScoped<GetWriteOffHandler>();
+        services.AddScoped<StartStocktakingHandler>();
+        services.AddScoped<CountStocktakingHandler>();
+        services.AddScoped<CloseStocktakingHandler>();
+        services.AddScoped<ListStocktakingsHandler>();
+        services.AddScoped<GetStocktakingHandler>();
 
         // Public API for other modules
         services.AddScoped<IStockReceiving, ReceiveStockHandler>();

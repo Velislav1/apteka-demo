@@ -1,6 +1,7 @@
 using Apteka.Infrastructure.Common;
 using Apteka.Inventory.Domain.Batches;
 using Apteka.Inventory.Domain.StockMovements;
+using Apteka.Inventory.Domain.Stocktakings;
 using Apteka.Inventory.Domain.WriteOffs;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +11,7 @@ public static class InventorySchema
 {
     public const string Name = "inventory";
     public const string WriteOffNumberSequence = "write_off_numbers";
+    public const string StocktakingNumberSequence = "stocktaking_numbers";
 }
 
 public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> options)
@@ -21,10 +23,13 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
 
     public DbSet<WriteOff> WriteOffs => Set<WriteOff>();
 
+    public DbSet<Stocktaking> Stocktakings => Set<Stocktaking>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.HasSequence<long>(InventorySchema.WriteOffNumberSequence, InventorySchema.Name).StartsAt(1);
+        modelBuilder.HasSequence<long>(InventorySchema.StocktakingNumberSequence, InventorySchema.Name).StartsAt(1);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(InventoryDbContext).Assembly);
         UseSnakeCaseNames(modelBuilder);
     }

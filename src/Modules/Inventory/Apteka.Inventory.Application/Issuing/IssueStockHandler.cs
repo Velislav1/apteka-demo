@@ -1,4 +1,6 @@
 using Apteka.Inventory.Application.Receiving;
+using Apteka.Inventory.Application.Stocktakings;
+using Apteka.Inventory.Domain.Stocktakings;
 using Apteka.Inventory.Contracts;
 using Apteka.Inventory.Domain.Allocation;
 using Apteka.Inventory.Domain.Batches;
@@ -8,13 +10,18 @@ using Apteka.SharedKernel;
 namespace Apteka.Inventory.Application.Issuing;
 
 /// <summary>Use cases „Изписване“ (sale) and „Връщане“ (reversal) of stock.</summary>
-public sealed class IssueStockHandler(IStockLocking locking, IInventoryRepository inventory, TimeProvider clock) : IStockIssuing
+public sealed class IssueStockHandler(IStockLocking locking, IInventoryRepository inventory, IStocktakingRepository stocktakings, TimeProvider clock) : IStockIssuing
 {
     public async Task<Result<IReadOnlyList<IssuedLine>>> IssueAsync(StockIssue issue, CancellationToken cancellationToken = default)
     {
         if (issue.Lines.Count == 0)
         {
             return Result.Failure<IReadOnlyList<IssuedLine>>(InventoryErrors.IssueEmpty);
+        }
+
+        if (await stocktakings.FindOpenForProductsAsync([.. issue.Lines.Select(l => l.ProductId).Distinct()], cancellationToken) is { } counting)
+        {
+            return Result.Failure<IReadOnlyList<IssuedLine>>(StocktakingErrors.InStocktaking(counting));
         }
 
         // Lock products in a fixed order, so that two tills never wait for each other in a circle (deadlock).
@@ -73,6 +80,11 @@ public sealed class IssueStockHandler(IStockLocking locking, IInventoryRepositor
         if (stockReturn.Batches.Count == 0)
         {
             return Result.Failure(InventoryErrors.NothingToReturn);
+        }
+
+        if (await stocktakings.FindOpenForBatchesAsync([.. stockReturn.Batches.Select(b => b.BatchId).Distinct()], cancellationToken) is { } counting)
+        {
+            return Result.Failure(StocktakingErrors.InStocktaking(counting));
         }
 
         var batches = await locking.GetBatchesAsync([.. stockReturn.Batches.Select(b => b.BatchId).Distinct()], cancellationToken);

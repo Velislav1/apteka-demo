@@ -54,8 +54,9 @@
               <NavLink href="catalog/groups"><Icon Name="layers" /> Групи</NavLink>
               <NavLink href="catalog/shelves"><Icon Name="shelf" /> Рафтове</NavLink>
               <NavLink href="catalog/manufacturers"><Icon Name="factory" /> Производители</NavLink>
-              <NavLink href="purchasing/corrections"><Icon Name="draft" /> Корекционни складови разписки</NavLink>
               <NavLink href="purchasing/suppliers"><Icon Name="building" /> Доставчици</NavLink>
+              <span class="dropdown-group">Склад</span>
+              <NavLink href="inventory/stocktakings"><Icon Name="boxes" /> Инвентаризация</NavLink>
               <AuthorizeView Roles="@Roles.Manager" Context="manager">
                 <span class="dropdown-group">Администрация</span>
                 <NavLink href="identity/users"><Icon Name="users" /> Потребители</NavLink>
