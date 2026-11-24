@@ -12,12 +12,22 @@ public interface IStockQueries
         DateOnly? expiringOnOrBefore,
         CancellationToken cancellationToken = default);
 
+    /// <summary>The prices of the product's most recently received batch (for „последни цени“), or null.</summary>
+    Task<LastReceipt?> GetLastReceiptAsync(Guid productId, CancellationToken cancellationToken = default);
+
     /// <summary>Batches of a product that still have stock, nearest expiry first.</summary>
     Task<IReadOnlyList<BatchStock>> GetBatchesAsync(
         Guid productId,
         DateOnly? expiringOnOrBefore,
         CancellationToken cancellationToken = default);
 }
+
+public sealed record LastReceipt(
+    decimal PurchasePricePerBaseUnit,
+    decimal SalePricePerBaseUnit,
+    int PricedUnitFactor,
+    decimal PricedUnitSalePrice,
+    DateTimeOffset ReceivedAt);
 
 public sealed record ProductStock(Guid ProductId, int BaseQuantity, DateOnly NearestExpiry, int BatchCount);
 

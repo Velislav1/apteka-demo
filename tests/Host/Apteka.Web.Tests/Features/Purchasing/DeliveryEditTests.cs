@@ -7,6 +7,8 @@ using Apteka.Purchasing.Domain.Suppliers;
 using Apteka.SharedKernel;
 using Apteka.Web.Features.Purchasing.Deliveries;
 using Bunit;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Apteka.Web.Tests.Features.Purchasing;
@@ -22,6 +24,8 @@ public class DeliveryEditTests : BunitContext
 
     public DeliveryEditTests()
     {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
         var product = new CatalogProductInfo(
             Guid.CreateVersion7(), "Парацетамол 500 мг", 20m, CatalogDispensingMode.OverTheCounter, true, null,
             [new CatalogUnit(Guid.CreateVersion7(), "таблетка", 1), new CatalogUnit(_box, "кутия", 20)]);
@@ -33,6 +37,7 @@ public class DeliveryEditTests : BunitContext
         Services.AddSingleton<IDeliveryRepository>(_deliveries);
         Services.AddSingleton<ISupplierRepository>(_suppliers);
         Services.AddSingleton<IStockReceiving>(_stock);
+        Services.AddSingleton<IStockQueries>(new NoStockQueries());
         Services.AddSingleton<IUnitOfWork>(new PassThroughUnitOfWork());
         Services.AddSingleton<ICurrentUser>(new FakeUser());
         Services.AddSingleton(TimeProvider.System);
@@ -42,57 +47,99 @@ public class DeliveryEditTests : BunitContext
         Services.AddScoped<GetDeliveryHandler>();
     }
 
-    [Fact]
-    public void Scanned_barcode_adds_a_line_in_the_scanned_unit_and_markup_suggests_the_sale_price()
+    private Guid Draft()
     {
-        var page = Render<DeliveryEdit>();
+        var delivery = Delivery.Create(_supplier.Id, "0000001", DateOnly.FromDateTime(DateTime.Today), DateTimeOffset.UtcNow, null).Value;
+        _deliveries.Items.Add(delivery);
+        return delivery.Id;
+    }
 
-        page.Find("#productsearch").Input("2000000000015");
+    private IRenderedComponent<DeliveryEdit> Open(Guid id) => Render<DeliveryEdit>(p => p.Add(x => x.Id, id));
+
+    private static void Scan(IRenderedComponent<DeliveryEdit> page, string text)
+    {
+        page.Find("#productsearch").Input(text);
         page.Find("#productsearch").KeyDown("Enter");
-
-        var row = page.Find("table.lines tbody tr");
-        Assert.Contains("Парацетамол 500 мг", row.TextContent);
-        Assert.Equal(_box.ToString(), row.QuerySelector("select")!.GetAttribute("value"));
-
-        page.Find("input[aria-label='Покупна цена']").Change("2.40");
-
-        // 2,40 + 25 % markup + 20 % VAT = 3,60
-        Assert.Equal("3.60", page.Find("input[aria-label='Продажна цена']").GetAttribute("value"));
     }
 
     [Fact]
-    public void Saving_a_draft_stores_it_and_posting_asks_for_confirmation_then_receives_the_stock()
+    public void Step_one_saves_the_invoice_and_opens_the_draft()
     {
         var page = Render<DeliveryEdit>();
+
         page.Find("#supplier").Change(_supplier.Id.ToString());
-        page.Find("#invoice").Change("0000001");
-        page.Find("#productsearch").Input("парацетамол");
-        page.Find("#productsearch").KeyDown("Enter");
-        page.Find("input[aria-label='Количество']").Change("3");
-        page.Find("input[aria-label='Партида']").Change("L1");
-        page.Find("input[aria-label='Покупна цена']").Change("2.40");
-
-        page.FindAll("button").Single(b => b.TextContent == "Публикувай").Click();
-        Assert.Empty(_stock.Receipts);
-
-        page.FindAll("button").Single(b => b.TextContent == "Потвърди публикуването").Click();
+        page.Find("#invoice").Change("0000123");
+        page.FindAll("button").Single(b => b.TextContent == "Потвърди").Click();
 
         var delivery = Assert.Single(_deliveries.Items);
-        Assert.Equal(DeliveryStatus.Posted, delivery.Status);
-        var line = Assert.Single(Assert.Single(_stock.Receipts).Lines);
-        Assert.Equal(60, line.BaseQuantity);
-        Assert.Equal(0.12m, line.PurchasePricePerBaseUnit);
+        Assert.Equal("0000123", delivery.InvoiceNo);
+        Assert.EndsWith($"purchasing/deliveries/{delivery.Id}", Services.GetRequiredService<NavigationManager>().Uri, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Validation_error_is_shown_in_Bulgarian_and_nothing_is_saved()
+    public void Step_one_shows_a_Bulgarian_error_and_saves_nothing_without_an_invoice_number()
     {
         var page = Render<DeliveryEdit>();
         page.Find("#supplier").Change(_supplier.Id.ToString());
 
-        page.FindAll("button").Single(b => b.TextContent == "Запиши").Click();
+        page.FindAll("button").Single(b => b.TextContent == "Потвърди").Click();
 
         Assert.Equal("Въведете номер на фактурата.", page.Find(".alert.error").TextContent);
         Assert.Empty(_deliveries.Items);
+    }
+
+    [Fact]
+    public void A_scanned_barcode_fills_the_form_in_its_unit_and_markup_suggests_the_sale_price()
+    {
+        var page = Open(Draft());
+
+        Scan(page, "2000000000015");
+        Assert.Equal(_box.ToString(), page.Find(".qty select").GetAttribute("value"));
+
+        page.Find("input[step='0.0001']").Change("2.40");
+
+        // 2,40 + 25 % markup + 20 % VAT = 3,60
+        Assert.Equal("3.60", page.FindAll(".line-grid input[type=number]")[3].GetAttribute("value"));
+    }
+
+    [Fact]
+    public void Enter_adds_the_line_and_saves_the_draft_F8_deletes_it_and_Ctrl_Enter_twice_posts()
+    {
+        var id = Draft();
+        var page = Open(id);
+
+        Scan(page, "2000000000015");
+        page.Find("#quantity").Change("3");
+        page.Find("input[step='0.0001']").Change("2.40");
+        page.Find(".line-grid input[maxlength='30']").Change("L1");
+        page.Find(".line-grid").KeyDown("Enter");
+
+        var delivery = _deliveries.Items.Single();
+        Assert.Equal(60, Assert.Single(delivery.Lines).BaseQuantity);
+        Assert.Single(page.FindAll(".lines-table tbody tr"));
+
+        page.Find(".lines-table tbody tr").Click();
+        page.Find("div").KeyDown(new KeyboardEventArgs { Key = "Enter", CtrlKey = true });
+        Assert.Contains("Потвърди приключването", page.Markup);
+        page.Find("div").KeyDown(new KeyboardEventArgs { Key = "Enter", CtrlKey = true });
+
+        Assert.Equal(DeliveryStatus.Posted, delivery.Status);
+        Assert.Equal(60, Assert.Single(Assert.Single(_stock.Receipts).Lines).BaseQuantity);
+    }
+
+    [Fact]
+    public void F8_deletes_the_selected_line()
+    {
+        var page = Open(Draft());
+        Scan(page, "2000000000015");
+        page.Find("input[step='0.0001']").Change("2.40");
+        page.Find(".line-grid input[maxlength='30']").Change("L1");
+        page.Find(".line-grid").KeyDown("Enter");
+
+        page.Find(".lines-table tbody tr").Click();
+        page.Find("div").KeyDown("F8");
+
+        Assert.Empty(_deliveries.Items.Single().Lines);
+        Assert.Empty(page.FindAll(".lines-table tbody tr"));
     }
 }

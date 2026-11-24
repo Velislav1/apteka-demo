@@ -60,6 +60,9 @@ public class StockPageTests : BunitContext
             return Task.FromResult<IReadOnlyList<ProductStock>>(Stock);
         }
 
+        public Task<LastReceipt?> GetLastReceiptAsync(Guid productId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<LastReceipt?>(null);
+
         public Task<IReadOnlyList<BatchStock>> GetBatchesAsync(Guid productId, DateOnly? expiringOnOrBefore, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<BatchStock>>([]);
     }

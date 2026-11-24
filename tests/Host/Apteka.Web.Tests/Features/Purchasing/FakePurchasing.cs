@@ -98,3 +98,15 @@ internal sealed class PassThroughUnitOfWork : IUnitOfWork
 
     public Task<Result<T>> ExecuteAsync<T>(Func<CancellationToken, Task<Result<T>>> work, CancellationToken cancellationToken = default) => work(cancellationToken);
 }
+
+internal sealed class NoStockQueries : IStockQueries
+{
+    public Task<IReadOnlyList<ProductStock>> GetProductStockAsync(IReadOnlyCollection<Guid>? productIds, DateOnly? expiringOnOrBefore, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ProductStock>>([]);
+
+    public Task<LastReceipt?> GetLastReceiptAsync(Guid productId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<LastReceipt?>(null);
+
+    public Task<IReadOnlyList<BatchStock>> GetBatchesAsync(Guid productId, DateOnly? expiringOnOrBefore, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<BatchStock>>([]);
+}

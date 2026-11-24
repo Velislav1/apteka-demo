@@ -19,6 +19,13 @@ internal sealed class StockQueries(InventoryDbContext context) : IStockQueries
             .ToList();
     }
 
+    public async Task<LastReceipt?> GetLastReceiptAsync(Guid productId, CancellationToken cancellationToken = default) =>
+        await context.Batches.AsNoTracking()
+            .Where(b => b.ProductId == productId)
+            .OrderByDescending(b => b.CreatedAt)
+            .Select(b => new LastReceipt(b.PurchasePrice, b.SalePrice, b.PricedUnitFactor, b.PricedUnitSalePrice, b.CreatedAt))
+            .FirstOrDefaultAsync(cancellationToken);
+
     public async Task<IReadOnlyList<BatchStock>> GetBatchesAsync(
         Guid productId,
         DateOnly? expiringOnOrBefore,

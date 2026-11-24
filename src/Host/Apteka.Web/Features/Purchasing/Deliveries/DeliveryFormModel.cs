@@ -25,6 +25,9 @@ public sealed class DeliveryFormModel
 
     public decimal PurchaseTotal => Lines.Aggregate(Money.Zero, (sum, l) => sum + l.PurchaseTotal).Amount;
 
+    /// <summary>„Общо по прод. цени“: what the goods are worth at the sale prices (VAT included).</summary>
+    public decimal SaleTotal => Lines.Sum(l => decimal.Round(l.SalePrice * l.Quantity, 2, MidpointRounding.AwayFromZero));
+
     public static DeliveryFormModel New(DateOnly today) => new() { InvoiceDate = today };
 
     public static DeliveryFormModel From(DeliveryView view)
@@ -89,9 +92,43 @@ public sealed class DeliveryFormModel
             l.BatchNo,
             l.ExpiryDate)).ToList());
 
+    /// <summary>A copy of a line for the entry form (F6 edits a copy; it replaces the line only on Enter).</summary>
+    public static LineRow Copy(LineRow line) => new()
+    {
+        Id = line.Id,
+        ProductId = line.ProductId,
+        ProductName = line.ProductName,
+        VatRate = line.VatRate,
+        Units = line.Units,
+        UnitId = line.UnitId,
+        Quantity = line.Quantity,
+        UnitPurchasePrice = line.UnitPurchasePrice,
+        MarkupPercent = line.MarkupPercent,
+        SalePrice = line.SalePrice,
+        BatchNo = line.BatchNo,
+        ExpiryDate = line.ExpiryDate,
+    };
+
+    /// <summary>A new line for a product, in the scanned unit or else the largest one, not yet in <see cref="Lines"/>.</summary>
+    public static LineRow NewLine(CatalogProductInfo product, Guid? unitId, DateOnly today)
+    {
+        var unit = product.Units.FirstOrDefault(u => u.UnitId == unitId) ?? product.Units.MaxBy(u => u.Factor)!;
+        return new LineRow
+        {
+            ProductId = product.ProductId,
+            ProductName = product.Name,
+            VatRate = product.VatRate,
+            Units = product.Units,
+            UnitId = unit.UnitId.ToString(),
+            Quantity = 1,
+            MarkupPercent = DefaultMarkupPercent,
+            ExpiryDate = today.AddYears(1),
+        };
+    }
+
     public sealed class LineRow
     {
-        public Guid? Id { get; init; }
+        public Guid? Id { get; set; }
 
         public Guid ProductId { get; init; }
 
@@ -102,6 +139,10 @@ public sealed class DeliveryFormModel
         public IReadOnlyList<CatalogUnit> Units { get; init; } = [];
 
         public string UnitId { get; set; } = string.Empty;
+
+        public string UnitName => Units.FirstOrDefault(u => u.UnitId.ToString() == UnitId)?.Name ?? string.Empty;
+
+        public int UnitFactor => Units.FirstOrDefault(u => u.UnitId.ToString() == UnitId)?.Factor ?? 1;
 
         public int Quantity { get; set; }
 
