@@ -17,7 +17,7 @@ public sealed class DailySalesHandler(ISaleRepository sales)
         return new DailySalesView(
             day,
             list.OrderByDescending(s => s.Number)
-                .Select(s => new DailySaleItem(s.Id, s.Number, s.CreatedAt, s.Lines.Count, s.Total, s.PaymentMethod, s.Status))
+                .Select(s => new DailySaleItem(s.Id, s.Number, s.CreatedAt, s.Lines.Count, s.Total, s.PaymentMethod, s.Status, s.UserId))
                 .ToList(),
             completed.Where(s => s.PaymentMethod == PaymentMethod.Cash).Sum(s => s.Total),
             completed.Where(s => s.PaymentMethod == PaymentMethod.Card).Sum(s => s.Total));
@@ -58,7 +58,7 @@ public sealed record DailySalesView(DateOnly Day, IReadOnlyList<DailySaleItem> S
     public decimal Total => CashTotal + CardTotal;
 }
 
-public sealed record DailySaleItem(Guid Id, long Number, DateTimeOffset CreatedAt, int LineCount, decimal Total, PaymentMethod PaymentMethod, SaleStatus Status);
+public sealed record DailySaleItem(Guid Id, long Number, DateTimeOffset CreatedAt, int LineCount, decimal Total, PaymentMethod PaymentMethod, SaleStatus Status, Guid? UserId = null);
 
 public sealed record SaleView(
     Guid Id,

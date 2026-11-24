@@ -7,9 +7,15 @@ public static class CatalogErrors
 {
     public const int MaxNameLength = 200;
     public const int MaxUnitNameLength = 50;
+    public const decimal MaxMarkupPercent = 1000m;
+
+    /// <summary>Used when neither the product nor its group has a markup.</summary>
+    public const decimal DefaultMarkupPercent = 25m;
 
     public static readonly Error NameRequired = new("catalog.name_required", "Въведете име на стоката.");
     public static readonly Error NameTooLong = new("catalog.name_too_long", $"Името е по-дълго от {MaxNameLength} знака.");
+    public static readonly Error InvalidMarkup = new("catalog.invalid_markup", "Надценката трябва да е от 0 до 1000 %.");
+    public static readonly Error InvalidStockLimits = new("catalog.invalid_stock_limits", "Минималният запас не може да е отрицателен или по-голям от максималния.");
     public static readonly Error InvalidDispensingMode = new("catalog.invalid_dispensing_mode", "Изберете режим на отпускане.");
     public static readonly Error InvalidNhifCode = new("catalog.invalid_nhif_code", "Кодът по НЗОК може да съдържа само латински букви и цифри (до 20 знака).");
     public static readonly Error DefaultSaleUnitMissing = new("catalog.default_sale_unit_missing", "Мярката за продажба трябва да е една от мерките на стоката.");

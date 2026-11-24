@@ -6,7 +6,7 @@ namespace Apteka.Catalog.Application.Products;
 public interface IProductQueries
 {
     /// <summary>
-    /// Products whose name contains <paramref name="text"/> (case-insensitive) or that have exactly this barcode.
+    /// Products whose name contains <paramref name="text"/> (case-insensitive), or that have exactly this barcode or code.
     /// Empty text returns the first products by name.
     /// </summary>
     Task<IReadOnlyList<ProductListItem>> SearchAsync(string? text, int limit, CancellationToken cancellationToken);
@@ -16,6 +16,7 @@ public interface IProductQueries
 
 public sealed record ProductListItem(
     Guid Id,
+    long Code,
     string Name,
     string? Manufacturer,
     string? ProductGroup,
@@ -27,6 +28,7 @@ public sealed record ProductListItem(
 
 public sealed record ProductView(
     Guid Id,
+    long Code,
     string Name,
     string? AtcCode,
     DispensingMode DispensingMode,
@@ -38,7 +40,12 @@ public sealed record ProductView(
     Guid? ShelfId,
     string? DefaultSaleUnitName,
     IReadOnlyList<ProductUnitView> Units,
-    IReadOnlyList<BarcodeView> Barcodes);
+    IReadOnlyList<BarcodeView> Barcodes,
+    string? LatinName = null,
+    string? GenericName = null,
+    decimal? MarkupPercent = null,
+    int? MinStock = null,
+    int? MaxStock = null);
 
 public sealed record ProductUnitView(Guid Id, string Name, int Factor);
 

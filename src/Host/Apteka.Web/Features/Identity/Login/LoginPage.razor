@@ -1,6 +1,8 @@
 @page "/login"
 @layout Apteka.Web.Layout.LoginLayout
 @attribute [AllowAnonymous]
+@using Apteka.Identity.Contracts
+@inject IUserDirectory Directory
 
 <PageTitle>Вход</PageTitle>
 
@@ -19,7 +21,12 @@ else if (Error == "locked")
   <AntiforgeryToken />
   <input type="hidden" name="returnUrl" value="@ReturnUrl" />
   <label for="userName">Потребител</label>
-  <input id="userName" name="userName" value="@UserName" autocomplete="username" required autofocus />
+  <select id="userName" name="userName" required autofocus>
+    @foreach (var user in _users)
+    {
+      <option value="@user.UserName" selected="@(string.Equals(user.UserName, UserName, StringComparison.OrdinalIgnoreCase))">@user.DisplayName</option>
+    }
+  </select>
   <label for="password">Парола</label>
   <input id="password" name="password" type="password" autocomplete="current-password" required />
   <button type="submit">Влез</button>
@@ -31,4 +38,8 @@ else if (Error == "locked")
   [SupplyParameterFromQuery] public string? UserName { get; set; }
 
   [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+
+  private IReadOnlyList<LoginUser> _users = [];
+
+  protected override async Task OnInitializedAsync() => _users = await Directory.ListActiveAsync();
 }

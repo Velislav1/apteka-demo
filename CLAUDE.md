@@ -102,13 +102,14 @@ apteka-demo/
 
 ## Модел на данните (демо)
 
-- `Product` — Id, Name, AtcCode?, DispensingMode (OverTheCounter / Prescription / Narcotic), VatRate, IsActive, NhifCode?, ManufacturerId?, ProductGroupId?, ShelfId?, DefaultSaleUnitId?
-- `Manufacturer`, `ProductGroup`, `Shelf` — Id, Name (уникално), IsActive; не се трият, а се деактивират
+- `Product` — Id, Code (вътрешен код от sequence `catalog.product_codes`, уникален), Name, LatinName?, GenericName?, AtcCode?, DispensingMode (OverTheCounter / Prescription / Narcotic), VatRate, IsActive, NhifCode?, ManufacturerId?, ProductGroupId?, ShelfId?, DefaultSaleUnitId?, MarkupPercent?, MinStock?, MaxStock? (в най-малка мярка)
+- `Manufacturer`, `ProductGroup`, `Shelf` — Id, Name (уникално), IsActive; не се трият, а се деактивират; `ProductGroup` има и MarkupPercent?
+- Надценка по подразбиране при доставка: на стоката, иначе на групата, иначе 25 %
 - `ProductUnit` — Id, ProductId, Name, Factor (int ≥ 1); точно една мярка с Factor = 1 на стока
 - `Barcode` — Id, ProductId, ProductUnitId, Code (уникален)
 - `Supplier` — Id, Name (уникално), Eik (9/13 цифри с контролна цифра, уникален), PaymentTermDays, IsActive
-- `Delivery` — Id, SupplierId, InvoiceNo (уникален за доставчика), InvoiceDate, ReceivedAt, UserId, Status (Draft/Posted), PostedAt
-- `DeliveryLine` — Id, DeliveryId, Position, ProductId, ProductUnitId, UnitFactor, Quantity (в тази мярка), UnitPurchasePrice (без ДДС), MarkupPercent?, SalePrice (с ДДС), BatchNo, ExpiryDate, IsRemoved (премахнат ред от чернова)
+- `Delivery` — Id, Number (№ на складовата разписка, от sequence `purchasing.delivery_numbers`), SupplierId, InvoiceNo (уникален за доставчика), InvoiceDate, PaymentTermDays (по подразбиране от доставчика; падеж = дата на фактурата + дни), ReceivedAt, UserId, Status (Draft/Posted), PostedAt
+- `DeliveryLine` — Id, DeliveryId, Position, ProductId, ProductUnitId, UnitFactor, Quantity (в тази мярка), UnitPurchasePrice (Цена ТЕ, без ДДС), SupplierDiscountPercent (Отстъпка ТЕ %; покупна цена = цена ТЕ × (1 − отстъпка), до 4 знака — тя влиза в сумата, партидата и надценката), MarkupPercent?, SalePrice (с ДДС), BatchNo, ExpiryDate, IsRemoved (премахнат ред от чернова)
 - `Batch` — Id, ProductId, BatchNo, ExpiryDate, PurchasePrice (за най-малка мярка, без ДДС), SalePrice (за най-малка мярка, с ДДС), PricedUnitFactor + PricedUnitSalePrice (точната цена на мярката, в която е въведена), StockType, SourceDocumentType/Id, SourceLineId (уникален)
 - `StockMovement` — Id, BatchId, QuantityDelta (int, в най-малка мярка), Kind (Delivery/Sale/Reversal/WriteOff/Correction), DocumentType, DocumentId, UserId, CreatedAt
 - `Sale` — Id, Number (от sequence), SaleType, UserId, CreatedAt, Total, VatTotal, PaymentMethod (Cash/Card), CashReceived?, Status (Completed/Reversed)
@@ -125,11 +126,18 @@ apteka-demo/
 ## Екрани в демото
 
 1. **Вход** — потребител + парола (две роли). Управител: всичко. Фармацевт: без „Потребители“ и без сторно. 5 грешни опита → заключване за 5 минути.
-2. **Номенклатура** — списък, търсене по име/баркод, създаване и редакция на стока с мерки и баркодове.
-3. **Доставка** — нова доставка: доставчик, фактура, редове (стока, мярка, количество, партида, срок, цени) → „Запиши“ (Draft) → „Публикувай“.
+Подредбата (меню, клавиши, думи) следва Аптека Експерт 2: `docs/legacy/apteka-expert-2-screens.md`.
+
+2. **Номенклатура** — списък, търсене по код/име/баркод, създаване и редакция на стока с мерки и баркодове; F5 нова.
+3. **Складова разписка** (Ctrl+F1) — 1) доставчик, фактура, дни за плащане → „Потвърди“ (чернова); 2) редове един по един
+   (стока, мярка F12, количество, цена ТЕ, отстъпка ТЕ, надценка, продажна цена, партида, срок): Enter добавя и записва,
+   F6 поправя, F8 трие, Ctrl+Enter два пъти приключва (публикува).
 4. **Наличност** — по стока и по партида, с филтър „изтича до 90 дни“.
-5. **Каса** — поле за баркод с постоянен фокус; Enter добавя ред; F2 количество; F3 отстъпка %; F9 плащане (Enter в брой, F9 с карта); Esc отказ. Изцяло без мишка. Rx стоки — с потвърждение на рецептата; упойващи — забранени.
-6. **Продажби за деня** — списък и сторно на продажба.
+5. **Директна продажба** (Ctrl+F3) — поле с постоянен фокус: код, баркод или име + Enter; `3*` количество; ↑/↓ ред;
+   F4 отстъпка на реда; `%10` обща отстъпка за цялата продажба; F12 мярка; F8 изтрий; F10 плащане (Enter в брой, F10 с карта);
+   Ctrl+Enter приключи в брой; Esc назад, два пъти отказ. Изцяло без мишка. Rx стоки — с потвърждение на рецептата; упойващи — забранени.
+6. **Директни продажби (за деня)** — списък и сторно на продажба; F5 нова.
+7. **Справки** — картон на стока, стокова наличност, дневен опис (печалба), срок до 90 дни.
 
 ## Тестове (задължителни преди всяко „готово“)
 

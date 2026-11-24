@@ -32,6 +32,9 @@ public sealed class GetDeliveryHandler(IDeliveryRepository deliveries, ICatalogL
 
         return new DeliveryView(
             delivery.Id,
+            delivery.Number,
+            delivery.PaymentTermDays,
+            delivery.DueDate,
             delivery.SupplierId,
             delivery.InvoiceNo,
             delivery.InvoiceDate,
@@ -55,13 +58,18 @@ public sealed class GetDeliveryHandler(IDeliveryRepository deliveries, ICatalogL
                     l.SalePrice,
                     l.BatchNo,
                     l.ExpiryDate,
-                    l.PurchaseTotal.Amount);
+                    l.PurchaseTotal.Amount,
+                    l.SupplierDiscountPercent,
+                    l.NetUnitPurchasePrice);
             }).ToList());
     }
 }
 
 public sealed record DeliveryView(
     Guid Id,
+    long Number,
+    int PaymentTermDays,
+    DateOnly DueDate,
     Guid SupplierId,
     string InvoiceNo,
     DateOnly InvoiceDate,
@@ -84,4 +92,6 @@ public sealed record DeliveryLineView(
     decimal SalePrice,
     string BatchNo,
     DateOnly ExpiryDate,
-    decimal PurchaseTotal);
+    decimal PurchaseTotal,
+    decimal SupplierDiscountPercent = 0m,
+    decimal NetUnitPurchasePrice = 0m);

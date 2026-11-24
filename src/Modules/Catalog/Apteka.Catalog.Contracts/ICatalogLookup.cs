@@ -8,6 +8,9 @@ public interface ICatalogLookup
     /// <summary>The product and unit a scanned barcode belongs to, or null if the code is unknown.</summary>
     Task<CatalogUnitInfo?> FindByBarcodeAsync(string code, CancellationToken cancellationToken = default);
 
+    /// <summary>The product with this code (номенклатурен номер), or null.</summary>
+    Task<CatalogProductInfo?> FindByCodeAsync(long code, CancellationToken cancellationToken = default);
+
     /// <summary>A product with all its units, or null.</summary>
     Task<CatalogProductInfo?> GetProductAsync(Guid productId, CancellationToken cancellationToken = default);
 
@@ -25,7 +28,16 @@ public sealed record CatalogProductInfo(
     CatalogDispensingMode DispensingMode,
     bool IsActive,
     Guid? DefaultSaleUnitId,
-    IReadOnlyList<CatalogUnit> Units);
+    IReadOnlyList<CatalogUnit> Units,
+    string? ShelfName = null,
+    long Code = 0,
+    decimal MarkupPercent = 25m);
+
+public static class CatalogCodes
+{
+    /// <summary>A short number (up to 7 digits) is a product code; barcodes have 8 or more digits.</summary>
+    public static bool LooksLikeCode(string text) => text.Length is > 0 and < 8 && text.All(char.IsAsciiDigit);
+}
 
 public sealed record CatalogUnit(Guid UnitId, string Name, int Factor);
 

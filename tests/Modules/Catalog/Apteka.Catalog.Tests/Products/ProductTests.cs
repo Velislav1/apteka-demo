@@ -288,4 +288,30 @@ public class ProductTests
 
         Assert.Equal((manufacturer, group, shelf), (product.ManufacturerId!.Value, product.ProductGroupId!.Value, product.ShelfId!.Value));
     }
+
+    [Fact]
+    public void Latin_and_generic_names_markup_and_stock_limits_are_kept()
+    {
+        var product = Product.Create(
+            Details with { LatinName = " PARACETAMOL TABL ", GenericName = "Paracetamol", MarkupPercent = 30m, MinStock = 20, MaxStock = 100 },
+            BoxBlisterTablet(),
+            []).Value;
+
+        Assert.Equal("PARACETAMOL TABL", product.LatinName);
+        Assert.Equal("Paracetamol", product.GenericName);
+        Assert.Equal(30m, product.MarkupPercent);
+        Assert.Equal((20, 100), (product.MinStock!.Value, product.MaxStock!.Value));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(1001)]
+    public void Markup_outside_0_to_1000_percent_is_rejected(decimal markup) =>
+        Assert.Equal(CatalogErrors.InvalidMarkup, Product.Create(Details with { MarkupPercent = markup }, BoxBlisterTablet(), []).Error);
+
+    [Theory]
+    [InlineData(-1, null)]
+    [InlineData(50, 10)]
+    public void Invalid_stock_limits_are_rejected(int? min, int? max) =>
+        Assert.Equal(CatalogErrors.InvalidStockLimits, Product.Create(Details with { MinStock = min, MaxStock = max }, BoxBlisterTablet(), []).Error);
 }

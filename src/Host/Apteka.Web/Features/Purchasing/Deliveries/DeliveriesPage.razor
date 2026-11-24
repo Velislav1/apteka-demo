@@ -3,13 +3,16 @@
 @using Apteka.Purchasing.Domain.Deliveries
 @using Apteka.Web.Features.Shared
 @inject ListDeliveriesHandler ListDeliveries
+@inject NavigationManager Navigation
 
-<PageTitle>Доставки</PageTitle>
+<PageTitle>Складови разписки</PageTitle>
 
-<h1>Доставки</h1>
+<ListKeys OnAdd="@(() => Navigation.NavigateTo("purchasing/deliveries/new"))" />
+
+<h1>Складови разписки</h1>
 
 <div class="toolbar">
-  <a class="button" href="purchasing/deliveries/new">Нова доставка</a>
+  <a class="button" href="purchasing/deliveries/new"><Icon Name="plus" /> Складова разписка <kbd>F5</kbd></a>
   <select aria-label="Статус" @bind="_status" @bind:after="Load">
     <option value="">Всички</option>
     <option value="@DeliveryStatus.Draft">Чернови</option>
@@ -29,12 +32,13 @@ else
 {
   <table class="grid">
     <thead>
-      <tr><th>Получена</th><th>Доставчик</th><th>Фактура</th><th>Дата на фактура</th><th class="num">Редове</th><th class="num">Сума без ДДС</th><th>Статус</th></tr>
+      <tr><th class="num">№</th><th>Получена</th><th>Доставчик</th><th>Фактура</th><th>Дата на фактура</th><th class="num">Редове</th><th class="num">Сума без ДДС</th><th>Статус</th></tr>
     </thead>
     <tbody>
       @foreach (var item in _items)
       {
         <tr>
+          <td class="num">@item.Number</td>
           <td>@Formats.LocalTime(item.ReceivedAt)</td>
           <td>@item.SupplierName</td>
           <td><a href="purchasing/deliveries/@item.Id">@item.InvoiceNo</a></td>

@@ -1,8 +1,9 @@
-// Keeps the till keyboard-only: the till input always has the focus, and F-keys do not trigger browser actions.
-const handledKeys = new Set(["F2", "F3", "F9", "Escape"]);
+// Keeps the till keyboard-only: the till input always has the focus, and the till's keys
+// (F4, F8, F10, F12, Ctrl+Enter, Esc, arrows) never trigger browser actions.
+const handledKeys = new Set(["F4", "F8", "F10", "F12", "Escape", "ArrowUp", "ArrowDown"]);
 
 function onKeyDown(event) {
-  if (handledKeys.has(event.key)) {
+  if (handledKeys.has(event.key) || (event.key === "Enter" && event.ctrlKey)) {
     event.preventDefault();
   }
 }

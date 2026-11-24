@@ -45,4 +45,16 @@ public class CatalogReferenceTests
         Assert.Equal("Витамини и минерали", group.Name);
         Assert.False(group.IsActive);
     }
+
+    [Fact]
+    public void Group_markup_can_be_set_and_cleared_within_limits()
+    {
+        var group = ProductGroup.Create("Витамини").Value;
+
+        Assert.True(group.SetMarkup(18m).IsSuccess);
+        Assert.Equal(18m, group.MarkupPercent);
+        Assert.True(group.SetMarkup(null).IsSuccess);
+        Assert.Null(group.MarkupPercent);
+        Assert.Equal(Apteka.Catalog.Domain.Products.CatalogErrors.InvalidMarkup, group.SetMarkup(-5m).Error);
+    }
 }

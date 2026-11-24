@@ -3,39 +3,104 @@ using Apteka.Sales.Domain.Pricing;
 
 namespace Apteka.Web.Features.Sales.Checkout;
 
-/// <summary>The till's cart: what is shown before payment. Final prices come from the batches at payment (F9).</summary>
+/// <summary>
+/// The till's receipt before payment. One line is „current“ (↑/↓ choose it; F4, F8, F12 act on it).
+/// Final prices come from the batches at payment.
+/// </summary>
 public sealed class Cart
 {
     private readonly List<CartLine> _lines = [];
 
     public IReadOnlyList<CartLine> Lines => _lines;
 
-    public CartLine? Last => _lines.Count == 0 ? null : _lines[^1];
+    public CartLine? Current => _lines.Count == 0 ? null : _lines[CurrentIndex];
+
+    public int CurrentIndex { get; private set; }
 
     public bool IsEmpty => _lines.Count == 0;
 
-    public decimal Total => _lines.Sum(l => l.Total);
+    /// <summary>„Обща ТО %“: the discount given to every line, including lines added later (0 = none).</summary>
+    public decimal OverallDiscountPercent { get; private set; }
 
-    /// <summary>Scanning the same product and unit again adds one more instead of a new line.</summary>
-    public CartLine Add(TillProduct product, bool prescriptionConfirmed)
+    /// <summary>Sets the overall discount on all lines; F4 can still change one line afterwards.</summary>
+    public void SetOverallDiscount(decimal percent)
     {
-        var existing = _lines.Find(l => l.Product.ProductId == product.ProductId && l.Product.UnitId == product.UnitId);
-        if (existing is not null)
+        OverallDiscountPercent = percent;
+        foreach (var line in _lines)
         {
-            existing.Quantity++;
-            _lines.Remove(existing);
-            _lines.Add(existing);
-            return existing;
+            line.DiscountPercent = percent;
+        }
+    }
+
+    /// <summary>„Ст-ст без ТО“: before discounts.</summary>
+    public decimal Gross => _lines.Sum(l => l.Amounts.Gross);
+
+    /// <summary>„ТО“: all discounts.</summary>
+    public decimal Discount => _lines.Sum(l => l.Amounts.Discount);
+
+    /// <summary>„СУМА“ to pay.</summary>
+    public decimal Total => _lines.Sum(l => l.Amounts.Total);
+
+    /// <summary>Scanning the same product and unit again adds to that line instead of a new one.</summary>
+    public CartLine Add(TillProduct product, int quantity, bool prescriptionConfirmed)
+    {
+        var existing = _lines.FindIndex(l => l.Product.ProductId == product.ProductId && l.Product.UnitId == product.UnitId);
+        if (existing >= 0)
+        {
+            _lines[existing].Quantity += quantity;
+            CurrentIndex = existing;
+            return _lines[existing];
         }
 
-        var line = new CartLine(product) { PrescriptionConfirmed = prescriptionConfirmed };
+        var line = new CartLine(product) { Quantity = quantity, DiscountPercent = OverallDiscountPercent, PrescriptionConfirmed = prescriptionConfirmed };
         _lines.Add(line);
+        CurrentIndex = _lines.Count - 1;
         return line;
     }
 
-    public void Remove(CartLine line) => _lines.Remove(line);
+    public void Move(int step)
+    {
+        if (_lines.Count > 0)
+        {
+            CurrentIndex = Math.Clamp(CurrentIndex + step, 0, _lines.Count - 1);
+        }
+    }
 
-    public void Clear() => _lines.Clear();
+    public void Select(CartLine line) => CurrentIndex = Math.Max(0, _lines.IndexOf(line));
+
+    public void RemoveCurrent()
+    {
+        if (_lines.Count == 0)
+        {
+            return;
+        }
+
+        _lines.RemoveAt(CurrentIndex);
+        CurrentIndex = Math.Clamp(CurrentIndex, 0, Math.Max(0, _lines.Count - 1));
+    }
+
+    /// <summary>F12: the current line in another unit of the same product (quantity, discount and prescription stay).</summary>
+    public void ReplaceCurrent(TillProduct inOtherUnit)
+    {
+        if (Current is not { } old)
+        {
+            return;
+        }
+
+        _lines[CurrentIndex] = new CartLine(inOtherUnit)
+        {
+            Quantity = old.Quantity,
+            DiscountPercent = old.DiscountPercent,
+            PrescriptionConfirmed = old.PrescriptionConfirmed,
+        };
+    }
+
+    public void Clear()
+    {
+        _lines.Clear();
+        CurrentIndex = 0;
+        OverallDiscountPercent = 0;
+    }
 
     public IReadOnlyList<CheckoutLineInput> ToInput() =>
         _lines.Select(l => new CheckoutLineInput(l.Product.ProductId, l.Product.UnitId, l.Quantity, l.DiscountPercent, l.PrescriptionConfirmed)).ToList();
@@ -51,7 +116,9 @@ public sealed class CartLine(TillProduct product)
 
     public bool PrescriptionConfirmed { get; set; }
 
-    public decimal Total => SalePricing.Line(Product.UnitPrice, Quantity, DiscountPercent, Product.VatRate).Total;
+    public LineAmounts Amounts => SalePricing.Line(Product.UnitPrice, Quantity, DiscountPercent, Product.VatRate);
+
+    public decimal Total => Amounts.Total;
 
     public bool ExceedsStock => Quantity * Product.UnitFactor > Product.AvailableBaseQuantity;
 }

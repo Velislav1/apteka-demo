@@ -15,10 +15,16 @@ public sealed record ProductInput(
     Guid? ManufacturerId = null,
     Guid? ProductGroupId = null,
     Guid? ShelfId = null,
-    string? DefaultSaleUnitName = null)
+    string? DefaultSaleUnitName = null,
+    string? LatinName = null,
+    string? GenericName = null,
+    decimal? MarkupPercent = null,
+    int? MinStock = null,
+    int? MaxStock = null)
 {
     internal ProductDetails ToDetails() =>
-        new(Name, AtcCode, DispensingMode, VatRate, IsActive, NhifCode, ManufacturerId, ProductGroupId, ShelfId, DefaultSaleUnitName);
+        new(Name, AtcCode, DispensingMode, VatRate, IsActive, NhifCode, ManufacturerId, ProductGroupId, ShelfId, DefaultSaleUnitName,
+            LatinName, GenericName, MarkupPercent, MinStock, MaxStock);
 
     internal List<UnitSpec> ToUnitSpecs() => Units.Select(u => new UnitSpec(u.Id, u.Name, u.Factor)).ToList();
 

@@ -7,9 +7,11 @@ public static class DeliveryErrors
 {
     public const int MaxInvoiceNoLength = 30;
     public const int MaxBatchNoLength = 30;
+    public const int MaxPaymentTermDays = 365;
 
     public static readonly Error InvoiceNoRequired = new("purchasing.invoice_no_required", "Въведете номер на фактурата.");
     public static readonly Error InvoiceNoTooLong = new("purchasing.invoice_no_too_long", $"Номерът на фактурата е по-дълъг от {MaxInvoiceNoLength} знака.");
+    public static readonly Error InvalidPaymentTerm = new("purchasing.delivery_payment_term", $"Дните за плащане трябва да са от 0 до {MaxPaymentTermDays}.");
     public static readonly Error NotDraft = new("purchasing.not_draft", "Публикувана доставка не може да се променя.");
     public static readonly Error NoLines = new("purchasing.no_lines", "Добавете поне един ред.");
     public static readonly Error UnknownLine = new("purchasing.unknown_line", "Редът не принадлежи на тази доставка.");
@@ -26,6 +28,9 @@ public static class DeliveryErrors
 
     public static Error InvalidSalePrice(int line) =>
         new("purchasing.invalid_sale_price", $"Ред {line}: продажната цена трябва да е по-голяма от нула.");
+
+    public static Error InvalidSupplierDiscount(int line) =>
+        new("purchasing.invalid_supplier_discount", $"Ред {line}: отстъпката ТЕ трябва да е от 0 до 100 %.");
 
     public static Error InvalidMarkup(int line) =>
         new("purchasing.invalid_markup", $"Ред {line}: надценката не може да е отрицателна.");

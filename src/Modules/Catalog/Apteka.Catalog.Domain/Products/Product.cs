@@ -24,7 +24,23 @@ public sealed partial class Product : Entity<Guid>
         Name = string.Empty;
     }
 
+    /// <summary>Номенклатурен номер: a short number given by the database, typed instead of the name.</summary>
+    public long Code { get; private set; }
+
     public string Name { get; private set; }
+
+    public string? LatinName { get; private set; }
+
+    public string? GenericName { get; private set; }
+
+    /// <summary>Trade markup of this product (търговска надценка); null means the group's.</summary>
+    public decimal? MarkupPercent { get; private set; }
+
+    /// <summary>Minimum stock in base units.</summary>
+    public int? MinStock { get; private set; }
+
+    /// <summary>Maximum stock in base units.</summary>
+    public int? MaxStock { get; private set; }
 
     public string? AtcCode { get; private set; }
 
@@ -89,6 +105,11 @@ public sealed partial class Product : Entity<Guid>
         VatRate = normalized.VatRate;
         IsActive = normalized.IsActive;
         NhifCode = normalized.NhifCode;
+        LatinName = normalized.LatinName;
+        GenericName = normalized.GenericName;
+        MarkupPercent = normalized.MarkupPercent;
+        MinStock = normalized.MinStock;
+        MaxStock = normalized.MaxStock;
         ManufacturerId = normalized.ManufacturerId;
         ProductGroupId = normalized.ProductGroupId;
         ShelfId = normalized.ShelfId;
@@ -106,6 +127,8 @@ public sealed partial class Product : Entity<Guid>
         AtcCode = string.IsNullOrWhiteSpace(details.AtcCode) ? null : details.AtcCode.Trim().ToUpperInvariant(),
         NhifCode = string.IsNullOrWhiteSpace(details.NhifCode) ? null : details.NhifCode.Trim().ToUpperInvariant(),
         DefaultSaleUnitName = string.IsNullOrWhiteSpace(details.DefaultSaleUnitName) ? null : details.DefaultSaleUnitName.Trim(),
+        LatinName = string.IsNullOrWhiteSpace(details.LatinName) ? null : details.LatinName.Trim(),
+        GenericName = string.IsNullOrWhiteSpace(details.GenericName) ? null : details.GenericName.Trim(),
     };
 
     private static Error? ValidateDetails(ProductDetails details)
@@ -118,6 +141,21 @@ public sealed partial class Product : Entity<Guid>
         if (details.Name.Length > CatalogErrors.MaxNameLength)
         {
             return CatalogErrors.NameTooLong;
+        }
+
+        if (details.LatinName is { Length: > CatalogErrors.MaxNameLength } || details.GenericName is { Length: > CatalogErrors.MaxNameLength })
+        {
+            return CatalogErrors.NameTooLong;
+        }
+
+        if (details.MarkupPercent is < 0 or > CatalogErrors.MaxMarkupPercent)
+        {
+            return CatalogErrors.InvalidMarkup;
+        }
+
+        if (details.MinStock < 0 || details.MaxStock < 0 || details.MinStock > details.MaxStock)
+        {
+            return CatalogErrors.InvalidStockLimits;
         }
 
         if (!Enum.IsDefined(details.DispensingMode))

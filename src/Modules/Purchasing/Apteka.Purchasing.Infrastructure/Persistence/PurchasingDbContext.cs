@@ -8,6 +8,7 @@ namespace Apteka.Purchasing.Infrastructure;
 public static class PurchasingSchema
 {
     public const string Name = "purchasing";
+    public const string DeliveryNumberSequence = "delivery_numbers";
 }
 
 public sealed class PurchasingDbContext(DbContextOptions<PurchasingDbContext> options)
@@ -22,6 +23,7 @@ public sealed class PurchasingDbContext(DbContextOptions<PurchasingDbContext> op
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.HasSequence<long>(PurchasingSchema.DeliveryNumberSequence, PurchasingSchema.Name).StartsAt(1);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(PurchasingDbContext).Assembly);
         UseSnakeCaseNames(modelBuilder);
     }

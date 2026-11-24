@@ -12,9 +12,13 @@ internal sealed class ProductQueries(CatalogDbContext context) : IProductQueries
         if (text is not null)
         {
             var pattern = "%" + EscapeLike(text) + "%";
+            long? code = Apteka.Catalog.Contracts.CatalogCodes.LooksLikeCode(text) ? long.Parse(text, System.Globalization.CultureInfo.InvariantCulture) : null;
             products = products.Where(p =>
                 EF.Functions.ILike(p.Name, pattern, "\\")
-                || p.Barcodes.Any(b => b.Code == text));
+                || (p.LatinName != null && EF.Functions.ILike(p.LatinName, pattern, "\\"))
+                || (p.GenericName != null && EF.Functions.ILike(p.GenericName, pattern, "\\"))
+                || p.Barcodes.Any(b => b.Code == text)
+                || p.Code == code);
         }
 
         return await products
@@ -22,6 +26,7 @@ internal sealed class ProductQueries(CatalogDbContext context) : IProductQueries
             .Take(limit)
             .Select(p => new ProductListItem(
                 p.Id,
+                p.Code,
                 p.Name,
                 context.Manufacturers.Where(m => m.Id == p.ManufacturerId).Select(m => m.Name).FirstOrDefault(),
                 context.ProductGroups.Where(g => g.Id == p.ProductGroupId).Select(g => g.Name).FirstOrDefault(),
@@ -52,6 +57,7 @@ internal sealed class ProductQueries(CatalogDbContext context) : IProductQueries
 
         return new ProductView(
             product.Id,
+            product.Code,
             product.Name,
             product.AtcCode,
             product.DispensingMode,
@@ -66,7 +72,12 @@ internal sealed class ProductQueries(CatalogDbContext context) : IProductQueries
             product.Barcodes
                 .OrderBy(b => b.Code)
                 .Select(b => new BarcodeView(b.Id, b.Code, b.ProductUnitId, unitNames[b.ProductUnitId]))
-                .ToList());
+                .ToList(),
+            product.LatinName,
+            product.GenericName,
+            product.MarkupPercent,
+            product.MinStock,
+            product.MaxStock);
     }
 
     private static string EscapeLike(string text) =>

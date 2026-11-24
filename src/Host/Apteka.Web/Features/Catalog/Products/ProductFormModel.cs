@@ -6,7 +6,20 @@ namespace Apteka.Web.Features.Catalog.Products;
 /// <summary>Editable state of the product form; converted to <see cref="ProductInput"/> on save.</summary>
 public sealed class ProductFormModel
 {
+    /// <summary>Номенклатурен номер; 0 until the product is saved.</summary>
+    public long Code { get; private set; }
+
     public string Name { get; set; } = string.Empty;
+
+    public string? LatinName { get; set; }
+
+    public string? GenericName { get; set; }
+
+    public decimal? MarkupPercent { get; set; }
+
+    public int? MinStock { get; set; }
+
+    public int? MaxStock { get; set; }
 
     public string? AtcCode { get; set; }
 
@@ -44,7 +57,13 @@ public sealed class ProductFormModel
     {
         var model = new ProductFormModel
         {
+            Code = view.Code,
             Name = view.Name,
+            LatinName = view.LatinName,
+            GenericName = view.GenericName,
+            MarkupPercent = view.MarkupPercent,
+            MinStock = view.MinStock,
+            MaxStock = view.MaxStock,
             AtcCode = view.AtcCode,
             DispensingMode = view.DispensingMode,
             VatRate = (int)view.VatRate,
@@ -73,7 +92,12 @@ public sealed class ProductFormModel
         ParseId(ManufacturerId),
         ParseId(ProductGroupId),
         ParseId(ShelfId),
-        string.IsNullOrEmpty(DefaultSaleUnitName) ? null : DefaultSaleUnitName);
+        string.IsNullOrEmpty(DefaultSaleUnitName) ? null : DefaultSaleUnitName,
+        LatinName,
+        GenericName,
+        MarkupPercent,
+        MinStock,
+        MaxStock);
 
     private static Guid? ParseId(string value) => Guid.TryParse(value, out var id) ? id : null;
 

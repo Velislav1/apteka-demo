@@ -15,8 +15,13 @@ public sealed record TillProduct(
     string UnitName,
     int UnitFactor,
     decimal UnitPrice,
-    int AvailableBaseQuantity)
+    int AvailableBaseQuantity,
+    string? ShelfName = null,
+    IReadOnlyList<CatalogUnit>? Units = null)
 {
+    /// <summary>All units of the product (for F12, change of unit).</summary>
+    public IReadOnlyList<CatalogUnit> AllUnits => Units ?? [];
+
     public bool NeedsPrescription => DispensingMode == CatalogDispensingMode.Prescription;
 }
 

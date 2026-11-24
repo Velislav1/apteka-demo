@@ -27,6 +27,9 @@ internal sealed class FakeCatalogLookup : ICatalogLookup
             product.ProductId, product.Name, product.VatRate, product.DispensingMode, product.IsActive, unit.UnitId, unit.Name, unit.Factor));
     }
 
+    public Task<CatalogProductInfo?> FindByCodeAsync(long code, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Products.SingleOrDefault(p => p.Code == code));
+
     public Task<CatalogProductInfo?> GetProductAsync(Guid productId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Products.SingleOrDefault(p => p.ProductId == productId));
 
@@ -97,4 +100,25 @@ internal sealed class PassThroughUnitOfWork : IUnitOfWork
     public Task<Result> ExecuteAsync(Func<CancellationToken, Task<Result>> work, CancellationToken cancellationToken = default) => work(cancellationToken);
 
     public Task<Result<T>> ExecuteAsync<T>(Func<CancellationToken, Task<Result<T>>> work, CancellationToken cancellationToken = default) => work(cancellationToken);
+}
+
+internal sealed class NoStockQueries : IStockQueries
+{
+    public Task<IReadOnlyList<ProductStock>> GetProductStockAsync(IReadOnlyCollection<Guid>? productIds, DateOnly? expiringOnOrBefore, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ProductStock>>([]);
+
+    public Task<IReadOnlyList<ProductBatchStock>> GetAllBatchesAsync(IReadOnlyCollection<Guid>? productIds, DateOnly? expiringOnOrBefore, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ProductBatchStock>>([]);
+
+    public Task<ProductCard> GetProductCardAsync(Guid productId, DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ProductCard(0, []));
+
+    public Task<IReadOnlyDictionary<Guid, decimal>> GetPurchasePricesAsync(IReadOnlyCollection<Guid> batchIds, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(batchIds.ToDictionary(id => id, _ => 0.2m));
+
+    public Task<LastReceipt?> GetLastReceiptAsync(Guid productId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<LastReceipt?>(null);
+
+    public Task<IReadOnlyList<BatchStock>> GetBatchesAsync(Guid productId, DateOnly? expiringOnOrBefore, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<BatchStock>>([]);
 }

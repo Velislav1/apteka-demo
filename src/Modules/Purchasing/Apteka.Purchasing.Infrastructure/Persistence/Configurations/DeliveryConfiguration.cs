@@ -16,6 +16,11 @@ internal sealed class DeliveryConfiguration : IEntityTypeConfiguration<Delivery>
         builder.Property(d => d.Id).ValueGeneratedNever();
         builder.Property(d => d.InvoiceNo).HasMaxLength(DeliveryErrors.MaxInvoiceNoLength).IsRequired();
         builder.Property(d => d.Status).HasConversion<string>().HasMaxLength(10);
+        builder.Property(d => d.Number)
+            .HasDefaultValueSql($"nextval('{PurchasingSchema.Name}.{PurchasingSchema.DeliveryNumberSequence}')")
+            .ValueGeneratedOnAdd();
+        builder.HasIndex(d => d.Number).IsUnique();
+        builder.Ignore(d => d.DueDate);
         builder.Ignore(d => d.Lines);
         builder.Ignore(d => d.PurchaseTotal);
         builder.Ignore(d => d.DomainEvents);
@@ -39,6 +44,8 @@ internal sealed class DeliveryLineConfiguration : IEntityTypeConfiguration<Deliv
         builder.Property(l => l.UnitPurchasePrice).HasPrecision(12, 4);
         builder.Property(l => l.SalePrice).HasPrecision(12, 4);
         builder.Property(l => l.MarkupPercent).HasPrecision(7, 2);
+        builder.Property(l => l.SupplierDiscountPercent).HasPrecision(5, 2);
+        builder.Ignore(l => l.NetUnitPurchasePrice);
         builder.Property(l => l.BatchNo).HasMaxLength(DeliveryErrors.MaxBatchNoLength).IsRequired();
         builder.Ignore(l => l.BaseQuantity);
         builder.Ignore(l => l.PurchaseTotal);

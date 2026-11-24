@@ -7,17 +7,48 @@
 @inject ICatalogLookup Catalog
 @inject TimeProvider Clock
 
-<PageTitle>Наличност</PageTitle>
+<PageTitle>Стокова наличност</PageTitle>
 
-<h1>Наличност</h1>
+<h1>Стокова наличност</h1>
 
 <div class="toolbar">
   <input type="search" placeholder="Търсене по име" aria-label="Търсене" @bind="_query" @bind:event="oninput" @onkeydown="OnKeyDown" />
   <button @onclick="Load">Търси</button>
   <label><input id="expiring" type="checkbox" @bind="_expiringOnly" @bind:after="Load" /> изтича до @ExpiringDays дни</label>
+  <div class="segmented" role="group" aria-label="Вид">
+    <button id="summary" class="@(_byBatch ? "secondary" : null)" @onclick="() => SetMode(false)">Обобщена</button>
+    <button id="bybatch" class="@(_byBatch ? null : "secondary")" @onclick="() => SetMode(true)">По партиди</button>
+  </div>
 </div>
 
-@if (_rows is null)
+@if (_byBatch && _batches is not null)
+{
+  @if (_batches.Count == 0)
+  {
+    <p class="muted">Няма наличност.</p>
+  }
+  else
+  {
+    <table class="grid">
+      <thead><tr><th>Стока</th><th>Партида</th><th>Годна до</th><th>Количество</th><th class="num">В най-малка мярка</th><th class="num">Продажна цена</th><th>Заприходена</th></tr></thead>
+      <tbody>
+        @foreach (var (product, batch) in _batches)
+        {
+          <tr>
+            <td>@product.Name</td>
+            <td>@batch.BatchNo</td>
+            <td class="expiry @ExpiryClass(batch.ExpiryDate)">@Formats.Date(batch.ExpiryDate)</td>
+            <td>@Formats.Quantity(batch.BaseQuantity, product.Units)</td>
+            <td class="num">@batch.BaseQuantity</td>
+            <td class="num">@Formats.Price(batch.PricedUnitSalePrice) / @UnitName(product, batch.PricedUnitFactor)</td>
+            <td>@Formats.LocalTime(batch.ReceivedAt)</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+}
+else if (_rows is null)
 {
   <p class="muted">Зареждане…</p>
 }
@@ -78,6 +109,14 @@ else
   private string _query = string.Empty;
   private bool _expiringOnly;
   private List<Row>? _rows;
+  private bool _byBatch;
+  private List<(CatalogProductInfo Product, BatchStock Batch)>? _batches;
+
+  private async Task SetMode(bool byBatch)
+  {
+    _byBatch = byBatch;
+    await Load();
+  }
 
   private DateOnly Today => BulgarianTime.Today(Clock.GetUtcNow());
 
@@ -96,6 +135,20 @@ else
     if (_query.Trim().Length > 0)
     {
       productIds = (await Catalog.SearchProductsAsync(_query, MaxProducts)).Select(p => p.ProductId).ToList();
+    }
+
+    if (_byBatch)
+    {
+      var all = await Stock.GetAllBatchesAsync(productIds, _expiringOnly ? Today.AddDays(ExpiringDays) : null);
+      var names = (await Catalog.GetProductsAsync([.. all.Select(b => b.ProductId).Distinct()])).ToDictionary(p => p.ProductId);
+      _batches = all
+        .Where(b => names.ContainsKey(b.ProductId))
+        .Select(b => (names[b.ProductId], b.Batch))
+        .OrderBy(b => _expiringOnly ? b.Batch.ExpiryDate.DayNumber : 0)
+        .ThenBy(b => b.Item1.Name)
+        .ThenBy(b => b.Batch.ExpiryDate)
+        .ToList();
+      return;
     }
 
     var stock = await Stock.GetProductStockAsync(productIds, _expiringOnly ? Today.AddDays(ExpiringDays) : null);

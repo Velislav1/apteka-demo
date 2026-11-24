@@ -39,25 +39,27 @@ internal sealed class DeliveryRepository(PurchasingDbContext context) : IDeliver
                 select new
                 {
                     d.Id,
+                    d.Number,
                     SupplierName = supplier.Name,
                     d.InvoiceNo,
                     d.InvoiceDate,
                     d.ReceivedAt,
                     d.Status,
-                    Lines = d.AllLines.Where(l => !l.IsRemoved).Select(l => new { l.Quantity, l.UnitPurchasePrice }).ToList(),
+                    Lines = d.AllLines.Where(l => !l.IsRemoved).Select(l => new { l.Quantity, l.UnitPurchasePrice, l.SupplierDiscountPercent }).ToList(),
                 })
             .Take(limit)
             .ToListAsync(cancellationToken);
 
         return rows.Select(r => new DeliveryListItem(
                 r.Id,
+                r.Number,
                 r.SupplierName,
                 r.InvoiceNo,
                 r.InvoiceDate,
                 r.ReceivedAt,
                 r.Status,
                 r.Lines.Count,
-                r.Lines.Aggregate(Money.Zero, (sum, l) => sum + UnitPrice.Of(l.UnitPurchasePrice).Times(l.Quantity)).Amount))
+                r.Lines.Aggregate(Money.Zero, (sum, l) => sum + UnitPrice.Of(l.UnitPurchasePrice * (1 - (l.SupplierDiscountPercent / 100m))).Times(l.Quantity)).Amount))
             .ToList();
     }
 

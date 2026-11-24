@@ -15,7 +15,7 @@ internal sealed class SaleRepository(SalesDbContext context) : ISaleRepository
 
     public async Task<IReadOnlyList<Sale>> ListAsync(DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken) =>
         await context.Sales.AsNoTracking()
-            .Include(s => s.Lines)
+            .Include(s => s.Lines).ThenInclude(l => l.Batches)
             .Where(s => s.CreatedAt >= fromUtc && s.CreatedAt < toUtc)
             .AsSplitQuery()
             .ToListAsync(cancellationToken);

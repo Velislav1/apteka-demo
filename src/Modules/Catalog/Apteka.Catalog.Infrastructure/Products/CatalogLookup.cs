@@ -23,6 +23,12 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
             : new CatalogUnitInfo(row.Id, row.Name, row.VatRate, ToContract(row.DispensingMode), row.IsActive, row.UnitId, row.UnitName, row.Factor);
     }
 
+    public async Task<CatalogProductInfo?> FindByCodeAsync(long code, CancellationToken cancellationToken = default)
+    {
+        var products = await context.Products.AsNoTracking().Include(p => p.Units).Where(p => p.Code == code).ToListAsync(cancellationToken);
+        return (await ToInfoAsync(products, cancellationToken)).SingleOrDefault();
+    }
+
     public async Task<CatalogProductInfo?> GetProductAsync(Guid productId, CancellationToken cancellationToken = default) =>
         (await GetProductsAsync([productId], cancellationToken)).SingleOrDefault();
 
@@ -36,7 +42,7 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
             .Where(p => productIds.Contains(p.Id))
             .ToListAsync(cancellationToken);
 
-        return products.Select(ToInfo).ToList();
+        return await ToInfoAsync(products, cancellationToken);
     }
 
     public async Task<IReadOnlyList<CatalogProductInfo>> SearchProductsAsync(
@@ -56,17 +62,42 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
             .Take(limit)
             .ToListAsync(cancellationToken);
 
-        return products.Select(ToInfo).ToList();
+        return await ToInfoAsync(products, cancellationToken);
     }
 
-    private static CatalogProductInfo ToInfo(Product product) => new(
+    private async Task<IReadOnlyList<CatalogProductInfo>> ToInfoAsync(List<Product> products, CancellationToken cancellationToken)
+    {
+        var shelfIds = products.Where(p => p.ShelfId is not null).Select(p => p.ShelfId!.Value).Distinct().ToArray();
+        var shelves = await context.Shelves.AsNoTracking()
+            .Where(s => shelfIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.Name, cancellationToken);
+        var groupIds = products.Where(p => p.ProductGroupId is not null).Select(p => p.ProductGroupId!.Value).Distinct().ToArray();
+        var groupMarkups = await context.ProductGroups.AsNoTracking()
+            .Where(g => groupIds.Contains(g.Id) && g.MarkupPercent != null)
+            .ToDictionaryAsync(g => g.Id, g => g.MarkupPercent!.Value, cancellationToken);
+
+        return products.Select(p => ToInfo(
+            p,
+            p.ShelfId is { } id ? shelves.GetValueOrDefault(id) : null,
+            EffectiveMarkup(p, groupMarkups))).ToList();
+    }
+
+    /// <summary>As in Apteka Expert 2: the product's markup, else its group's, else the default.</summary>
+    private static decimal EffectiveMarkup(Product product, Dictionary<Guid, decimal> groupMarkups) =>
+        product.MarkupPercent
+        ?? (product.ProductGroupId is { } groupId && groupMarkups.TryGetValue(groupId, out var groupMarkup) ? groupMarkup : CatalogErrors.DefaultMarkupPercent);
+
+    private static CatalogProductInfo ToInfo(Product product, string? shelfName, decimal markupPercent) => new(
         product.Id,
         product.Name,
         product.VatRate,
         ToContract(product.DispensingMode),
         product.IsActive,
         product.DefaultSaleUnitId,
-        product.Units.OrderBy(u => u.Factor).Select(u => new CatalogUnit(u.Id, u.Name, u.Factor)).ToList());
+        product.Units.OrderBy(u => u.Factor).Select(u => new CatalogUnit(u.Id, u.Name, u.Factor)).ToList(),
+        shelfName,
+        product.Code,
+        markupPercent);
 
     // The values match by design (see CatalogDispensingMode); mapping by name keeps it safe if one side changes.
     private static CatalogDispensingMode ToContract(DispensingMode mode) => Enum.Parse<CatalogDispensingMode>(mode.ToString());

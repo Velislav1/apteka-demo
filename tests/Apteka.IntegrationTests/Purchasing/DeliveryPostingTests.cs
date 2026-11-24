@@ -57,6 +57,54 @@ public class DeliveryPostingTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Delivery_gets_a_number_and_the_supplier_term_and_the_discount_goes_into_the_batch_price()
+    {
+        await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);
+        var supplier = await SupplierAsync(provider);
+        var (product, box, _) = await ProductAsync(provider);
+        var first = await DraftAsync(provider, supplier, Line(product, box, 2, "D1") with { SupplierDiscountPercent = 10m });
+        var second = await DraftAsync(provider, supplier, Line(product, box, 1, "D2"));
+
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var get = scope.ServiceProvider.GetRequiredService<GetDeliveryHandler>();
+            var view = (await get.HandleAsync(first, Ct))!;
+            Assert.True(view.Number > 0);
+            Assert.True((await get.HandleAsync(second, Ct))!.Number > view.Number);
+            Assert.Equal(30, view.PaymentTermDays);
+            Assert.Equal(view.InvoiceDate.AddDays(30), view.DueDate);
+            Assert.Equal(3.6000m, view.Lines[0].NetUnitPurchasePrice);
+            Assert.Equal(7.20m, view.PurchaseTotal);
+
+            var listed = (await scope.ServiceProvider.GetRequiredService<ListDeliveriesHandler>().HandleAsync(supplier, cancellationToken: Ct)).Single(d => d.Id == first);
+            Assert.Equal((view.Number, 7.20m), (listed.Number, listed.PurchaseTotal));
+
+            Assert.True((await scope.ServiceProvider.GetRequiredService<PostDeliveryHandler>().HandleAsync(first, Ct)).IsSuccess);
+        }
+
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var batch = Assert.Single(await scope.ServiceProvider.GetRequiredService<IStockQueries>().GetBatchesAsync(product, null, Ct));
+            Assert.Equal(0.1800m, batch.PurchasePricePerBaseUnit);
+        }
+    }
+
+    [Fact]
+    public async Task Payment_term_typed_on_the_delivery_wins_over_the_supplier_term()
+    {
+        await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);
+        var supplier = await SupplierAsync(provider);
+        var (product, box, _) = await ProductAsync(provider);
+
+        await using var scope = provider.CreateAsyncScope();
+        var saved = await scope.ServiceProvider.GetRequiredService<SaveDeliveryDraftHandler>().HandleAsync(
+            null, new DeliveryInput(supplier, "T-1", Today, [Line(product, box, 1, "T1")], PaymentTermDays: 7), Ct);
+        Assert.True(saved.IsSuccess, saved.IsFailure ? saved.Error.Message : null);
+
+        Assert.Equal(7, (await scope.ServiceProvider.GetRequiredService<GetDeliveryHandler>().HandleAsync(saved.Value, Ct))!.PaymentTermDays);
+    }
+
+    [Fact]
     public async Task Expiring_filter_counts_only_batches_that_expire_by_the_date()
     {
         await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);

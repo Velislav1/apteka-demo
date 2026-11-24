@@ -7,3 +7,65 @@
                      List="includeInactive => Handler.ListAsync(includeInactive)"
                      Create="name => Handler.CreateAsync(name)"
                      Update="(id, name, isActive) => Handler.UpdateAsync(id, name, isActive)" />
+
+@* As in Apteka Expert 2, a group's markup is used for its products that have none of their own. *@
+<h2 class="markups-title">Надценка по групи</h2>
+<p class="muted">Ползва се за стоките без собствена надценка. Празно — по подразбиране (25 %).</p>
+
+@if (_error is not null)
+{
+  <p class="alert error" role="alert">@_error</p>
+}
+
+<table class="grid markups">
+  <thead><tr><th>Група</th><th class="num">Търг. надценка %</th><th></th></tr></thead>
+  <tbody>
+    @foreach (var row in _rows)
+    {
+      <tr>
+        <td>@row.Name</td>
+        <td class="num"><input type="number" min="0" step="0.01" @bind="row.Markup" aria-label="Надценка на @row.Name" /></td>
+        <td>
+          @if (row.IsChanged)
+          {
+            <button @onclick="() => Save(row)">Запиши</button>
+          }
+        </td>
+      </tr>
+    }
+  </tbody>
+</table>
+
+@code {
+  private List<Row> _rows = [];
+  private string? _error;
+
+  protected override Task OnInitializedAsync() => Load();
+
+  private async Task Load()
+  {
+    var groups = await Handler.ListAsync(includeInactive: false);
+    var markups = await Handler.GetMarkupsAsync();
+    _rows = groups.Select(g => new Row(g.Id, g.Name, markups.TryGetValue(g.Id, out var m) ? m : null)).ToList();
+  }
+
+  private async Task Save(Row row)
+  {
+    var result = await Handler.SetMarkupAsync(row.Id, row.Markup);
+    _error = result.IsFailure ? result.Error.Message : null;
+    await Load();
+  }
+
+  private sealed class Row(Guid id, string name, decimal? saved)
+  {
+    public Guid Id { get; } = id;
+
+    public string Name { get; } = name;
+
+    public decimal? Markup { get; set; } = saved;
+
+    public bool IsChanged => Markup != Saved;
+
+    private decimal? Saved { get; } = saved;
+  }
+}
