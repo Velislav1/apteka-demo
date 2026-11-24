@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+using Apteka.Infrastructure.Common;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Apteka.Sales.Infrastructure;
@@ -7,9 +7,7 @@ public static class SalesModule
 {
     public static IServiceCollection AddSalesModule(this IServiceCollection services, string connectionString)
     {
-        services.AddDbContext<SalesDbContext>(options => options.UseNpgsql(
-            connectionString,
-            npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", SalesSchema.Name)));
+        services.AddModuleDbContext<SalesDbContext>(connectionString, SalesSchema.Name);
 
         return services;
     }

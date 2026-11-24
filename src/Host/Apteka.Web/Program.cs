@@ -32,6 +32,13 @@ builder.Services.AddAuditModule(connectionString);
 
 var app = builder.Build();
 
+// Development only: bring every module's schema up to date and add the demo data.
+// Production databases are migrated explicitly (dotnet ef / migration bundle), never on startup.
+if (app.Environment.IsDevelopment())
+{
+    await app.Services.InitializeModuleDatabasesAsync(seed: true);
+}
+
 app.UseRequestLocalization(options => options
     .SetDefaultCulture("bg-BG")
     .AddSupportedCultures("bg-BG")
@@ -42,6 +49,6 @@ app.UseAntiforgery();
 
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program;
