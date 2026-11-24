@@ -39,7 +39,7 @@ internal static class RepositoryLayout
             {
                 var doc = XDocument.Load(path);
                 var projectRefs = doc.Descendants("ProjectReference")
-                    .Select(e => Path.GetFileNameWithoutExtension((string)e.Attribute("Include")!))
+                    .Select(e => Path.GetFileNameWithoutExtension(((string)e.Attribute("Include")!).Replace('\\', '/')))
                     .ToList();
                 var packageRefs = doc.Descendants("PackageReference")
                     .Select(e => (string)e.Attribute("Include")!)
