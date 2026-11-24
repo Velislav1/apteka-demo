@@ -71,3 +71,4 @@
   .till-side { position: static; }
   .current-item { grid-template-columns: 1fr 1fr; }
 }
+.till-customer { margin-right: auto; }

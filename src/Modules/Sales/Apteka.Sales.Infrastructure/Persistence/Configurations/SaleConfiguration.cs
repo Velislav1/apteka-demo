@@ -31,6 +31,7 @@ internal sealed class SaleConfiguration : IEntityTypeConfiguration<Sale>
         builder.HasMany(s => s.Lines).WithOne().HasForeignKey(l => l.SaleId).OnDelete(DeleteBehavior.Restrict);
         builder.Navigation(s => s.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.HasIndex(s => s.CreatedAt);
+        builder.HasOne<Apteka.Sales.Domain.Customers.Customer>().WithMany().HasForeignKey(s => s.CustomerId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

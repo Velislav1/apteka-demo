@@ -47,7 +47,7 @@
             <tr class="@(sale.Status == SaleStatus.Reversed ? "inactive" : null)">
               <td>@Time(sale.CreatedAt)</td>
               <td>@UserName(sale.UserId)</td>
-              <td>@sale.Number@(sale.Status == SaleStatus.Reversed ? " (сторно)" : null)</td>
+              <td>@sale.Number@(sale.Status == SaleStatus.Reversed ? " (сторно)" : null)@(sale.IsReturn ? $" (корекция № {sale.ReturnNumber})" : null)</td>
               <td>@line.ProductName</td>
               <td class="num">@line.Quantity</td>
               <td>@line.UnitName</td>
@@ -70,7 +70,7 @@
           <tr class="@(sale.Status == SaleStatus.Reversed ? "inactive" : null)">
             <td>@Time(sale.CreatedAt)</td>
             <td>@UserName(sale.UserId)</td>
-            <td>@sale.Number@(sale.Status == SaleStatus.Reversed ? " (сторно)" : null)</td>
+            <td>@sale.Number@(sale.Status == SaleStatus.Reversed ? " (сторно)" : null)@(sale.IsReturn ? $" (корекция № {sale.ReturnNumber})" : null)</td>
             <td>@(sale.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</td>
             <td class="num">@Formats.Euro(sale.Total)</td>
             <td class="num">@Formats.Euro(sale.NetRevenue)</td>

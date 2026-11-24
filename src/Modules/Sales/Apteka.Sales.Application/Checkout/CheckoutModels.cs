@@ -28,6 +28,7 @@ public sealed record TillProduct(
 /// <param name="PrescriptionConfirmed">The pharmacist confirmed a prescription for a prescription-only product.</param>
 public sealed record CheckoutLineInput(Guid ProductId, Guid UnitId, int Quantity, decimal DiscountPercent = 0m, bool PrescriptionConfirmed = false);
 
-public sealed record CheckoutInput(IReadOnlyList<CheckoutLineInput> Lines, PaymentMethod PaymentMethod, decimal? CashReceived);
+/// <param name="CustomerId">„Клиент“ chosen with F2, if any.</param>
+public sealed record CheckoutInput(IReadOnlyList<CheckoutLineInput> Lines, PaymentMethod PaymentMethod, decimal? CashReceived, Guid? CustomerId = null);
 
 public sealed record CompletedSale(Guid SaleId, long Number, decimal Total, decimal? Change);

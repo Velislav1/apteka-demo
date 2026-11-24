@@ -23,7 +23,198 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("customer_codes", "sales");
+
             modelBuilder.HasSequence("sale_numbers", "sales");
+
+            modelBuilder.HasSequence("sale_return_numbers", "sales");
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Customers.Customer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("Code")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("code")
+                        .HasDefaultValueSql("nextval('sales.customer_codes')");
+
+                    b.Property<string>("Egn")
+                        .HasMaxLength(10)
+                        .HasColumnType("character(10)")
+                        .HasColumnName("egn")
+                        .IsFixedLength();
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("phone");
+
+                    b.HasKey("Id")
+                        .HasName("pk_customers");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_customers_code");
+
+                    b.HasIndex("Egn")
+                        .IsUnique()
+                        .HasDatabaseName("ix_customers_egn")
+                        .HasFilter("egn IS NOT NULL");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_customers_name");
+
+                    b.ToTable("customers", "sales");
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Returns.SaleReturn", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('sales.sale_return_numbers')");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("SaleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sale_id");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("total");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<decimal>("VatTotal")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("vat_total");
+
+                    b.HasKey("Id")
+                        .HasName("pk_sale_returns");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_sale_returns_created_at");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_sale_returns_number");
+
+                    b.HasIndex("SaleId")
+                        .HasDatabaseName("ix_sale_returns_sale_id");
+
+                    b.ToTable("sale_returns", "sales");
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Returns.SaleReturnLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<Guid>("ReturnId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("return_id");
+
+                    b.Property<Guid>("SaleLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sale_line_id");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("vat_amount");
+
+                    b.HasKey("Id")
+                        .HasName("pk_sale_return_lines");
+
+                    b.HasIndex("ReturnId")
+                        .HasDatabaseName("ix_sale_return_lines_return_id");
+
+                    b.HasIndex("SaleLineId")
+                        .HasDatabaseName("ix_sale_return_lines_sale_line_id");
+
+                    b.ToTable("sale_return_lines", "sales", t =>
+                        {
+                            t.HasCheckConstraint("ck_sale_return_lines_quantity", "quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Returns.SaleReturnLineBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("BaseQuantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("base_quantity");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batch_id");
+
+                    b.Property<Guid>("ReturnLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("return_line_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_sale_return_line_batches");
+
+                    b.HasIndex("BatchId")
+                        .HasDatabaseName("ix_sale_return_line_batches_batch_id");
+
+                    b.HasIndex("ReturnLineId")
+                        .HasDatabaseName("ix_sale_return_line_batches_return_line_id");
+
+                    b.ToTable("sale_return_line_batches", "sales", t =>
+                        {
+                            t.HasCheckConstraint("ck_sale_return_line_batches_quantity", "base_quantity > 0");
+                        });
+                });
 
             modelBuilder.Entity("Apteka.Sales.Domain.Reversals.Reversal", b =>
                 {
@@ -73,6 +264,10 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
                     b.Property<long>("Number")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
@@ -116,6 +311,9 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("ix_sales_created_at");
+
+                    b.HasIndex("CustomerId")
+                        .HasDatabaseName("ix_sales_customer_id");
 
                     b.HasIndex("Number")
                         .IsUnique()
@@ -225,6 +423,10 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("batch_id");
 
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
                     b.Property<Guid>("SaleLineId")
                         .HasColumnType("uuid")
                         .HasColumnName("sale_line_id");
@@ -244,6 +446,43 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Apteka.Sales.Domain.Returns.SaleReturn", b =>
+                {
+                    b.HasOne("Apteka.Sales.Domain.Sales.Sale", null)
+                        .WithMany()
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_sale_returns_sales_sale_id");
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Returns.SaleReturnLine", b =>
+                {
+                    b.HasOne("Apteka.Sales.Domain.Returns.SaleReturn", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("ReturnId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_sale_return_lines_sale_returns_return_id");
+
+                    b.HasOne("Apteka.Sales.Domain.Sales.SaleLine", null)
+                        .WithMany()
+                        .HasForeignKey("SaleLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_sale_return_lines_sale_lines_sale_line_id");
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Returns.SaleReturnLineBatch", b =>
+                {
+                    b.HasOne("Apteka.Sales.Domain.Returns.SaleReturnLine", null)
+                        .WithMany("Batches")
+                        .HasForeignKey("ReturnLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_sale_return_line_batches_sale_return_lines_return_line_id");
+                });
+
             modelBuilder.Entity("Apteka.Sales.Domain.Reversals.Reversal", b =>
                 {
                     b.HasOne("Apteka.Sales.Domain.Sales.Sale", null)
@@ -252,6 +491,15 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_reversals_sales_sale_id");
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Sales.Sale", b =>
+                {
+                    b.HasOne("Apteka.Sales.Domain.Customers.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_sales_customers_customer_id");
                 });
 
             modelBuilder.Entity("Apteka.Sales.Domain.Sales.SaleLine", b =>
@@ -272,6 +520,16 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_sale_line_batches_sale_lines_sale_line_id");
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Returns.SaleReturn", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Returns.SaleReturnLine", b =>
+                {
+                    b.Navigation("Batches");
                 });
 
             modelBuilder.Entity("Apteka.Sales.Domain.Sales.Sale", b =>

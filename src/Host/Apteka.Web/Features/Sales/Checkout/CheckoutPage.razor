@@ -8,6 +8,7 @@
 @using Microsoft.JSInterop
 @inject FindTillProductHandler FindProduct
 @inject CompleteSaleHandler CompleteSale
+@inject Apteka.Sales.Application.Customers.CustomersHandler Customers
 @inject TimeProvider Clock
 @inject IJSRuntime JS
 
@@ -35,6 +36,16 @@
           @foreach (var match in _matches)
           {
             <li><span>@match.Name</span> <span class="muted">@match.UnitName · @Formats.Euro(match.UnitPrice)</span></li>
+          }
+        </ol>
+      }
+
+      @if (_mode == Mode.ChooseCustomer)
+      {
+        <ol class="till-matches">
+          @foreach (var match in _customerMatches)
+          {
+            <li><span>@match.Name</span> <span class="muted mono">@match.Egn</span> <span class="muted">№ @match.Code</span></li>
           }
         </ol>
       }
@@ -89,6 +100,10 @@
     }
 
     <div class="till-sum card">
+      @if (_customer is { } customer)
+      {
+        <span class="till-customer">Клиент: <strong>@customer.Name</strong> <span class="muted mono">@customer.Egn</span></span>
+      }
       <span>Ст-ст без ТО: <strong>@Formats.Euro(_cart.Gross)</strong></span>
       <span>– ТО@(_cart.OverallDiscountPercent > 0 ? $" (обща {_cart.OverallDiscountPercent.ToString("0.##", CultureInfo.GetCultureInfo("bg-BG"))} %)" : null): <strong>@Formats.Euro(_cart.Discount)</strong></span>
       <span class="till-total">= СУМА: <strong>@Formats.Euro(_cart.Total)</strong></span>
@@ -109,6 +124,7 @@
       <li><kbd>Enter</kbd> добави стока</li>
       <li><kbd>3*</kbd> + баркод — количество 3; <kbd>3*</kbd> + Enter — количество на текущия ред</li>
       <li><kbd>↑</kbd> <kbd>↓</kbd> избор на ред</li>
+      <li><kbd>F2</kbd> клиент (ЕГН, код, телефон или име)</li>
       <li><kbd>F4</kbd> отстъпка (ТО %) на реда</li>
       <li><kbd>%10</kbd> + Enter — обща ТО 10 % на цялата продажба</li>
       <li><kbd>F12</kbd> смяна на мярката</li>
@@ -123,7 +139,7 @@
 </div>
 
 @code {
-  private enum Mode { Scan, Discount, Choose, ConfirmPrescription, Payment, ConfirmCancel }
+  private enum Mode { Scan, Discount, Choose, ConfirmPrescription, Payment, ConfirmCancel, Customer, ChooseCustomer }
 
   private const int MaxMatches = 9;
 
@@ -136,11 +152,14 @@
   private (TillProduct Product, int Quantity)? _pendingPrescription;
   private int _pendingQuantity = 1;
   private IJSObjectReference? _module;
+  private Apteka.Sales.Application.Customers.CustomerListItem? _customer;
+  private IReadOnlyList<Apteka.Sales.Application.Customers.CustomerListItem> _customerMatches = [];
 
   private string Prompt => _mode switch
   {
     Mode.Discount => $"Отстъпка (ТО %) за „{_cart.Current?.Product.Name}“ и Enter (Esc — назад)",
-    Mode.Choose => "Номер от списъка и Enter (Esc — назад)",
+    Mode.Choose or Mode.ChooseCustomer => "Номер от списъка и Enter (Esc — назад)",
+    Mode.Customer => "Клиент: ЕГН, код, телефон или име и Enter (празно — без клиент · Esc — назад)",
     Mode.ConfirmPrescription => $"„{_pendingPrescription?.Product.Name}“ е по лекарско предписание. Има ли рецепта? Enter — да, Esc — не",
     Mode.Payment => $"Плащане {Formats.Euro(_cart.Total)}: получена сума в брой и Enter (празно — точна сума) · F10 — с карта · Esc — назад",
     Mode.ConfirmCancel => "Отказ на цялата продажба? Esc — да, Enter — не",
@@ -171,6 +190,9 @@
         break;
       case "ArrowDown" when _mode == Mode.Scan:
         _cart.Move(1);
+        break;
+      case "F2" when _mode == Mode.Scan:
+        Switch(Mode.Customer);
         break;
       case "F4" when _mode == Mode.Scan && _cart.Current is not null:
         Switch(Mode.Discount);
@@ -231,6 +253,21 @@
         }
 
         break;
+      case Mode.Customer:
+        await FindCustomer(text);
+        break;
+      case Mode.ChooseCustomer:
+        if (int.TryParse(text, out var chosen) && chosen >= 1 && chosen <= _customerMatches.Count)
+        {
+          _customer = _customerMatches[chosen - 1];
+          Switch(Mode.Scan);
+        }
+        else
+        {
+          _error = $"Въведете номер от 1 до {_customerMatches.Count}.";
+        }
+
+        break;
       case Mode.ConfirmPrescription:
         var (product, quantity) = _pendingPrescription!.Value;
         _cart.Add(product, quantity, prescriptionConfirmed: true);
@@ -268,6 +305,42 @@
     else
     {
       _error = "Обща отстъпка: % и число от 0 до 100, например %10.";
+    }
+  }
+
+  /// <summary>
+  /// F2: 10 digits are an ЕГН, up to 7 digits a customer code, other digits a phone, anything else part of the name.
+  /// Empty removes the customer from the sale.
+  /// </summary>
+  private async Task FindCustomer(string text)
+  {
+    if (text.Length == 0)
+    {
+      _customer = null;
+      Switch(Mode.Scan);
+      return;
+    }
+
+    var digits = text.Replace(" ", string.Empty, StringComparison.Ordinal);
+    var field = digits.All(char.IsAsciiDigit)
+      ? digits.Length == 10 ? Apteka.Sales.Application.Customers.CustomerSearchField.Egn
+        : digits.Length <= 7 ? Apteka.Sales.Application.Customers.CustomerSearchField.Code
+        : Apteka.Sales.Application.Customers.CustomerSearchField.Phone
+      : Apteka.Sales.Application.Customers.CustomerSearchField.Name;
+    var found = await Customers.SearchAsync(field, text);
+    switch (found.Count)
+    {
+      case 0:
+        _error = $"Няма клиент с „{text}“.";
+        break;
+      case 1:
+        _customer = found[0];
+        Switch(Mode.Scan);
+        break;
+      default:
+        _customerMatches = [.. found.Take(MaxMatches)];
+        Switch(Mode.ChooseCustomer);
+        break;
     }
   }
 
@@ -384,6 +457,7 @@
     if (_mode == Mode.ConfirmCancel)
     {
       _cart.Clear();
+      _customer = null;
       Switch(Mode.Scan);
     }
     else if (_mode != Mode.Scan)
@@ -418,7 +492,7 @@
   private async Task Pay(PaymentMethod method, decimal? cash)
   {
     _input = string.Empty;
-    var result = await CompleteSale.HandleAsync(new CheckoutInput(_cart.ToInput(), method, cash));
+    var result = await CompleteSale.HandleAsync(new CheckoutInput(_cart.ToInput(), method, cash, _customer?.Id));
     if (result.IsFailure)
     {
       _error = result.Error.Message;
@@ -427,6 +501,7 @@
 
     _done = result.Value;
     _cart.Clear();
+    _customer = null;
     Switch(Mode.Scan);
   }
 

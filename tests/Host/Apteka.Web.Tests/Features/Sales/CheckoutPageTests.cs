@@ -19,6 +19,7 @@ public class CheckoutPageTests : BunitContext
 
     private readonly FakeCatalogLookup _catalog = new();
     private readonly FakeSales _sales = new();
+    private readonly FakeCustomers _customers = new();
 
     public CheckoutPageTests()
     {
@@ -32,6 +33,8 @@ public class CheckoutPageTests : BunitContext
         Services.AddSingleton<IStockQueries>(stock);
         Services.AddSingleton<IStockIssuing>(stock);
         Services.AddSingleton<ISaleRepository>(_sales);
+        Services.AddSingleton<Apteka.Sales.Application.Customers.ICustomerRepository>(_customers);
+        Services.AddScoped<Apteka.Sales.Application.Customers.CustomersHandler>();
         Services.AddSingleton<IUnitOfWork>(new PassThroughUnitOfWork());
         Services.AddSingleton<ICurrentUser>(new FakeUser());
         Services.AddSingleton(TimeProvider.System);
@@ -180,6 +183,32 @@ public class CheckoutPageTests : BunitContext
     }
 
     [Fact]
+    public void F2_with_an_egn_attaches_the_customer_and_the_sale_keeps_it()
+    {
+        var customer = Apteka.Sales.Domain.Customers.Customer.Create(new(
+            "Демо Клиент", Apteka.Sales.Domain.Customers.Egn.Complete("750101123"), null, null)).Value;
+        _customers.Items.Add(customer);
+        _customers.Items.Add(Apteka.Sales.Domain.Customers.Customer.Create(new("Демо Клиентка", null, null, null)).Value);
+        var page = Render<CheckoutPage>();
+        Type(page, OtcBarcode);
+
+        Press(page, "F2");
+        Type(page, "Нямаго");
+        Assert.Contains("Няма клиент", page.Markup);
+        Type(page, "Демо");
+        Assert.Equal(2, page.FindAll(".till-matches li").Count);
+        Press(page, "Escape");
+        Press(page, "F2");
+        Type(page, customer.Egn!);
+        Assert.Contains("Демо Клиент", page.Find(".till-customer").TextContent);
+
+        page.Find("#till-input").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter", CtrlKey = true });
+
+        Assert.Equal(customer.Id, Assert.Single(_sales.Saved).CustomerId);
+        Assert.Empty(page.FindAll(".till-customer"));
+    }
+
+    [Fact]
     public void Ctrl_Enter_completes_the_sale_in_cash_with_the_exact_amount()
     {
         var page = Render<CheckoutPage>();
@@ -221,23 +250,5 @@ public class CheckoutPageTests : BunitContext
                 .ToList()));
 
         public Task<Result> ReturnAsync(StockReturn stockReturn, CancellationToken cancellationToken = default) => Task.FromResult(Result.Success());
-    }
-
-    private sealed class FakeSales : ISaleRepository
-    {
-        public List<Sale> Saved { get; } = [];
-
-        public Task<Sale?> GetAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(Saved.SingleOrDefault(s => s.Id == id));
-
-        public Task<IReadOnlyList<Sale>> ListAsync(DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<Sale>>(Saved);
-
-        public void Add(Sale sale) => Saved.Add(sale);
-
-        public void Add(Reversal reversal)
-        {
-        }
-
-        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

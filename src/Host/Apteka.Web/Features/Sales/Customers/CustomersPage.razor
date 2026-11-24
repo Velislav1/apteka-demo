@@ -1,0 +1,122 @@
+@page "/sales/customers"
+@using Apteka.Sales.Application.Customers
+@using Apteka.Web.Features.Shared
+@inject CustomersHandler Customers
+@inject NavigationManager Navigation
+@implements IDisposable
+
+@* „Клиенти, пациенти“ as in Apteka Expert 2. The tabs choose what the search box looks in: name, ЕГН, code or phone.
+   F5 new, F6 open the chosen row; ↑/↓ choose. *@
+
+<PageTitle>Клиенти</PageTitle>
+
+<ListKeys OnAdd="@(() => Navigation.NavigateTo("sales/customers/new"))" OnEdit="EditSelected" />
+
+<h1>Клиенти и пациенти</h1>
+
+<div class="tabs" role="tablist" aria-label="Търсене по">
+  @foreach (var (field, label) in Fields)
+  {
+    <button id="by-@field" role="tab" aria-selected="@(_field == field ? "true" : "false")"
+            class="@(_field == field ? "active" : null)" @onclick="() => SetField(field)">@label</button>
+  }
+</div>
+
+<div class="toolbar">
+  <input id="customer-search" type="search" placeholder="@Placeholder" aria-label="Търсене" autocomplete="off"
+         inputmode="@(_field == CustomerSearchField.Name ? "text" : "numeric")"
+         @bind="_query" @bind:event="oninput" @bind:after="Load" @onkeydown="OnKeyDown" autofocus />
+  <label><input type="checkbox" @bind="_includeInactive" @bind:after="Load" /> и неактивни</label>
+  <a class="button" href="sales/customers/new"><Icon Name="plus" /> Добави <kbd>F5</kbd></a>
+  <button class="secondary" @onclick="EditSelected" disabled="@(Selected is null)">Отвори <kbd>F6</kbd></button>
+</div>
+
+@if (_items is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_items.Count == 0)
+{
+  <p class="muted">Няма намерени клиенти.</p>
+}
+else
+{
+  <table class="grid">
+    <thead><tr><th class="num">Код</th><th>Име</th><th>ЕГН</th><th>Телефон</th><th></th></tr></thead>
+    <tbody>
+      @foreach (var (item, index) in _items.Select((item, index) => (item, index)))
+      {
+        <tr class="@(item.IsActive ? null : "inactive") @(index == _selected ? "selected" : null)" @onclick="() => _selected = index" @ondblclick="EditSelected">
+          <td class="num">@item.Code</td>
+          <td><a href="sales/customers/@item.Id">@item.Name</a></td>
+          <td class="mono">@item.Egn</td>
+          <td>@item.Phone</td>
+          <td>@(item.IsActive ? null : "неактивен")</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
+
+@code {
+  private static readonly (CustomerSearchField Field, string Label)[] Fields =
+    [(CustomerSearchField.Name, "По име"), (CustomerSearchField.Egn, "По ЕГН"), (CustomerSearchField.Code, "По код"), (CustomerSearchField.Phone, "По телефон")];
+
+  private readonly OneAtATime _loads = new();
+  private CustomerSearchField _field = CustomerSearchField.Name;
+  private string _query = string.Empty;
+  private bool _includeInactive;
+  private int _selected;
+  private IReadOnlyList<CustomerListItem>? _items;
+
+  private string Placeholder => _field switch
+  {
+    CustomerSearchField.Egn => "Първите цифри на ЕГН",
+    CustomerSearchField.Code => "Код на клиента",
+    CustomerSearchField.Phone => "Цифри от телефона",
+    _ => "Част от името",
+  };
+
+  private CustomerListItem? Selected => _items is { Count: > 0 } items ? items[Math.Clamp(_selected, 0, items.Count - 1)] : null;
+
+  protected override Task OnInitializedAsync() => Load();
+
+  private Task Load() => _loads.RunAsync(async () =>
+  {
+    _items = await Customers.SearchAsync(_field, _query, _includeInactive);
+    _selected = 0;
+  });
+
+  private Task SetField(CustomerSearchField field)
+  {
+    _field = field;
+    _query = string.Empty;
+    return Load();
+  }
+
+  private void EditSelected()
+  {
+    if (Selected is { } item)
+    {
+      Navigation.NavigateTo($"sales/customers/{item.Id}");
+    }
+  }
+
+  private void OnKeyDown(KeyboardEventArgs e)
+  {
+    switch (e.Key)
+    {
+      case "Enter":
+        EditSelected();
+        break;
+      case "ArrowDown" when _items is { Count: > 0 }:
+        _selected = Math.Min(_selected + 1, _items.Count - 1);
+        break;
+      case "ArrowUp":
+        _selected = Math.Max(_selected - 1, 0);
+        break;
+    }
+  }
+
+  public void Dispose() => _loads.Dispose();
+}

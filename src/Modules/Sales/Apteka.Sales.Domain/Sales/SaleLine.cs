@@ -34,7 +34,7 @@ public sealed class SaleLine : Entity<Guid>
         DiscountAmount = amounts.Discount;
         LineTotal = amounts.Total;
         VatAmount = amounts.Vat;
-        _batches.AddRange(spec.Batches.Select(b => new SaleLineBatch(Id, b.BatchId, b.BaseQuantity)));
+        _batches.AddRange(spec.Batches.Select((b, i) => new SaleLineBatch(Id, i + 1, b.BatchId, b.BaseQuantity)));
     }
 
     public Guid SaleId { get; private set; }
@@ -78,15 +78,19 @@ public sealed class SaleLineBatch : Entity<Guid>
     {
     }
 
-    internal SaleLineBatch(Guid saleLineId, Guid batchId, int baseQuantity)
+    internal SaleLineBatch(Guid saleLineId, int position, Guid batchId, int baseQuantity)
         : base(Guid.CreateVersion7())
     {
         SaleLineId = saleLineId;
+        Position = position;
         BatchId = batchId;
         BaseQuantity = baseQuantity;
     }
 
     public Guid SaleLineId { get; private set; }
+
+    /// <summary>Order in which FEFO took the batches (1 = nearest expiry); 0 for sales made before it was kept.</summary>
+    public int Position { get; private set; }
 
     public Guid BatchId { get; private set; }
 
