@@ -297,3 +297,9 @@ kbd {
   .form-grid { grid-template-columns: 1fr; gap: 0.35rem; }
   table.grid { display: block; overflow-x: auto; }
 }
+
+/* Two or more buttons that switch a view (e.g. „Обобщена / По партиди“). */
+.segmented { display: inline-flex; }
+.segmented button { border-radius: 0; }
+.segmented button:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.segmented button:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-left: -1px; }

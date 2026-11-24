@@ -104,6 +104,15 @@ internal sealed class NoStockQueries : IStockQueries
     public Task<IReadOnlyList<ProductStock>> GetProductStockAsync(IReadOnlyCollection<Guid>? productIds, DateOnly? expiringOnOrBefore, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<ProductStock>>([]);
 
+    public Task<IReadOnlyList<ProductBatchStock>> GetAllBatchesAsync(IReadOnlyCollection<Guid>? productIds, DateOnly? expiringOnOrBefore, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ProductBatchStock>>([]);
+
+    public Task<ProductCard> GetProductCardAsync(Guid productId, DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ProductCard(0, []));
+
+    public Task<IReadOnlyDictionary<Guid, decimal>> GetPurchasePricesAsync(IReadOnlyCollection<Guid> batchIds, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(batchIds.ToDictionary(id => id, _ => 0.2m));
+
     public Task<LastReceipt?> GetLastReceiptAsync(Guid productId, CancellationToken cancellationToken = default) =>
         Task.FromResult<LastReceipt?>(null);
 

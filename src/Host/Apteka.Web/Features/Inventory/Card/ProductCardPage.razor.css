@@ -1,0 +1,2 @@
+.card-head { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; align-items: baseline; margin-bottom: 1rem; }
+.card-head strong { font-size: 1.1rem; }

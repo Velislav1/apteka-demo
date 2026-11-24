@@ -1,0 +1,166 @@
+@page "/inventory/card"
+@using Apteka.Catalog.Contracts
+@using Apteka.Identity.Contracts
+@using Apteka.Inventory.Contracts
+@using Apteka.SharedKernel
+@inject ICatalogLookup Catalog
+@inject IStockQueries Stock
+@inject IUserDirectory Users
+@inject TimeProvider Clock
+
+@* „Картон на стока“: every receipt and issue of one product, as in Apteka Expert 2. *@
+
+<PageTitle>Картон на стока</PageTitle>
+
+<h1>Картон на стока</h1>
+
+<div class="toolbar">
+  <input type="search" id="cardsearch" placeholder="Баркод или име на стока и Enter" aria-label="Стока"
+         @bind="_search" @bind:event="oninput" @onkeydown="OnKeyDown" />
+  <label>от <input type="date" @bind="_from" @bind:after="Load" /></label>
+  <label>до <input type="date" @bind="_to" @bind:after="Load" /></label>
+</div>
+
+@if (_error is not null)
+{
+  <p class="alert error" role="alert">@_error</p>
+}
+
+@if (_matches.Count > 1)
+{
+  <div class="picker">
+    @foreach (var product in _matches)
+    {
+      <button class="secondary" @onclick="() => Choose(product)">@product.Name</button>
+    }
+  </div>
+}
+
+@if (_product is not null && _card is not null)
+{
+  <div class="card card-head">
+    <strong>@_product.Name</strong>
+    <span class="muted">Начално: @Formats.Quantity(_card.OpeningBaseQuantity, _product.Units) · Крайно: @Formats.Quantity(_card.ClosingBaseQuantity, _product.Units) (@_card.ClosingBaseQuantity @Formats.BaseUnitName(_product.Units))</span>
+  </div>
+
+  <table class="grid">
+    <thead>
+      <tr><th>Дата</th><th>Документ</th><th>Партида</th><th>Годна до</th><th>Потребител</th><th class="num">Приход</th><th class="num">Разход</th><th class="num">Наличност</th></tr>
+    </thead>
+    <tbody>
+      <tr class="inactive"><td colspan="7">Начално салдо към @Formats.Date(_from)</td><td class="num">@_card.OpeningBaseQuantity</td></tr>
+      @foreach (var row in _card.Movements)
+      {
+        <tr>
+          <td>@Formats.LocalTime(row.At)</td>
+          <td>
+            @if (row.DocumentType == "Delivery")
+            {
+              <a href="purchasing/deliveries/@row.DocumentId">@KindText(row.Kind)</a>
+            }
+            else
+            {
+              @KindText(row.Kind)
+            }
+          </td>
+          <td>@row.BatchNo</td>
+          <td>@Formats.Date(row.ExpiryDate)</td>
+          <td>@(row.UserId is { } id ? _users.GetValueOrDefault(id) : null)</td>
+          <td class="num">@(row.QuantityDelta > 0 ? row.QuantityDelta : null)</td>
+          <td class="num">@(row.QuantityDelta < 0 ? -row.QuantityDelta : null)</td>
+          <td class="num">@row.BalanceAfter</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <p class="muted">Количествата са в най-малката мярка (@Formats.BaseUnitName(_product.Units)).</p>
+}
+else if (_product is null)
+{
+  <p class="muted">Изберете стока: сканирайте баркод или напишете част от името.</p>
+}
+
+@code {
+  private string _search = string.Empty;
+  private DateOnly _from;
+  private DateOnly _to;
+  private string? _error;
+  private IReadOnlyList<CatalogProductInfo> _matches = [];
+  private CatalogProductInfo? _product;
+  private ProductCard? _card;
+  private IReadOnlyDictionary<Guid, string> _users = new Dictionary<Guid, string>();
+
+  protected override void OnInitialized()
+  {
+    _to = BulgarianTime.Today(Clock.GetUtcNow());
+    _from = _to.AddDays(-30);
+  }
+
+  private static string KindText(string kind) => kind switch
+  {
+    "Delivery" => "Доставка",
+    "Sale" => "Продажба",
+    "Reversal" => "Сторно",
+    "WriteOff" => "Брак",
+    "Correction" => "Корекция",
+    _ => kind,
+  };
+
+  private async Task OnKeyDown(KeyboardEventArgs e)
+  {
+    if (e.Key != "Enter")
+    {
+      return;
+    }
+
+    _error = null;
+    var text = _search.Trim();
+    if (text.Length == 0)
+    {
+      return;
+    }
+
+    if (text.All(char.IsAsciiDigit) && await Catalog.FindByBarcodeAsync(text) is { } scanned)
+    {
+      _matches = (await Catalog.GetProductsAsync([scanned.ProductId])).ToList();
+    }
+    else
+    {
+      _matches = await Catalog.SearchProductsAsync(text, 10);
+    }
+
+    if (_matches.Count == 0)
+    {
+      _error = $"Няма стока „{text}“.";
+    }
+    else if (_matches.Count == 1)
+    {
+      await Choose(_matches[0]);
+    }
+  }
+
+  private async Task Choose(CatalogProductInfo product)
+  {
+    _product = product;
+    _matches = [];
+    _search = product.Name;
+    await Load();
+  }
+
+  private async Task Load()
+  {
+    if (_product is null)
+    {
+      return;
+    }
+
+    _card = await Stock.GetProductCardAsync(_product.ProductId, StartUtc(_from), StartUtc(_to.AddDays(1)));
+    _users = await Users.GetDisplayNamesAsync([.. _card.Movements.Where(m => m.UserId is not null).Select(m => m.UserId!.Value).Distinct()]);
+  }
+
+  private static DateTimeOffset StartUtc(DateOnly day)
+  {
+    var local = day.ToDateTime(TimeOnly.MinValue);
+    return new DateTimeOffset(local, BulgarianTime.Zone.GetUtcOffset(local)).ToUniversalTime();
+  }
+}

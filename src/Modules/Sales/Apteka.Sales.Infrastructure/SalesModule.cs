@@ -25,6 +25,7 @@ public static class SalesModule
         services.AddScoped<CompleteSaleHandler>();
         services.AddScoped<ReverseSaleHandler>();
         services.AddScoped<DailySalesHandler>();
+        services.AddScoped<DailyReportHandler>();
         services.AddScoped<GetSaleHandler>();
 
         return services;

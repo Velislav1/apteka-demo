@@ -1,0 +1,111 @@
+@page "/sales/report"
+@using System.Globalization
+@using Apteka.Identity.Contracts
+@using Apteka.Sales.Application.DailySales
+@using Apteka.Sales.Domain.Sales
+@using Apteka.SharedKernel
+@inject DailyReportHandler Report
+@inject IUserDirectory Users
+@inject TimeProvider Clock
+
+@* „Дневен опис на продажбите“ — подробно / обобщено, with profit, as in Apteka Expert 2. *@
+
+<PageTitle>Дневен опис на продажбите</PageTitle>
+
+<h1>Дневен опис на продажбите</h1>
+
+<div class="toolbar">
+  <input type="date" aria-label="Ден" @bind="_day" @bind:after="Load" />
+  <div class="segmented" role="group" aria-label="Вид">
+    <button class="@(_detailed ? null : "secondary")" @onclick="() => _detailed = true">Подробно</button>
+    <button class="@(_detailed ? "secondary" : null)" @onclick="() => _detailed = false">Обобщено</button>
+  </div>
+</div>
+
+@if (_view is not null)
+{
+  <div class="summary">
+    <div class="card"><span class="muted">Оборот</span><strong>@Formats.Euro(_view.Total)</strong></div>
+    <div class="card"><span class="muted">Без ДДС</span><strong>@Formats.Euro(_view.NetRevenue)</strong></div>
+    <div class="card"><span class="muted">Покупна стойност</span><strong>@Formats.Euro(_view.Cost)</strong></div>
+    <div class="card profit"><span class="muted">Печалба</span><strong>@Formats.Euro(_view.Profit)</strong><small>@Percent(_view.ProfitPercent)</small></div>
+  </div>
+
+  @if (_view.Sales.Count == 0)
+  {
+    <p class="muted">Няма продажби за @Formats.Date(_day).</p>
+  }
+  else if (_detailed)
+  {
+    <table class="grid">
+      <thead><tr><th>Час</th><th>Потребител</th><th>№</th><th>Стока</th><th class="num">Кол.</th><th>Мярка</th><th class="num">Цена</th><th class="num">ТО %</th><th class="num">Стойност</th></tr></thead>
+      <tbody>
+        @foreach (var sale in _view.Sales)
+        {
+          @foreach (var line in sale.Lines)
+          {
+            <tr class="@(sale.Status == SaleStatus.Reversed ? "inactive" : null)">
+              <td>@Time(sale.CreatedAt)</td>
+              <td>@UserName(sale.UserId)</td>
+              <td>@sale.Number@(sale.Status == SaleStatus.Reversed ? " (сторно)" : null)</td>
+              <td>@line.ProductName</td>
+              <td class="num">@line.Quantity</td>
+              <td>@line.UnitName</td>
+              <td class="num">@Formats.Euro(line.UnitPrice)</td>
+              <td class="num">@(line.DiscountPercent == 0 ? null : line.DiscountPercent.ToString("0.##", CultureInfo.GetCultureInfo("bg-BG")))</td>
+              <td class="num">@Formats.Euro(line.Total)</td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  }
+  else
+  {
+    <table class="grid">
+      <thead><tr><th>Час</th><th>Потребител</th><th>№</th><th>Плащане</th><th class="num">Сума</th><th class="num">Без ДДС</th><th class="num">Покупна ст.</th><th class="num">Печалба</th><th class="num">%</th></tr></thead>
+      <tbody>
+        @foreach (var sale in _view.Sales)
+        {
+          <tr class="@(sale.Status == SaleStatus.Reversed ? "inactive" : null)">
+            <td>@Time(sale.CreatedAt)</td>
+            <td>@UserName(sale.UserId)</td>
+            <td>@sale.Number@(sale.Status == SaleStatus.Reversed ? " (сторно)" : null)</td>
+            <td>@(sale.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</td>
+            <td class="num">@Formats.Euro(sale.Total)</td>
+            <td class="num">@Formats.Euro(sale.NetRevenue)</td>
+            <td class="num">@Formats.Euro(sale.Cost)</td>
+            <td class="num">@Formats.Euro(sale.Profit)</td>
+            <td class="num">@Percent(sale.ProfitPercent)</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+  <p class="muted">Печалба = продажби без ДДС − покупната стойност на изписаните партиди. Сторнираните продажби не се броят.</p>
+}
+
+@code {
+  private DateOnly _day;
+  private bool _detailed = true;
+  private DailyReportView? _view;
+  private IReadOnlyDictionary<Guid, string> _users = new Dictionary<Guid, string>();
+
+  protected override Task OnInitializedAsync()
+  {
+    _day = BulgarianTime.Today(Clock.GetUtcNow());
+    return Load();
+  }
+
+  private async Task Load()
+  {
+    _view = await Report.HandleAsync(_day);
+    _users = await Users.GetDisplayNamesAsync([.. _view.Sales.Where(s => s.UserId is not null).Select(s => s.UserId!.Value).Distinct()]);
+  }
+
+  private string? UserName(Guid? id) => id is { } value ? _users.GetValueOrDefault(value) : null;
+
+  private static string Time(DateTimeOffset at) => BulgarianTime.ToLocal(at).ToString("HH:mm", CultureInfo.InvariantCulture);
+
+  private static string Percent(decimal? value) => value is { } v ? v.ToString("0.#", CultureInfo.GetCultureInfo("bg-BG")) + " %" : "—";
+}
