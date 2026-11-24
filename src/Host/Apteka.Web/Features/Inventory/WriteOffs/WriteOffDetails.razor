@@ -1,0 +1,55 @@
+@page "/inventory/write-offs/{Id:guid}"
+@using Apteka.Inventory.Application.WriteOffs
+@using Apteka.Web.Features.Shared
+@inject GetWriteOffHandler GetWriteOff
+
+<PageTitle>Бракуване</PageTitle>
+
+@if (_notFound)
+{
+  <p class="alert error">Бракуването не е намерено.</p>
+}
+else if (_view is not null)
+{
+  <h1>Бракуване № @_view.Number</h1>
+
+  <div class="doc-header card">
+    <div><span class="muted">Дата и час</span><strong>@Formats.LocalTime(_view.CreatedAt)</strong></div>
+    <div><span class="muted">Основание</span><strong>@(_view.Reason ?? "—")</strong></div>
+  </div>
+
+  <table class="grid">
+    <thead><tr><th>№</th><th>Стока</th><th>Партида</th><th>Годна до</th><th class="num">Кол.</th><th>Мярка</th><th class="num">Стойност</th></tr></thead>
+    <tbody>
+      @foreach (var line in _view.Lines)
+      {
+        <tr>
+          <td>@line.Position</td>
+          <td>@line.ProductName</td>
+          <td>@line.BatchNo</td>
+          <td>@Formats.Date(line.ExpiryDate)</td>
+          <td class="num">@line.Quantity</td>
+          <td>@line.UnitName</td>
+          <td class="num">@Formats.Euro(line.PurchaseTotal)</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <div class="toolbar">
+    <span>Обща стойност (покупни цени без ДДС): <strong>@Formats.Euro(_view.PurchaseTotal)</strong></span>
+    <a class="button secondary" href="inventory/write-offs">Към бракуванията</a>
+  </div>
+}
+
+@code {
+  [Parameter] public Guid Id { get; set; }
+
+  private WriteOffView? _view;
+  private bool _notFound;
+
+  protected override async Task OnParametersSetAsync()
+  {
+    _view = await GetWriteOff.HandleAsync(Id);
+    _notFound = _view is null;
+  }
+}

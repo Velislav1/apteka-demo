@@ -6,6 +6,8 @@ using Apteka.Inventory.Contracts;
 using Apteka.Inventory.Infrastructure.Batches;
 using Apteka.Inventory.Infrastructure.Persistence;
 using Apteka.Inventory.Infrastructure.StockMovements;
+using Apteka.Inventory.Application.WriteOffs;
+using Apteka.Inventory.Infrastructure.WriteOffs;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Apteka.Inventory.Infrastructure;
@@ -20,6 +22,12 @@ public static class InventoryModule
         // Infrastructure
         services.AddScoped<IInventoryRepository, InventoryRepository>();
         services.AddScoped<IStockLocking, StockLocking>();
+        services.AddScoped<IWriteOffRepository, WriteOffRepository>();
+
+        // Use cases
+        services.AddScoped<CreateWriteOffHandler>();
+        services.AddScoped<ListWriteOffsHandler>();
+        services.AddScoped<GetWriteOffHandler>();
 
         // Public API for other modules
         services.AddScoped<IStockReceiving, ReceiveStockHandler>();

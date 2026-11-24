@@ -1,0 +1,106 @@
+@using Apteka.Catalog.Contracts
+@inject ICatalogLookup Catalog
+
+@* Finds a product as everywhere in Apteka Expert 2: code (номенклатурен номер), barcode or part of the name, then Enter.
+   Several matches by name are offered as a numbered list. Used by „Бракуване“ and „Инвентаризация“. *@
+
+<div class="product-picker">
+  <input id="@Id" type="search" placeholder="Код, баркод или име и Enter" aria-label="Стока" autocomplete="off"
+         @bind="_text" @bind:event="oninput" @onkeydown="OnKeyDown" @ref="_input" />
+  @if (_error is not null)
+  {
+    <p class="alert error" role="alert">@_error</p>
+  }
+  @if (_matches.Count > 0)
+  {
+    <ol class="picker-matches card">
+      @foreach (var product in _matches)
+      {
+        <li><button class="linklike" @onclick="() => Pick(product, null)">@product.Name</button> <span class="muted">№ @product.Code</span></li>
+      }
+    </ol>
+    <p class="muted">Номер от списъка и Enter, или щракнете.</p>
+  }
+</div>
+
+@code {
+  [Parameter] public string Id { get; set; } = "product-search";
+
+  /// <summary>The chosen product and, for a barcode, the unit it is printed on.</summary>
+  [Parameter, EditorRequired] public EventCallback<(CatalogProductInfo Product, Guid? UnitId)> OnPicked { get; set; }
+
+  private const int MaxMatches = 20;
+  private string _text = string.Empty;
+  private string? _error;
+  private List<CatalogProductInfo> _matches = [];
+  private ElementReference _input;
+
+  public ValueTask FocusAsync() => _input.FocusAsync();
+
+  private async Task OnKeyDown(KeyboardEventArgs e)
+  {
+    if (e.Key != "Enter")
+    {
+      return;
+    }
+
+    var text = _text.Trim();
+    _error = null;
+    if (text.Length == 0)
+    {
+      return;
+    }
+
+    if (_matches.Count > 0 && int.TryParse(text, out var number) && number >= 1 && number <= _matches.Count)
+    {
+      await Pick(_matches[number - 1], null);
+      return;
+    }
+
+    if (CatalogCodes.LooksLikeCode(text))
+    {
+      await PickOrFail(await Catalog.FindByCodeAsync(long.Parse(text, System.Globalization.CultureInfo.InvariantCulture)), null, $"Няма стока с код {text}.");
+      return;
+    }
+
+    if (text.All(char.IsAsciiDigit))
+    {
+      var hit = await Catalog.FindByBarcodeAsync(text);
+      await PickOrFail(hit is null ? null : await Catalog.GetProductAsync(hit.ProductId), hit?.UnitId, $"Непознат баркод {text}.");
+      return;
+    }
+
+    var found = await Catalog.SearchProductsAsync(text, MaxMatches);
+    if (found.Count == 1)
+    {
+      await Pick(found[0], null);
+    }
+    else if (found.Count == 0)
+    {
+      _error = $"Няма стока с „{text}“ в името.";
+    }
+    else
+    {
+      _matches = [.. found];
+      _text = string.Empty;
+    }
+  }
+
+  private Task PickOrFail(CatalogProductInfo? product, Guid? unitId, string error)
+  {
+    if (product is null)
+    {
+      _error = error;
+      return Task.CompletedTask;
+    }
+
+    return Pick(product, unitId);
+  }
+
+  private async Task Pick(CatalogProductInfo product, Guid? unitId)
+  {
+    _matches = [];
+    _text = string.Empty;
+    await OnPicked.InvokeAsync((product, unitId));
+  }
+}

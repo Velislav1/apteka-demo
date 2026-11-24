@@ -23,11 +23,7 @@ public sealed class DailySalesHandler(ISaleRepository sales)
             completed.Where(s => s.PaymentMethod == PaymentMethod.Card).Sum(s => s.Total));
     }
 
-    private static DateTimeOffset StartOfDayUtc(DateOnly day)
-    {
-        var local = day.ToDateTime(TimeOnly.MinValue);
-        return new DateTimeOffset(local, BulgarianTime.Zone.GetUtcOffset(local)).ToUniversalTime();
-    }
+    private static DateTimeOffset StartOfDayUtc(DateOnly day) => BulgarianTime.StartOfDayUtc(day);
 }
 
 /// <summary>One sale with its lines, for the details under „Продажби за деня“.</summary>

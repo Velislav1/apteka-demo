@@ -58,6 +58,10 @@
             {
               <a href="purchasing/deliveries/@row.DocumentId">@KindText(row.Kind)</a>
             }
+            else if (row.DocumentType == "WriteOff")
+            {
+              <a href="inventory/write-offs/@row.DocumentId">@KindText(row.Kind)</a>
+            }
             else
             {
               @KindText(row.Kind)

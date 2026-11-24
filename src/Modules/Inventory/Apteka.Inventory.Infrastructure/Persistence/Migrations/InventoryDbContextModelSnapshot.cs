@@ -23,6 +23,8 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("write_off_numbers", "inventory");
+
             modelBuilder.Entity("Apteka.Inventory.Domain.Batches.Batch", b =>
                 {
                     b.Property<Guid>("Id")
@@ -149,6 +151,119 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
                     b.ToTable("stock_movements", "inventory");
                 });
 
+            modelBuilder.Entity("Apteka.Inventory.Domain.WriteOffs.WriteOff", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('inventory.write_off_numbers')");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_write_offs");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_write_offs_created_at");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_write_offs_number");
+
+                    b.ToTable("write_offs", "inventory");
+                });
+
+            modelBuilder.Entity("Apteka.Inventory.Domain.WriteOffs.WriteOffLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batch_id");
+
+                    b.Property<string>("BatchNo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("batch_no");
+
+                    b.Property<DateOnly>("ExpiryDate")
+                        .HasColumnType("date")
+                        .HasColumnName("expiry_date");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("product_name");
+
+                    b.Property<decimal>("PurchasePrice")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("purchase_price");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<int>("UnitFactor")
+                        .HasColumnType("integer")
+                        .HasColumnName("unit_factor");
+
+                    b.Property<string>("UnitName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("unit_name");
+
+                    b.Property<Guid>("WriteOffId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("write_off_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_write_off_lines");
+
+                    b.HasIndex("BatchId")
+                        .HasDatabaseName("ix_write_off_lines_batch_id");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_write_off_lines_product_id");
+
+                    b.HasIndex("WriteOffId")
+                        .HasDatabaseName("ix_write_off_lines_write_off_id");
+
+                    b.ToTable("write_off_lines", "inventory", t =>
+                        {
+                            t.HasCheckConstraint("ck_write_off_lines_quantity", "quantity > 0");
+                        });
+                });
+
             modelBuilder.Entity("Apteka.Inventory.Domain.StockMovements.StockMovement", b =>
                 {
                     b.HasOne("Apteka.Inventory.Domain.Batches.Batch", null)
@@ -157,6 +272,28 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_stock_movements_batches_batch_id");
+                });
+
+            modelBuilder.Entity("Apteka.Inventory.Domain.WriteOffs.WriteOffLine", b =>
+                {
+                    b.HasOne("Apteka.Inventory.Domain.Batches.Batch", null)
+                        .WithMany()
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_write_off_lines_batches_batch_id");
+
+                    b.HasOne("Apteka.Inventory.Domain.WriteOffs.WriteOff", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("WriteOffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_write_off_lines_write_offs_write_off_id");
+                });
+
+            modelBuilder.Entity("Apteka.Inventory.Domain.WriteOffs.WriteOff", b =>
+                {
+                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,0 +1,69 @@
+@page "/inventory/write-offs"
+@using Apteka.Inventory.Application.WriteOffs
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject ListWriteOffsHandler ListWriteOffs
+@inject Apteka.Identity.Contracts.IUserDirectory UserDirectory
+@inject TimeProvider Clock
+@inject NavigationManager Navigation
+
+<PageTitle>Бракуване на стоки</PageTitle>
+
+<ListKeys OnAdd="@(() => Navigation.NavigateTo("inventory/write-offs/new"))" />
+
+<h1>Бракуване на стоки</h1>
+
+<div class="toolbar">
+  <a class="button" href="inventory/write-offs/new"><Icon Name="plus" /> Ново бракуване <kbd>F5</kbd></a>
+  <label>От <input id="from" type="date" @bind="_from" @bind:after="Load" /></label>
+  <label>до <input id="to" type="date" @bind="_to" @bind:after="Load" /></label>
+</div>
+
+@if (_items is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_items.Count == 0)
+{
+  <p class="muted">Няма бракувания за периода.</p>
+}
+else
+{
+  <table class="grid">
+    <thead><tr><th class="num">№</th><th>Дата и час</th><th>Потребител</th><th>Основание</th><th class="num">Редове</th><th class="num">Стойност (покупни цени)</th></tr></thead>
+    <tbody>
+      @foreach (var item in _items)
+      {
+        <tr>
+          <td class="num"><a href="inventory/write-offs/@item.Id">@item.Number</a></td>
+          <td>@Formats.LocalTime(item.CreatedAt)</td>
+          <td>@(item.UserId is { } user ? _users.GetValueOrDefault(user) : null)</td>
+          <td>@item.Reason</td>
+          <td class="num">@item.LineCount</td>
+          <td class="num">@Formats.Euro(item.PurchaseTotal)</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <div class="toolbar"><span>Общо: <strong>@Formats.Euro(_items.Sum(i => i.PurchaseTotal))</strong></span></div>
+}
+
+@code {
+  private DateOnly _from;
+  private DateOnly _to;
+  private IReadOnlyList<WriteOffListItem>? _items;
+  private IReadOnlyDictionary<Guid, string> _users = new Dictionary<Guid, string>();
+
+  protected override Task OnInitializedAsync()
+  {
+    _to = BulgarianTime.Today(Clock.GetUtcNow());
+    _from = new DateOnly(_to.Year, _to.Month, 1);
+    return Load();
+  }
+
+  private async Task Load()
+  {
+    _items = await ListWriteOffs.HandleAsync(_from, _to);
+    _users = await UserDirectory.GetDisplayNamesAsync([.. _items.Where(i => i.UserId is not null).Select(i => i.UserId!.Value).Distinct()]);
+  }
+}

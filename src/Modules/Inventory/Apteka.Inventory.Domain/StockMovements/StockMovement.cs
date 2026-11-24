@@ -80,6 +80,26 @@ public sealed class StockMovement : Entity<Guid>
         DateTimeOffset at) =>
         Create(batchId, baseQuantity, baseQuantity, MovementKind.Reversal, documentType, documentId, userId, at);
 
+    /// <summary>Stock written off (бракуване): a negative quantity in base units, from a chosen batch.</summary>
+    public static Result<StockMovement> WriteOff(
+        Guid batchId,
+        int baseQuantity,
+        string documentType,
+        Guid documentId,
+        Guid? userId,
+        DateTimeOffset at) =>
+        Create(batchId, -baseQuantity, baseQuantity, MovementKind.WriteOff, documentType, documentId, userId, at);
+
+    /// <summary>A correction (корекция, инвентаризация): + or − in base units, never zero.</summary>
+    public static Result<StockMovement> Correction(
+        Guid batchId,
+        int delta,
+        string documentType,
+        Guid documentId,
+        Guid? userId,
+        DateTimeOffset at) =>
+        Create(batchId, delta, Math.Abs(delta), MovementKind.Correction, documentType, documentId, userId, at);
+
     private static Result<StockMovement> Create(
         Guid batchId,
         int delta,

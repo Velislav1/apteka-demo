@@ -244,6 +244,7 @@ table.lines td { padding: 0.4rem 0.5rem; }
 
 .alert.error { background: var(--danger-soft); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 25%, transparent); }
 .alert.success { background: var(--success-soft); color: var(--success); border-color: color-mix(in srgb, var(--success) 25%, transparent); }
+.alert.warning { background: var(--warning-soft); color: var(--warning); border-color: color-mix(in srgb, var(--warning) 25%, transparent); }
 
 .tag, .status {
   display: inline-block;
@@ -314,3 +315,8 @@ kbd {
 
 /* The chosen row of a list (↑/↓, F6 opens it). */
 table.grid tr.selected > td { background: color-mix(in srgb, var(--primary-soft) 60%, transparent); }
+
+/* Header of a document (доставка, бракуване, …): label above value. */
+.doc-header { display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem 2.5rem; margin-bottom: 1rem; }
+.doc-header > div { display: grid; }
+.doc-header .muted { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }

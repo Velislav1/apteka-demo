@@ -1,0 +1,225 @@
+@page "/inventory/write-offs/new"
+@using Apteka.Catalog.Contracts
+@using Apteka.Inventory.Application.WriteOffs
+@using Apteka.Inventory.Contracts
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject IStockQueries Stock
+@inject CreateWriteOffHandler CreateWriteOff
+@inject TimeProvider Clock
+@inject NavigationManager Navigation
+
+@* „Бракуване на стоки“ as in Apteka Expert 2: stock is entered like a sale, but from a chosen batch (expired ones too).
+   Enter adds the line, ✕ removes it, Ctrl+Enter twice completes; nothing moves until then. *@
+
+<PageTitle>Ново бракуване</PageTitle>
+
+<h1>Ново бракуване</h1>
+
+<div @onkeydown="OnKeyDown">
+  <fieldset class="header-form">
+    <legend>Документ</legend>
+    <div class="form-grid">
+      <label for="reason">Основание</label>
+      <input id="reason" @bind="_reason" maxlength="200" placeholder="напр. изтекъл срок, счупена опаковка" />
+    </div>
+  </fieldset>
+
+  <div class="entry card">
+    <ProductPicker OnPicked="Picked" @ref="_picker" />
+
+    @if (_product is not null)
+    {
+      <h2 class="entry-product">@_product.Name <span class="muted">№ @_product.Code</span></h2>
+      @if (_batches.Count == 0)
+      {
+        <p class="muted">Няма наличност от тази стока.</p>
+      }
+      else
+      {
+        <table class="grid batches">
+          <thead><tr><th></th><th>Партида</th><th>Годна до</th><th>Наличност</th></tr></thead>
+          <tbody>
+            @foreach (var batch in _batches)
+            {
+              <tr class="@(batch.BatchId == _batchId ? "selected" : null)" @onclick="() => _batchId = batch.BatchId">
+                <td><input type="radio" name="batch" checked="@(batch.BatchId == _batchId)" aria-label="@batch.BatchNo" @onchange="() => _batchId = batch.BatchId" /></td>
+                <td>@batch.BatchNo</td>
+                <td class="expiry @(batch.ExpiryDate < Today ? "expired" : null)">@Formats.Date(batch.ExpiryDate)@(batch.ExpiryDate < Today ? " (изтекла)" : null)</td>
+                <td>@Formats.Quantity(batch.BaseQuantity - Taken(batch.BatchId), _product.Units)</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <div class="line-grid">
+          <label>Количество<input id="quantity" type="number" min="1" @bind="_quantity" @bind:event="oninput" @onkeydown="OnLineKeyDown" /></label>
+          <label>Мярка
+            <select @bind="_unitId">
+              @foreach (var unit in _product.Units.OrderByDescending(u => u.Factor))
+              {
+                <option value="@unit.UnitId">@unit.Name</option>
+              }
+            </select>
+          </label>
+          <button @onclick="AddLine">Добави <kbd>Enter</kbd></button>
+        </div>
+      }
+    }
+  </div>
+
+  @if (_error is not null)
+  {
+    <p class="alert error" role="alert">@_error</p>
+  }
+
+  @if (_lines.Count > 0)
+  {
+    <table class="grid">
+      <thead><tr><th>№</th><th>Стока</th><th>Партида</th><th>Годна до</th><th class="num">Кол.</th><th>Мярка</th><th></th></tr></thead>
+      <tbody>
+        @foreach (var (line, index) in _lines.Select((line, index) => (line, index)))
+        {
+          <tr>
+            <td>@(index + 1)</td>
+            <td>@line.ProductName</td>
+            <td>@line.BatchNo</td>
+            <td>@Formats.Date(line.ExpiryDate)</td>
+            <td class="num">@line.Quantity</td>
+            <td>@line.UnitName</td>
+            <td><button class="link" title="Премахни" @onclick="() => _lines.Remove(line)">✕</button></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+
+  @if (_confirm)
+  {
+    <p class="alert warning" role="alert">Потвърди приключването: Ctrl+Enter още веднъж (Esc — отказ). Наличността ще намалее.</p>
+  }
+
+  <div class="toolbar">
+    <button @onclick="Complete" disabled="@(_busy || _lines.Count == 0)">Приключване <kbd>Ctrl+Enter</kbd></button>
+    <a class="button secondary" href="inventory/write-offs">Отказ</a>
+  </div>
+</div>
+
+@code {
+  private string? _reason;
+  private CatalogProductInfo? _product;
+  private IReadOnlyList<BatchStock> _batches = [];
+  private Guid? _batchId;
+  private int _quantity = 1;
+  private string _unitId = string.Empty;
+  private readonly List<Line> _lines = [];
+  private string? _error;
+  private bool _confirm;
+  private bool _busy;
+  private ProductPicker? _picker;
+
+  private DateOnly Today => BulgarianTime.Today(Clock.GetUtcNow());
+
+  /// <summary>What lines already on the document take from a batch (so the shown stock is what is left).</summary>
+  private int Taken(Guid batchId) => _lines.Where(l => l.BatchId == batchId).Sum(l => l.Quantity * l.UnitFactor);
+
+  private async Task Picked((CatalogProductInfo Product, Guid? UnitId) picked)
+  {
+    _error = null;
+    _product = picked.Product;
+    _batches = await Stock.GetBatchesAsync(picked.Product.ProductId, null);
+    _batchId = _batches.FirstOrDefault()?.BatchId; // nearest expiry (expired ones first)
+    var unit = picked.Product.Units.FirstOrDefault(u => u.UnitId == picked.UnitId) ?? picked.Product.Units.MaxBy(u => u.Factor)!;
+    _unitId = unit.UnitId.ToString();
+    _quantity = 1;
+  }
+
+  private async Task OnLineKeyDown(KeyboardEventArgs e)
+  {
+    if (e.Key == "Enter" && !e.CtrlKey)
+    {
+      await AddLine();
+    }
+  }
+
+  private async Task AddLine()
+  {
+    _error = null;
+    _confirm = false;
+    var batch = _batches.FirstOrDefault(b => b.BatchId == _batchId);
+    var unit = _product?.Units.FirstOrDefault(u => u.UnitId.ToString() == _unitId);
+    if (_product is null || batch is null || unit is null)
+    {
+      _error = "Изберете стока и партида.";
+      return;
+    }
+
+    if (_quantity <= 0)
+    {
+      _error = "Количеството трябва да е по-голямо от нула.";
+      return;
+    }
+
+    var left = batch.BaseQuantity - Taken(batch.BatchId);
+    if (_quantity * unit.Factor > left)
+    {
+      _error = $"В партида {batch.BatchNo} има само {Formats.Quantity(left, _product.Units)}.";
+      return;
+    }
+
+    _lines.Add(new Line(_product.ProductId, _product.Name, unit.UnitId, unit.Name, unit.Factor, _quantity, batch.BatchId, batch.BatchNo, batch.ExpiryDate));
+    _product = null;
+    _batches = [];
+    if (_picker is not null)
+    {
+      await _picker.FocusAsync();
+    }
+  }
+
+  private async Task OnKeyDown(KeyboardEventArgs e)
+  {
+    if (e.Key == "Enter" && e.CtrlKey)
+    {
+      await Complete();
+    }
+    else if (e.Key == "Escape")
+    {
+      _confirm = false;
+    }
+  }
+
+  private async Task Complete()
+  {
+    if (_lines.Count == 0 || _busy)
+    {
+      return;
+    }
+
+    if (!_confirm)
+    {
+      _confirm = true;
+      return;
+    }
+
+    _busy = true;
+    try
+    {
+      var result = await CreateWriteOff.HandleAsync(new WriteOffInput(
+        _reason,
+        _lines.Select(l => new WriteOffLineInput(l.ProductId, l.UnitId, l.Quantity, l.BatchId)).ToList()));
+      _confirm = false;
+      if (result.IsFailure)
+      {
+        _error = result.Error.Message;
+        return;
+      }
+
+      Navigation.NavigateTo($"inventory/write-offs/{result.Value}");
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+
+  private sealed record Line(Guid ProductId, string ProductName, Guid UnitId, string UnitName, int UnitFactor, int Quantity, Guid BatchId, string BatchNo, DateOnly ExpiryDate);
+}

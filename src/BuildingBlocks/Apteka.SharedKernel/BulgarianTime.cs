@@ -8,4 +8,11 @@ public static class BulgarianTime
     public static DateTimeOffset ToLocal(DateTimeOffset utc) => TimeZoneInfo.ConvertTime(utc, Zone);
 
     public static DateOnly Today(DateTimeOffset utcNow) => DateOnly.FromDateTime(ToLocal(utcNow).DateTime);
+
+    /// <summary>The UTC moment a Sofia day begins (for „from–to“ filters on <c>timestamptz</c>).</summary>
+    public static DateTimeOffset StartOfDayUtc(DateOnly day)
+    {
+        var local = day.ToDateTime(TimeOnly.MinValue);
+        return new DateTimeOffset(local, Zone.GetUtcOffset(local)).ToUniversalTime();
+    }
 }
