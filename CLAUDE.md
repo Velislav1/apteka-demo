@@ -115,9 +115,11 @@ apteka-demo/
 - `WriteOff` + `WriteOffLine` — бракуване: Number (sequence `inventory.write_off_numbers`), Reason?, UserId, CreatedAt; редове с ProductName, UnitName, UnitFactor, Quantity, BatchId, BatchNo, ExpiryDate, PurchasePrice (за най-малка мярка). Само за добавяне (тригер); движение WriteOff от избраната партида (и изтекла)
 - `DeliveryCorrection` + `DeliveryCorrectionLine` — корекционна складова разписка към приключена доставка: Number (sequence `purchasing.delivery_correction_numbers`), DeliveryId, NoteNo?, NoteDate, Reason?; редове DeliveryLineId, QuantityDelta (±, в мярката на реда), UnitPurchasePrice (нетна). Само за добавяне; движение Correction върху партидата на реда
 - `Stocktaking` + `StocktakingLine` — инвентаризация (всички / група / рафт): Number, Scope, Status (Open/Closed), StartedAt/By, ClosedAt/By; редове по партида с ExpectedQuantity, CountedQuantity?, Difference?. Най-много една отворена; докато е отворена, стоките ѝ не се продават, заприхождават, коригират и бракуват; приключването прави движения Correction; приключената не се променя (тригер)
-- `Sale` — Id, Number (от sequence), SaleType, UserId, CreatedAt, Total, VatTotal, PaymentMethod (Cash/Card), CashReceived?, Status (Completed/Reversed)
+- `Customer` — клиент/пациент: Id, Code (sequence `sales.customer_codes`), Name, Egn? (10 цифри, вярна дата и контролна цифра, уникално; само измислени), Phone?, Note?, IsActive; не се трие (тригер)
+- `SaleReturn` + `SaleReturnLine` + `SaleReturnLineBatch` — корекция на продажба (кредитно известие): Number (sequence `sales.sale_return_numbers`), SaleId, Reason?, Total, VatTotal; редове SaleLineId, Quantity (връща се, в мярката на реда), Amount, VatAmount, партиди. Само управител; само за добавяне; продажба с корекция не се сторнира цялата
+- `Sale` — Id, Number (от sequence), SaleType, UserId, CustomerId?, CreatedAt, Total, VatTotal, PaymentMethod (Cash/Card), CashReceived?, Status (Completed/Reversed)
 - `SaleLine` — Id, SaleId, Position, ProductId, ProductName, ProductUnitId, UnitName, UnitFactor, Quantity, UnitPrice (с ДДС), DiscountPercent, DiscountAmount, VatRate, LineTotal, VatAmount
-- `SaleLineBatch` — Id, SaleLineId, BatchId, BaseQuantity (от кои партиди е изписан редът; FEFO може да го раздели)
+- `SaleLineBatch` — Id, SaleLineId, Position (редът на FEFO), BatchId, BaseQuantity (от кои партиди е изписан редът; FEFO може да го раздели)
 - `Reversal` — Id, SaleId (уникален), Reason?, UserId, CreatedAt (сторно на цялата продажба)
 - `User` — Id, UserName (малки букви, уникално), DisplayName, PasswordHash (никога в одита), Role (Manager/Pharmacist), IsActive, FailedLoginCount, LockedUntil, LastLoginAt
 - `AuditLog` — Id, UserId, At, Action, Entity, EntityId, OldValues (jsonb), NewValues (jsonb)
@@ -138,15 +140,18 @@ apteka-demo/
    F6 поправя, F8 трие, Ctrl+Enter два пъти приключва (публикува).
 4. **Наличност** — по стока и по партида, с филтър „изтича до 90 дни“.
 5. **Директна продажба** (Ctrl+F3) — поле с постоянен фокус: код, баркод или име + Enter; `3*` количество; ↑/↓ ред;
-   F4 отстъпка на реда; `%10` обща отстъпка за цялата продажба; F12 мярка; F8 изтрий; F10 плащане (Enter в брой, F10 с карта);
+   F2 клиент (ЕГН, код, телефон или име); F4 отстъпка на реда; `%10` обща отстъпка за цялата продажба; F12 мярка; F8 изтрий; F10 плащане (Enter в брой, F10 с карта);
    Ctrl+Enter приключи в брой; Esc назад, два пъти отказ. Изцяло без мишка. Rx стоки — с потвърждение на рецептата; упойващи — забранени.
-6. **Директни продажби (за деня)** — списък и сторно на продажба; F5 нова.
+6. **Директни продажби (за деня)** — списък, търсене по № (всеки ден), корекциите за деня; F5 нова.
+   **Продажба** — редове с върнатото; корекция (− по редове, Ctrl+Enter два пъти) или сторно на цялата (само управител).
 7. **Справки** — картон на стока, стокова наличност (филтър по група), дневен опис (печалба), срок до 90 дни,
    изтекъл срок към дата, под минимален запас.
 8. **Бракуване на стоки** (Продажби) — стока по код/баркод/име, избор на партида (и изтекла), количество; Ctrl+Enter два пъти.
 9. **Корекционна складова разписка** (Доставки) — към приключена доставка, ± по редовете; Ctrl+Enter два пъти.
 10. **Инвентаризация** (Настройки → Склад) — протокол по партиди, „Намерено“ в кутии + бройки, записва се веднага;
     Ctrl+Enter два пъти приключва.
+11. **Клиенти, пациенти** (Настройки → Номенклатури) — табове за търсене: по име / ЕГН / код / телефон; F5, F6;
+    картата на клиента показва покупките му.
 
 ## Тестове (задължителни преди всяко „готово“)
 
