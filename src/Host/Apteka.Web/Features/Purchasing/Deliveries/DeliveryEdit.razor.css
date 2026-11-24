@@ -36,3 +36,4 @@
   .entry { grid-template-columns: 1fr; }
   .line-grid { grid-template-columns: 1fr 1fr; }
 }
+.line-grid output { padding: 0.45rem 0; font-variant-numeric: tabular-nums; font-weight: 600; }

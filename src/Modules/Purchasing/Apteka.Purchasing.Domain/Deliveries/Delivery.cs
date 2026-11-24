@@ -21,7 +21,16 @@ public sealed class Delivery : Entity<Guid>
         InvoiceNo = string.Empty;
     }
 
+    /// <summary>Складова разписка №: given by the database when the delivery is first saved.</summary>
+    public long Number { get; private set; }
+
     public Guid SupplierId { get; private set; }
+
+    /// <summary>Days after the invoice date by which the supplier must be paid.</summary>
+    public int PaymentTermDays { get; private set; }
+
+    /// <summary>Падеж: the date to pay by.</summary>
+    public DateOnly DueDate => InvoiceDate.AddDays(PaymentTermDays);
 
     public string InvoiceNo { get; private set; }
 
@@ -43,7 +52,7 @@ public sealed class Delivery : Entity<Guid>
 
     public Money PurchaseTotal => Lines.Aggregate(Money.Zero, (sum, line) => sum + line.PurchaseTotal);
 
-    public static Result<Delivery> Create(Guid supplierId, string invoiceNo, DateOnly invoiceDate, DateTimeOffset receivedAt, Guid? userId)
+    public static Result<Delivery> Create(Guid supplierId, string invoiceNo, DateOnly invoiceDate, DateTimeOffset receivedAt, Guid? userId, int paymentTermDays = 0)
     {
         var delivery = new Delivery(Guid.CreateVersion7())
         {
@@ -52,11 +61,11 @@ public sealed class Delivery : Entity<Guid>
             UserId = userId,
         };
 
-        var result = delivery.UpdateHeader(supplierId, invoiceNo, invoiceDate);
+        var result = delivery.UpdateHeader(supplierId, invoiceNo, invoiceDate, paymentTermDays);
         return result.IsSuccess ? Result.Success(delivery) : Result.Failure<Delivery>(result.Error);
     }
 
-    public Result UpdateHeader(Guid supplierId, string invoiceNo, DateOnly invoiceDate)
+    public Result UpdateHeader(Guid supplierId, string invoiceNo, DateOnly invoiceDate, int paymentTermDays)
     {
         if (Status != DeliveryStatus.Draft)
         {
@@ -74,9 +83,15 @@ public sealed class Delivery : Entity<Guid>
             return Result.Failure(DeliveryErrors.InvoiceNoTooLong);
         }
 
+        if (paymentTermDays is < 0 or > DeliveryErrors.MaxPaymentTermDays)
+        {
+            return Result.Failure(DeliveryErrors.InvalidPaymentTerm);
+        }
+
         SupplierId = supplierId;
         InvoiceNo = trimmed;
         InvoiceDate = invoiceDate;
+        PaymentTermDays = paymentTermDays;
         return Result.Success();
     }
 
@@ -162,6 +177,11 @@ public sealed class Delivery : Entity<Guid>
         if (line.UnitPurchasePrice < 0)
         {
             return DeliveryErrors.InvalidPurchasePrice(number);
+        }
+
+        if (line.SupplierDiscountPercent is < 0 or > 100)
+        {
+            return DeliveryErrors.InvalidSupplierDiscount(number);
         }
 
         if (line.MarkupPercent < 0)

@@ -15,6 +15,15 @@ public sealed class DeliveryFormModel
 
     public DateOnly InvoiceDate { get; set; }
 
+    /// <summary>Складова разписка №; 0 until the draft is first saved.</summary>
+    public long Number { get; private set; }
+
+    /// <summary>Days to pay; the supplier's term until changed.</summary>
+    public int PaymentTermDays { get; set; }
+
+    /// <summary>Падеж.</summary>
+    public DateOnly DueDate => InvoiceDate.AddDays(PaymentTermDays);
+
     public DeliveryStatus Status { get; private set; } = DeliveryStatus.Draft;
 
     public bool IsReadOnly => Status == DeliveryStatus.Posted;
@@ -35,6 +44,8 @@ public sealed class DeliveryFormModel
             SupplierId = view.SupplierId.ToString(),
             InvoiceNo = view.InvoiceNo,
             InvoiceDate = view.InvoiceDate,
+            Number = view.Number,
+            PaymentTermDays = view.PaymentTermDays,
             Status = view.Status,
         };
 
@@ -48,6 +59,7 @@ public sealed class DeliveryFormModel
             UnitId = l.ProductUnitId.ToString(),
             Quantity = l.Quantity,
             UnitPurchasePrice = l.UnitPurchasePrice,
+            SupplierDiscountPercent = l.SupplierDiscountPercent,
             MarkupPercent = l.MarkupPercent,
             SalePrice = l.SalePrice,
             BatchNo = l.BatchNo,
@@ -69,7 +81,9 @@ public sealed class DeliveryFormModel
             l.MarkupPercent,
             l.SalePrice,
             l.BatchNo,
-            l.ExpiryDate)).ToList());
+            l.ExpiryDate,
+            l.SupplierDiscountPercent)).ToList(),
+        PaymentTermDays);
 
     /// <summary>A copy of a line for the entry form (F6 edits a copy; it replaces the line only on Enter).</summary>
     public static LineRow Copy(LineRow line) => new()
@@ -82,6 +96,7 @@ public sealed class DeliveryFormModel
         UnitId = line.UnitId,
         Quantity = line.Quantity,
         UnitPurchasePrice = line.UnitPurchasePrice,
+        SupplierDiscountPercent = line.SupplierDiscountPercent,
         MarkupPercent = line.MarkupPercent,
         SalePrice = line.SalePrice,
         BatchNo = line.BatchNo,
@@ -127,6 +142,13 @@ public sealed class DeliveryFormModel
 
         public decimal UnitPurchasePrice { get; set; }
 
+        /// <summary>Отстъпка ТЕ %.</summary>
+        public decimal SupplierDiscountPercent { get; set; }
+
+        /// <summary>Покупна цена: Цена ТЕ less the discount (same rounding as the domain).</summary>
+        public decimal NetUnitPurchasePrice =>
+            UnitPrice.Of(Math.Max(0, UnitPurchasePrice) * (1 - (Math.Clamp(SupplierDiscountPercent, 0, 100) / 100m))).Amount;
+
         public decimal? MarkupPercent { get; set; }
 
         public decimal SalePrice { get; set; }
@@ -135,14 +157,14 @@ public sealed class DeliveryFormModel
 
         public DateOnly ExpiryDate { get; set; }
 
-        public Money PurchaseTotal => UnitPrice.Of(Math.Max(0, UnitPurchasePrice)).Times(Math.Max(0, Quantity));
+        public Money PurchaseTotal => UnitPrice.Of(NetUnitPurchasePrice).Times(Math.Max(0, Quantity));
 
         /// <summary>With a markup, the sale price follows the purchase price; typing a sale price clears the markup.</summary>
         public void ApplyMarkup()
         {
-            if (MarkupPercent is { } markup && UnitPurchasePrice > 0)
+            if (MarkupPercent is { } markup && NetUnitPurchasePrice > 0)
             {
-                SalePrice = SalePriceCalculator.FromMarkup(UnitPurchasePrice, markup, VatRate);
+                SalePrice = SalePriceCalculator.FromMarkup(NetUnitPurchasePrice, markup, VatRate);
             }
         }
     }

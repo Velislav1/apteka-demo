@@ -32,7 +32,7 @@ public sealed class PostDeliveryHandler(
 
         // Products may have been deactivated since the draft was saved.
         var inputs = delivery.Lines
-            .Select(l => new DeliveryLineInput(l.Id, l.ProductId, l.ProductUnitId, l.Quantity, l.UnitPurchasePrice, l.MarkupPercent, l.SalePrice, l.BatchNo, l.ExpiryDate))
+            .Select(l => new DeliveryLineInput(l.Id, l.ProductId, l.ProductUnitId, l.Quantity, l.UnitPurchasePrice, l.MarkupPercent, l.SalePrice, l.BatchNo, l.ExpiryDate, l.SupplierDiscountPercent))
             .ToList();
         var checkedLines = await DeliveryLineRules.ToSpecsAsync(inputs, catalog, cancellationToken);
         if (checkedLines.IsFailure)
@@ -57,7 +57,7 @@ public sealed class PostDeliveryHandler(
                 l.BatchNo,
                 l.ExpiryDate,
                 l.BaseQuantity,
-                UnitPrice.Of(l.UnitPurchasePrice).PerBaseUnit(l.UnitFactor).Amount,
+                UnitPrice.Of(l.NetUnitPurchasePrice).PerBaseUnit(l.UnitFactor).Amount,
                 l.UnitFactor,
                 l.SalePrice)).ToList());
 

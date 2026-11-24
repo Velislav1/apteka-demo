@@ -23,6 +23,8 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("delivery_numbers", "purchasing");
+
             modelBuilder.Entity("Apteka.Purchasing.Domain.Deliveries.Delivery", b =>
                 {
                     b.Property<Guid>("Id")
@@ -38,6 +40,16 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
                         .HasColumnName("invoice_no");
+
+                    b.Property<long>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('purchasing.delivery_numbers')");
+
+                    b.Property<int>("PaymentTermDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("payment_term_days");
 
                     b.Property<DateTimeOffset?>("PostedAt")
                         .HasColumnType("timestamp with time zone")
@@ -63,6 +75,10 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_deliveries");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_deliveries_number");
 
                     b.HasIndex("ReceivedAt")
                         .HasDatabaseName("ix_deliveries_received_at");
@@ -123,6 +139,11 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
                         .HasPrecision(12, 4)
                         .HasColumnType("numeric(12,4)")
                         .HasColumnName("sale_price");
+
+                    b.Property<decimal>("SupplierDiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("supplier_discount_percent");
 
                     b.Property<int>("UnitFactor")
                         .HasColumnType("integer")

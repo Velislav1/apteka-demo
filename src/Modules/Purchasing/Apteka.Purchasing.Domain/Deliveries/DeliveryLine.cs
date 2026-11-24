@@ -36,8 +36,14 @@ public sealed class DeliveryLine : Entity<Guid>
     /// <summary>Quantity in <see cref="ProductUnitId"/>.</summary>
     public int Quantity { get; private set; }
 
-    /// <summary>Purchase price of one unit, without VAT (as on the invoice).</summary>
+    /// <summary>Цена ТЕ: the wholesaler's price of one unit, without VAT, before the discount (as on the invoice).</summary>
     public decimal UnitPurchasePrice { get; private set; }
+
+    /// <summary>Отстъпка ТЕ %: the wholesaler's discount on this line.</summary>
+    public decimal SupplierDiscountPercent { get; private set; }
+
+    /// <summary>Покупна цена: what one unit really costs, without VAT (price − discount, „математически“ method).</summary>
+    public decimal NetUnitPurchasePrice => UnitPrice.Of(UnitPurchasePrice * (1 - (SupplierDiscountPercent / 100m))).Amount;
 
     public decimal? MarkupPercent { get; private set; }
 
@@ -52,7 +58,7 @@ public sealed class DeliveryLine : Entity<Guid>
 
     public int BaseQuantity => Quantity * UnitFactor;
 
-    public Money PurchaseTotal => UnitPrice.Of(UnitPurchasePrice).Times(Quantity);
+    public Money PurchaseTotal => UnitPrice.Of(NetUnitPurchasePrice).Times(Quantity);
 
     internal void Apply(DeliveryLineSpec spec, int position)
     {
@@ -62,6 +68,7 @@ public sealed class DeliveryLine : Entity<Guid>
         UnitFactor = spec.UnitFactor;
         Quantity = spec.Quantity;
         UnitPurchasePrice = UnitPrice.Of(spec.UnitPurchasePrice).Amount;
+        SupplierDiscountPercent = spec.SupplierDiscountPercent;
         MarkupPercent = spec.MarkupPercent;
         SalePrice = UnitPrice.Of(spec.SalePrice).Amount;
         BatchNo = spec.BatchNo.Trim();
@@ -82,4 +89,5 @@ public sealed record DeliveryLineSpec(
     decimal? MarkupPercent,
     decimal SalePrice,
     string BatchNo,
-    DateOnly ExpiryDate);
+    DateOnly ExpiryDate,
+    decimal SupplierDiscountPercent = 0m);

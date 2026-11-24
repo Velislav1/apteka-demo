@@ -25,6 +25,10 @@
 
 <h1>
   Складова разписка
+  @if (_model is { Number: > 0 })
+  {
+    <span>№ @_model.Number</span>
+  }
   @if (_model is not null && Id is not null)
   {
     <DeliveryStatusBadge Status="_model.Status" />
@@ -45,7 +49,7 @@ else if (_model is not null)
         <legend>Фактура</legend>
         <div class="form-grid">
           <label for="supplier">Доставчик</label>
-          <select id="supplier" @bind="_model.SupplierId">
+          <select id="supplier" @bind="_model.SupplierId" @bind:after="SupplierChanged">
             <option value="">— изберете —</option>
             @foreach (var supplier in _suppliers.Where(s => s.IsActive || s.Id.ToString() == _model.SupplierId))
             {
@@ -58,6 +62,12 @@ else if (_model is not null)
 
           <label for="invoicedate">Фактура дата</label>
           <input id="invoicedate" type="date" @bind="_model.InvoiceDate" />
+
+          <label for="paymentdays">Дни за плащане</label>
+          <input id="paymentdays" type="number" min="0" max="365" @bind="_model.PaymentTermDays" @bind:event="oninput" />
+
+          <span>Падеж</span>
+          <strong>@Formats.Date(_model.DueDate)</strong>
         </div>
         <div class="toolbar">
           <button @onclick="ConfirmHeader" disabled="@_busy">Потвърди</button>
@@ -78,6 +88,7 @@ else if (_model is not null)
         <div><span class="muted">Доставчик</span><strong>@SupplierName</strong></div>
         <div><span class="muted">Фактура №</span><strong>@_model.InvoiceNo</strong></div>
         <div><span class="muted">Фактура дата</span><strong>@Formats.Date(_model.InvoiceDate)</strong></div>
+        <div><span class="muted">Падеж</span><strong>@Formats.Date(_model.DueDate) (@_model.PaymentTermDays дни)</strong></div>
         @if (!_model.IsReadOnly)
         {
           <button class="secondary" @onclick="() => _editHeader = true">Промени</button>
@@ -122,6 +133,8 @@ else if (_model is not null)
                   </span>
                 </label>
                 <label>Цена ТЕ без ДДС<input type="number" min="0" step="0.0001" @bind="_line.UnitPurchasePrice" @bind:event="oninput" @bind:after="_line.ApplyMarkup" /></label>
+                <label>Отстъпка ТЕ %<input type="number" min="0" max="100" step="0.01" @bind="_line.SupplierDiscountPercent" @bind:event="oninput" @bind:after="_line.ApplyMarkup" /></label>
+                <label>Покупна цена<output>@Formats.Price(_line.NetUnitPurchasePrice)</output></label>
                 <label>Търг. надценка %<input type="number" min="0" step="0.01" @bind="_line.MarkupPercent" @bind:event="oninput" @bind:after="_line.ApplyMarkup" /></label>
                 <label>Продажна цена с ДДС<input type="number" min="0" step="0.01" @bind="_line.SalePrice" @bind:event="oninput" @bind:after="() => _line.MarkupPercent = null" /></label>
                 <label>Партида<input @bind="_line.BatchNo" @bind:event="oninput" maxlength="30" /></label>
@@ -174,7 +187,7 @@ else if (_model is not null)
           <thead>
             <tr>
               <th>№</th><th>Наименование</th><th>Партида</th><th>Годна до</th><th class="num">Кол.</th><th>Мярка</th>
-              <th class="num">Цена ТЕ</th><th class="num">Надц. %</th><th class="num">Прод. цена</th><th class="num">Сума</th>
+              <th class="num">Цена ТЕ</th><th class="num">Отст. %</th><th class="num">Покупна</th><th class="num">Надц. %</th><th class="num">Прод. цена</th><th class="num">Сума</th>
             </tr>
           </thead>
           <tbody>
@@ -190,6 +203,8 @@ else if (_model is not null)
                 <td class="num">@line.Quantity</td>
                 <td>@line.UnitName</td>
                 <td class="num">@Formats.Price(line.UnitPurchasePrice)</td>
+                <td class="num">@(line.SupplierDiscountPercent == 0 ? "" : line.SupplierDiscountPercent.ToString("0.##"))</td>
+                <td class="num">@Formats.Price(line.NetUnitPurchasePrice)</td>
                 <td class="num">@(line.MarkupPercent?.ToString("0.##"))</td>
                 <td class="num">@Formats.Euro(line.SalePrice)</td>
                 <td class="num">@line.PurchaseTotal</td>
@@ -270,8 +285,8 @@ else if (_model is not null)
 
   private string SupplierName => _suppliers.FirstOrDefault(s => s.Id.ToString() == _model?.SupplierId)?.Name ?? "—";
 
-  private string RealMarkup => _line is { UnitPurchasePrice: > 0 } line && line.SalePrice > 0
-    ? $"{(line.SalePrice / (1 + (line.VatRate / 100m)) / line.UnitPurchasePrice - 1) * 100m:0.##} %"
+  private string RealMarkup => _line is { NetUnitPurchasePrice: > 0 } line && line.SalePrice > 0
+    ? $"{(line.SalePrice / (1 + (line.VatRate / 100m)) / line.NetUnitPurchasePrice - 1) * 100m:0.##} %"
     : "—";
 
   protected override async Task OnParametersSetAsync()
@@ -368,6 +383,15 @@ else if (_model is not null)
       case "Escape" when _confirmPost:
         _confirmPost = false;
         break;
+    }
+  }
+
+  /// <summary>A new supplier brings its own payment term (it can still be changed by hand).</summary>
+  private void SupplierChanged()
+  {
+    if (_model is not null && _suppliers.FirstOrDefault(s => s.Id.ToString() == _model.SupplierId) is { } supplier)
+    {
+      _model.PaymentTermDays = supplier.PaymentTermDays;
     }
   }
 

@@ -99,7 +99,21 @@ public class DeliveryEditTests : BunitContext
         page.Find("input[step='0.0001']").Input("2.40");
 
         // 2,40 + 25 % markup + 20 % VAT = 3,60
-        Assert.Equal("3.60", page.FindAll(".line-grid input[type=number]")[3].GetAttribute("value"));
+        Assert.Equal("3.60", page.FindAll(".line-grid input[type=number]")[4].GetAttribute("value"));
+    }
+
+    [Fact]
+    public void Supplier_discount_lowers_the_purchase_price_and_the_suggested_sale_price()
+    {
+        var page = Open(Draft());
+
+        Scan(page, "2000000000015");
+        page.Find("input[step='0.0001']").Input("2.40");
+        page.Find(".line-grid input[max='100']").Input("10");
+
+        // 2,40 − 10 % = 2,16; + 25 % markup + 20 % VAT = 3,24
+        Assert.Equal("2,16 €", page.Find(".line-grid output").TextContent);
+        Assert.Equal("3.24", page.FindAll(".line-grid input[type=number]")[4].GetAttribute("value"));
     }
 
     [Fact]

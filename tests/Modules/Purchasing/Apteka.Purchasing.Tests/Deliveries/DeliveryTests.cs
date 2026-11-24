@@ -40,6 +40,39 @@ public class DeliveryTests
         Assert.Equal(Money.Of(12.58m), delivery.PurchaseTotal);
     }
 
+    [Fact]
+    public void Supplier_discount_lowers_the_purchase_price_and_the_total()
+    {
+        var delivery = Draft(Line(quantity: 3, factor: 30, purchase: 10.00m) with { SupplierDiscountPercent = 12.5m });
+
+        var line = delivery.Lines[0];
+        Assert.Equal(10.00m, line.UnitPurchasePrice);
+        Assert.Equal(8.7500m, line.NetUnitPurchasePrice);
+        Assert.Equal(Money.Of(26.25m), line.PurchaseTotal);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(100.01)]
+    public void Supplier_discount_outside_0_to_100_is_rejected(decimal discount)
+    {
+        var delivery = Delivery.Create(Guid.CreateVersion7(), "1", Today, Now, null).Value;
+
+        var result = delivery.SetLines([Line() with { SupplierDiscountPercent = discount }]);
+
+        Assert.Equal("purchasing.invalid_supplier_discount", result.Error.Code);
+    }
+
+    [Fact]
+    public void Due_date_is_the_invoice_date_plus_the_payment_term()
+    {
+        var delivery = Delivery.Create(Guid.CreateVersion7(), "1", Today, Now, null, paymentTermDays: 30).Value;
+
+        Assert.Equal(Today.AddDays(30), delivery.DueDate);
+        Assert.Equal(DeliveryErrors.InvalidPaymentTerm, delivery.UpdateHeader(delivery.SupplierId, "1", Today, -1).Error);
+        Assert.Equal(DeliveryErrors.InvalidPaymentTerm, Delivery.Create(Guid.CreateVersion7(), "1", Today, Now, null, 366).Error);
+    }
+
     [Theory]
     [InlineData(0, 4, 6, "L1", "purchasing.quantity_positive")]
     [InlineData(1, -1, 6, "L1", "purchasing.invalid_purchase_price")]
@@ -87,7 +120,7 @@ public class DeliveryTests
         Assert.Equal(DeliveryStatus.Posted, delivery.Status);
         Assert.Equal(Now, delivery.PostedAt);
         Assert.Equal(DeliveryErrors.NotDraft, delivery.SetLines([Line()]).Error);
-        Assert.Equal(DeliveryErrors.NotDraft, delivery.UpdateHeader(delivery.SupplierId, "2", Today).Error);
+        Assert.Equal(DeliveryErrors.NotDraft, delivery.UpdateHeader(delivery.SupplierId, "2", Today, 0).Error);
         Assert.Equal(DeliveryErrors.NotDraft, delivery.Post(Today, Now).Error);
     }
 

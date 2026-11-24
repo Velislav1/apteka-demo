@@ -23,6 +23,8 @@ public sealed class SaveDeliveryDraftHandler(
     {
         Delivery delivery;
         Guid? previousSupplier = null;
+        var supplier = await suppliers.GetAsync(input.SupplierId, cancellationToken);
+        var paymentTermDays = input.PaymentTermDays ?? supplier?.PaymentTermDays ?? 0;
 
         if (id is { } existingId)
         {
@@ -34,7 +36,7 @@ public sealed class SaveDeliveryDraftHandler(
 
             delivery = found;
             previousSupplier = delivery.SupplierId;
-            var header = delivery.UpdateHeader(input.SupplierId, input.InvoiceNo, input.InvoiceDate);
+            var header = delivery.UpdateHeader(input.SupplierId, input.InvoiceNo, input.InvoiceDate, paymentTermDays);
             if (header.IsFailure)
             {
                 return Result.Failure<Guid>(header.Error);
@@ -42,7 +44,7 @@ public sealed class SaveDeliveryDraftHandler(
         }
         else
         {
-            var created = Delivery.Create(input.SupplierId, input.InvoiceNo, input.InvoiceDate, clock.GetUtcNow(), currentUser.UserId);
+            var created = Delivery.Create(input.SupplierId, input.InvoiceNo, input.InvoiceDate, clock.GetUtcNow(), currentUser.UserId, paymentTermDays);
             if (created.IsFailure)
             {
                 return Result.Failure<Guid>(created.Error);
@@ -53,7 +55,6 @@ public sealed class SaveDeliveryDraftHandler(
 
         if (input.SupplierId != previousSupplier)
         {
-            var supplier = await suppliers.GetAsync(input.SupplierId, cancellationToken);
             if (supplier is not { IsActive: true })
             {
                 return Result.Failure<Guid>(SupplierErrors.NotAvailable);
@@ -123,7 +124,8 @@ internal static class DeliveryLineRules
                 line.MarkupPercent,
                 line.SalePrice,
                 line.BatchNo,
-                line.ExpiryDate));
+                line.ExpiryDate,
+                line.SupplierDiscountPercent));
         }
 
         return Result.Success(specs);

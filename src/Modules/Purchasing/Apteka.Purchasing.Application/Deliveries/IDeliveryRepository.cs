@@ -20,6 +20,7 @@ public interface IDeliveryRepository
 
 public sealed record DeliveryListItem(
     Guid Id,
+    long Number,
     string SupplierName,
     string InvoiceNo,
     DateOnly InvoiceDate,
