@@ -32,6 +32,31 @@ public class CodesAndMarkupsTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Active_substance_is_stored_and_searched_and_the_list_filters_by_activity()
+    {
+        await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);
+        var substance = CatalogInputs.UniqueName("Substantia");
+        Guid active, inactive;
+
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var create = scope.ServiceProvider.GetRequiredService<CreateProductHandler>();
+            active = (await create.HandleAsync(CatalogInputs.Tablets(CatalogInputs.UniqueName("Вещество А"), TestBarcodes.Next()) with { ActiveSubstance = substance }, Ct)).Value;
+            inactive = (await create.HandleAsync(CatalogInputs.Tablets(CatalogInputs.UniqueName("Вещество Б"), TestBarcodes.Next()) with { ActiveSubstance = substance, IsActive = false }, Ct)).Value;
+        }
+
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            Assert.Equal(substance, (await scope.ServiceProvider.GetRequiredService<GetProductHandler>().HandleAsync(active, Ct))!.ActiveSubstance);
+
+            var search = scope.ServiceProvider.GetRequiredService<SearchProductsHandler>();
+            Assert.Equal([active], (await search.HandleAsync(substance, true, Ct)).Select(p => p.Id));
+            Assert.Equal([inactive], (await search.HandleAsync(substance, false, Ct)).Select(p => p.Id));
+            Assert.Equal(2, (await search.HandleAsync(substance, null, Ct)).Count);
+        }
+    }
+
+    [Fact]
     public async Task Markup_is_the_products_else_the_groups_else_25_percent()
     {
         await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);

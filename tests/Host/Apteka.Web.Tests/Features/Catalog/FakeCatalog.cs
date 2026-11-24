@@ -12,10 +12,11 @@ internal sealed class FakeProductQueries : IProductQueries
 
     public List<string?> Searches { get; } = [];
 
-    public Task<IReadOnlyList<ProductListItem>> SearchAsync(string? text, int limit, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<ProductListItem>> SearchAsync(string? text, int limit, CancellationToken cancellationToken, bool? active = null)
     {
         Searches.Add(text);
         IReadOnlyList<ProductListItem> result = Items
+            .Where(i => active is null || i.IsActive == active)
             .Where(i => text is null || i.Name.Contains(text, StringComparison.CurrentCultureIgnoreCase) || i.Barcodes.Contains(text))
             .ToList();
         return Task.FromResult(result);

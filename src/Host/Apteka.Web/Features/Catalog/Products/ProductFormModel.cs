@@ -15,6 +15,8 @@ public sealed class ProductFormModel
 
     public string? GenericName { get; set; }
 
+    public string? ActiveSubstance { get; set; }
+
     public decimal? MarkupPercent { get; set; }
 
     public int? MinStock { get; set; }
@@ -61,6 +63,7 @@ public sealed class ProductFormModel
             Name = view.Name,
             LatinName = view.LatinName,
             GenericName = view.GenericName,
+            ActiveSubstance = view.ActiveSubstance,
             MarkupPercent = view.MarkupPercent,
             MinStock = view.MinStock,
             MaxStock = view.MaxStock,
@@ -97,7 +100,8 @@ public sealed class ProductFormModel
         GenericName,
         MarkupPercent,
         MinStock,
-        MaxStock);
+        MaxStock,
+        ActiveSubstance);
 
     private static Guid? ParseId(string value) => Guid.TryParse(value, out var id) ? id : null;
 

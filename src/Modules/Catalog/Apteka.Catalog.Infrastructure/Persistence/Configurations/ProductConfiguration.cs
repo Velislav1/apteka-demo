@@ -23,6 +23,7 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.HasIndex(p => p.Code).IsUnique();
         builder.Property(p => p.LatinName).HasMaxLength(CatalogErrors.MaxNameLength);
         builder.Property(p => p.GenericName).HasMaxLength(CatalogErrors.MaxNameLength);
+        builder.Property(p => p.ActiveSubstance).HasMaxLength(CatalogErrors.MaxNameLength);
         builder.Property(p => p.MarkupPercent).HasPrecision(7, 2);
         builder.Property(p => p.AtcCode).HasMaxLength(7);
         builder.Property(p => p.DispensingMode).HasConversion<string>().HasMaxLength(20);

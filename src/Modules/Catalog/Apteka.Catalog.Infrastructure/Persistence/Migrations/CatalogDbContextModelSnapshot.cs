@@ -124,6 +124,11 @@ namespace Apteka.Catalog.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("ActiveSubstance")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("active_substance");
+
                     b.Property<string>("AtcCode")
                         .HasMaxLength(7)
                         .HasColumnType("character varying(7)")

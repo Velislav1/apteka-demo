@@ -7,9 +7,9 @@ public interface IProductQueries
 {
     /// <summary>
     /// Products whose name contains <paramref name="text"/> (case-insensitive), or that have exactly this barcode or code.
-    /// Empty text returns the first products by name.
+    /// Empty text returns the first products by name. <paramref name="active"/>: true only active, false only inactive, null all.
     /// </summary>
-    Task<IReadOnlyList<ProductListItem>> SearchAsync(string? text, int limit, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ProductListItem>> SearchAsync(string? text, int limit, CancellationToken cancellationToken, bool? active = null);
 
     Task<ProductView?> GetAsync(Guid id, CancellationToken cancellationToken);
 }
@@ -45,7 +45,8 @@ public sealed record ProductView(
     string? GenericName = null,
     decimal? MarkupPercent = null,
     int? MinStock = null,
-    int? MaxStock = null);
+    int? MaxStock = null,
+    string? ActiveSubstance = null);
 
 public sealed record ProductUnitView(Guid Id, string Name, int Factor);
 

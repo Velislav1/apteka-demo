@@ -8,6 +8,7 @@ namespace Apteka.Catalog.Domain.Products;
 /// <param name="MarkupPercent">Trade markup of this product; null means the group's (then the default).</param>
 /// <param name="MinStock">Minimum stock in base units (for a „below minimum“ report later).</param>
 /// <param name="MaxStock">Maximum stock in base units.</param>
+/// <param name="ActiveSubstance">Active substance(s) (активно вещество), e.g. „Paracetamol 500 mg“.</param>
 public sealed record ProductDetails(
     string Name,
     string? AtcCode,
@@ -23,7 +24,8 @@ public sealed record ProductDetails(
     string? GenericName = null,
     decimal? MarkupPercent = null,
     int? MinStock = null,
-    int? MaxStock = null);
+    int? MaxStock = null,
+    string? ActiveSubstance = null);
 
 /// <summary>A unit as requested by the user. <paramref name="Id"/> is null for a new unit.</summary>
 public sealed record UnitSpec(Guid? Id, string Name, int Factor);

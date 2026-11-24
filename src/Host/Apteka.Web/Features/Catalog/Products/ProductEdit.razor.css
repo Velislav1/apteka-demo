@@ -1,3 +1,4 @@
 .product-code { font-size: 1.1rem; font-family: var(--font-mono); }
 .stock-limits { display: flex; align-items: center; gap: 0.5rem; }
 .stock-limits input { width: 7rem; }
+h1 .product-code { margin-left: 0.5rem; color: var(--text-muted); font-weight: 500; }

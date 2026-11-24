@@ -303,3 +303,14 @@ kbd {
 .segmented button { border-radius: 0; }
 .segmented button:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
 .segmented button:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-left: -1px; }
+
+/* Tabs (as the card sections of Apteka Expert 2). */
+.tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; flex-wrap: wrap; }
+.tabs button { background: transparent; color: var(--text-muted); border: 1px solid transparent; border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0; margin-bottom: -1px; box-shadow: none; }
+.tabs button:hover { background: var(--surface-muted); color: var(--text); }
+.tabs button.active { background: var(--surface); color: var(--primary); border-color: var(--border); font-weight: 600; }
+.tabs kbd { margin-left: 0.35rem; }
+
+/* The chosen row of a list (↑/↓, F6 opens it). */
+table.grid tr.selected > td { background: color-mix(in srgb, var(--primary-soft) 60%, transparent); }

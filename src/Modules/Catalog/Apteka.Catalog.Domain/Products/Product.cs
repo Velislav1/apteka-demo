@@ -33,6 +33,9 @@ public sealed partial class Product : Entity<Guid>
 
     public string? GenericName { get; private set; }
 
+    /// <summary>Активно вещество.</summary>
+    public string? ActiveSubstance { get; private set; }
+
     /// <summary>Trade markup of this product (търговска надценка); null means the group's.</summary>
     public decimal? MarkupPercent { get; private set; }
 
@@ -107,6 +110,7 @@ public sealed partial class Product : Entity<Guid>
         NhifCode = normalized.NhifCode;
         LatinName = normalized.LatinName;
         GenericName = normalized.GenericName;
+        ActiveSubstance = normalized.ActiveSubstance;
         MarkupPercent = normalized.MarkupPercent;
         MinStock = normalized.MinStock;
         MaxStock = normalized.MaxStock;
@@ -129,6 +133,7 @@ public sealed partial class Product : Entity<Guid>
         DefaultSaleUnitName = string.IsNullOrWhiteSpace(details.DefaultSaleUnitName) ? null : details.DefaultSaleUnitName.Trim(),
         LatinName = string.IsNullOrWhiteSpace(details.LatinName) ? null : details.LatinName.Trim(),
         GenericName = string.IsNullOrWhiteSpace(details.GenericName) ? null : details.GenericName.Trim(),
+        ActiveSubstance = string.IsNullOrWhiteSpace(details.ActiveSubstance) ? null : details.ActiveSubstance.Trim(),
     };
 
     private static Error? ValidateDetails(ProductDetails details)
@@ -143,7 +148,8 @@ public sealed partial class Product : Entity<Guid>
             return CatalogErrors.NameTooLong;
         }
 
-        if (details.LatinName is { Length: > CatalogErrors.MaxNameLength } || details.GenericName is { Length: > CatalogErrors.MaxNameLength })
+        if (details.LatinName is { Length: > CatalogErrors.MaxNameLength } || details.GenericName is { Length: > CatalogErrors.MaxNameLength }
+            || details.ActiveSubstance is { Length: > CatalogErrors.MaxNameLength })
         {
             return CatalogErrors.NameTooLong;
         }

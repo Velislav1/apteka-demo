@@ -6,15 +6,22 @@
 
 <PageTitle>Номенклатура</PageTitle>
 
-<ListKeys OnAdd="@(() => Navigation.NavigateTo("catalog/new"))" />
+<ListKeys OnAdd="@(() => Navigation.NavigateTo("catalog/new"))" OnEdit="EditSelected" />
 
 <h1>Номенклатура на стоките</h1>
 
 <div class="toolbar">
-  <input type="search" placeholder="Търсене по код, име или баркод" aria-label="Търсене"
-         @bind="_query" @bind:event="oninput" @onkeydown="OnKeyDown" />
+  <input type="search" placeholder="Търсене по код, име, вещество или баркод" aria-label="Търсене"
+         @bind="_query" @bind:event="oninput" @onkeydown="OnKeyDown" autofocus />
   <button @onclick="RunSearch">Търси</button>
   <a class="button" href="catalog/new"><Icon Name="plus" /> Добави <kbd>F5</kbd></a>
+  <button class="secondary" @onclick="EditSelected" disabled="@(Selected is null)">Редактирай <kbd>F6</kbd></button>
+  <div class="segmented" role="group" aria-label="Активност">
+    @foreach (var (value, label) in Filters)
+    {
+      <button class="@(_active == value ? null : "secondary")" @onclick="() => SetFilter(value)">@label</button>
+    }
+  </div>
 </div>
 
 @if (_items is null)
@@ -41,9 +48,9 @@ else
       </tr>
     </thead>
     <tbody>
-      @foreach (var item in _items)
+      @foreach (var (item, index) in _items.Select((item, index) => (item, index)))
       {
-        <tr class="@(item.IsActive ? null : "inactive")">
+        <tr class="@(item.IsActive ? null : "inactive") @(index == _selected ? "selected" : null)" @onclick="() => _selected = index">
           <td class="num">@item.Code</td>
           <td>
             <a href="catalog/@item.Id">@item.Name</a>
@@ -70,18 +77,52 @@ else
 }
 
 @code {
+  private static readonly (bool? Value, string Label)[] Filters = [(true, "Активни"), (false, "Неактивни"), (null, "Всички")];
+
   private string? _query;
+  private bool? _active = true;
+  private int _selected;
   private IReadOnlyList<ProductListItem>? _items;
+
+  private ProductListItem? Selected => _items is { Count: > 0 } items ? items[Math.Clamp(_selected, 0, items.Count - 1)] : null;
 
   protected override Task OnInitializedAsync() => RunSearch();
 
-  private async Task RunSearch() => _items = await Search.HandleAsync(_query);
+  private async Task RunSearch()
+  {
+    _items = await Search.HandleAsync(_query, _active);
+    _selected = 0;
+  }
 
+  private Task SetFilter(bool? active)
+  {
+    _active = active;
+    return RunSearch();
+  }
+
+  /// <summary>F6 (or Enter on an unchanged search): open the selected product.</summary>
+  private void EditSelected()
+  {
+    if (Selected is { } item)
+    {
+      Navigation.NavigateTo($"catalog/{item.Id}");
+    }
+  }
+
+  /// <summary>Typing searches on Enter; ↑/↓ choose the row for F6.</summary>
   private async Task OnKeyDown(KeyboardEventArgs e)
   {
-    if (e.Key == "Enter")
+    switch (e.Key)
     {
-      await RunSearch();
+      case "Enter":
+        await RunSearch();
+        break;
+      case "ArrowDown" when _items is { Count: > 0 }:
+        _selected = Math.Min(_selected + 1, _items.Count - 1);
+        break;
+      case "ArrowUp":
+        _selected = Math.Max(_selected - 1, 0);
+        break;
     }
   }
 }

@@ -20,11 +20,12 @@ public sealed record ProductInput(
     string? GenericName = null,
     decimal? MarkupPercent = null,
     int? MinStock = null,
-    int? MaxStock = null)
+    int? MaxStock = null,
+    string? ActiveSubstance = null)
 {
     internal ProductDetails ToDetails() =>
         new(Name, AtcCode, DispensingMode, VatRate, IsActive, NhifCode, ManufacturerId, ProductGroupId, ShelfId, DefaultSaleUnitName,
-            LatinName, GenericName, MarkupPercent, MinStock, MaxStock);
+            LatinName, GenericName, MarkupPercent, MinStock, MaxStock, ActiveSubstance);
 
     internal List<UnitSpec> ToUnitSpecs() => Units.Select(u => new UnitSpec(u.Id, u.Name, u.Factor)).ToList();
 

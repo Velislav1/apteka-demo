@@ -2,10 +2,13 @@
 @using Microsoft.JSInterop
 @inject IJSRuntime JS
 
-@* F5 = „Добави“ in lists, as in Apteka Expert 2 (the browser's reload on F5 is blocked on these screens). *@
+@* F5 = „Добави“, F6 = „Редактирай“ in lists, as in Apteka Expert 2 (the browser's reload on F5 is blocked on these screens). *@
 
 @code {
   [Parameter, EditorRequired] public EventCallback OnAdd { get; set; }
+
+  /// <summary>F6; lists without editing leave it unset.</summary>
+  [Parameter] public EventCallback OnEdit { get; set; }
 
   private IJSObjectReference? _module;
   private DotNetObjectReference<ListKeys>? _self;
@@ -27,7 +30,12 @@
   }
 
   [JSInvokable]
-  public Task OnKey(string key) => key == "F5" ? OnAdd.InvokeAsync() : Task.CompletedTask;
+  public Task OnKey(string key) => key switch
+  {
+    "F5" => OnAdd.InvokeAsync(),
+    "F6" when OnEdit.HasDelegate => OnEdit.InvokeAsync(),
+    _ => Task.CompletedTask,
+  };
 
   public async ValueTask DisposeAsync()
   {

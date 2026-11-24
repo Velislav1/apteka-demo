@@ -6,6 +6,7 @@
 @using Apteka.Catalog.Application.Products
 @using Apteka.Catalog.Application.Shelves
 @using Apteka.Catalog.Domain.Products
+@using Microsoft.JSInterop
 @inject GetProductHandler GetProduct
 @inject ManufacturersHandler Manufacturers
 @inject ProductGroupsHandler Groups
@@ -13,10 +14,14 @@
 @inject CreateProductHandler CreateProduct
 @inject UpdateProductHandler UpdateProduct
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <PageTitle>@Title</PageTitle>
 
-<h1>@Title</h1>
+<h1>@Title @if (_model is { Code: > 0 }) { <span class="product-code">№ @_model.Code</span> }</h1>
+
+@* „Данни за стоката“ as in Apteka Expert 2: the card is split in tabs; F11 opens „Мерки“. *@
 
 @if (_notFound)
 {
@@ -25,15 +30,25 @@
 }
 else if (_model is not null)
 {
+  <div class="tabs" role="tablist" aria-label="Данни за стоката">
+    @foreach (var (tab, label) in Tabs)
+    {
+      <button id="tab-@tab" role="tab" aria-selected="@(_tab == tab ? "true" : "false")"
+              class="@(_tab == tab ? "active" : null)" @onclick="() => _tab = tab">
+        @label
+        @if (tab == Tab.Units)
+        {
+          <kbd>F11</kbd>
+        }
+      </button>
+    }
+  </div>
+
+  @if (_tab == Tab.Main)
+  {
   <fieldset>
     <legend>Основни данни</legend>
     <div class="form-grid">
-      @if (_model.Code > 0)
-      {
-        <label>Код</label>
-        <strong class="product-code">@_model.Code</strong>
-      }
-
       <label for="name">Наименование (кир.)</label>
       <input id="name" @bind="_model.Name" maxlength="200" />
 
@@ -42,6 +57,9 @@ else if (_model is not null)
 
       <label for="generic">Генерика</label>
       <input id="generic" @bind="_model.GenericName" maxlength="200" placeholder="напр. Paracetamol" />
+
+      <label for="substance">Активно вещество</label>
+      <input id="substance" @bind="_model.ActiveSubstance" maxlength="200" placeholder="напр. Paracetamol 500 mg" />
 
       <label for="manufacturer">Производител</label>
       <select id="manufacturer" @bind="_model.ManufacturerId">
@@ -91,6 +109,16 @@ else if (_model is not null)
         <option value="0">0 %</option>
       </select>
 
+      <label for="active">Активна</label>
+      <input id="active" type="checkbox" @bind="_model.IsActive" />
+    </div>
+  </fieldset>
+  }
+  else if (_tab == Tab.Prices)
+  {
+  <fieldset>
+    <legend>Цени и запаси</legend>
+    <div class="form-grid">
       <label for="markup">Търг. надценка %</label>
       <input id="markup" type="number" min="0" step="0.01" @bind="_model.MarkupPercent" placeholder="празно — по групата" />
 
@@ -110,12 +138,12 @@ else if (_model is not null)
           <option value="@unit.Name">@unit.Name</option>
         }
       </select>
-
-      <label for="active">Активна</label>
-      <input id="active" type="checkbox" @bind="_model.IsActive" />
     </div>
+    <p class="muted">Без надценка на стоката се ползва надценката на групата, а без нея — @CatalogErrors.DefaultMarkupPercent.ToString("0.##") %.</p>
   </fieldset>
-
+  }
+  else if (_tab == Tab.Units)
+  {
   <fieldset>
     <legend>Мерки</legend>
     <p class="muted">Коефициент = брой от най-малката мярка. Точно една мярка има коефициент 1.</p>
@@ -141,7 +169,9 @@ else if (_model is not null)
     </table>
     <button class="secondary" @onclick="AddUnit">Добави мярка</button>
   </fieldset>
-
+  }
+  else
+  {
   <fieldset>
     <legend>Баркодове</legend>
     <table class="grid">
@@ -171,6 +201,7 @@ else if (_model is not null)
     </table>
     <button class="secondary" @onclick="AddBarcode">Добави баркод</button>
   </fieldset>
+  }
 
   @if (_error is not null)
   {
@@ -189,6 +220,14 @@ else if (_model is not null)
 
 @code {
   [Parameter] public Guid? Id { get; set; }
+
+  private enum Tab { Main, Prices, Units, Barcodes }
+
+  private static readonly (Tab Tab, string Label)[] Tabs =
+    [(Tab.Main, "Основни данни"), (Tab.Prices, "Цени и запаси"), (Tab.Units, "Мерки"), (Tab.Barcodes, "Баркодове")];
+
+  private Tab _tab = Tab.Main;
+  private IJSObjectReference? _module;
 
   private ProductFormModel? _model;
   private IReadOnlyList<ReferenceItemView> _manufacturers = [];
@@ -218,6 +257,36 @@ else if (_model is not null)
     var view = await GetProduct.HandleAsync(id);
     _notFound = view is null;
     _model = view is null ? null : ProductFormModel.From(view);
+  }
+
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (firstRender)
+    {
+      try
+      {
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./Features/Catalog/Products/ProductEdit.razor.js");
+        await _module.InvokeVoidAsync("start");
+      }
+      catch (JSDisconnectedException)
+      {
+      }
+    }
+  }
+
+  public async ValueTask DisposeAsync()
+  {
+    if (_module is not null)
+    {
+      try
+      {
+        await _module.InvokeVoidAsync("stop");
+        await _module.DisposeAsync();
+      }
+      catch (JSDisconnectedException)
+      {
+      }
+    }
   }
 
   /// <summary>Active items, plus the selected one even if it was deactivated since.</summary>

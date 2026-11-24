@@ -5,9 +5,13 @@ namespace Apteka.Catalog.Infrastructure.Products;
 
 internal sealed class ProductQueries(CatalogDbContext context) : IProductQueries
 {
-    public async Task<IReadOnlyList<ProductListItem>> SearchAsync(string? text, int limit, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ProductListItem>> SearchAsync(string? text, int limit, CancellationToken cancellationToken, bool? active = null)
     {
         var products = context.Products.AsNoTracking();
+        if (active is { } onlyActive)
+        {
+            products = products.Where(p => p.IsActive == onlyActive);
+        }
 
         if (text is not null)
         {
@@ -17,6 +21,7 @@ internal sealed class ProductQueries(CatalogDbContext context) : IProductQueries
                 EF.Functions.ILike(p.Name, pattern, "\\")
                 || (p.LatinName != null && EF.Functions.ILike(p.LatinName, pattern, "\\"))
                 || (p.GenericName != null && EF.Functions.ILike(p.GenericName, pattern, "\\"))
+                || (p.ActiveSubstance != null && EF.Functions.ILike(p.ActiveSubstance, pattern, "\\"))
                 || p.Barcodes.Any(b => b.Code == text)
                 || p.Code == code);
         }
@@ -77,7 +82,8 @@ internal sealed class ProductQueries(CatalogDbContext context) : IProductQueries
             product.GenericName,
             product.MarkupPercent,
             product.MinStock,
-            product.MaxStock);
+            product.MaxStock,
+            product.ActiveSubstance);
     }
 
     private static string EscapeLike(string text) =>

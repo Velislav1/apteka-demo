@@ -2,9 +2,9 @@ let handler;
 
 export function start(dotNet) {
   handler = (event) => {
-    if (event.key === "F5" && !event.ctrlKey && !event.altKey) {
+    if ((event.key === "F5" || event.key === "F6") && !event.ctrlKey && !event.altKey) {
       event.preventDefault();
-      dotNet.invokeMethodAsync("OnKey", "F5");
+      dotNet.invokeMethodAsync("OnKey", event.key);
     }
   };
   document.addEventListener("keydown", handler, true);

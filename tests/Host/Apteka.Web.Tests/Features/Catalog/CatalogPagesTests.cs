@@ -46,9 +46,12 @@ public class CatalogPagesTests : BunitContext
     }
 
     [Fact]
-    public void Product_list_shows_all_products_with_Rx_and_inactive_marks()
+    public void Product_list_shows_active_products_and_with_All_the_inactive_ones_marked()
     {
         var page = Render<ProductList>();
+        Assert.Single(page.FindAll("tbody tr"));
+
+        page.FindAll(".segmented button").Single(b => b.TextContent == "Всички").Click();
 
         var rows = page.FindAll("tbody tr");
         Assert.Equal(2, rows.Count);
@@ -62,6 +65,7 @@ public class CatalogPagesTests : BunitContext
     public void Enter_in_the_search_box_searches_by_barcode()
     {
         var page = Render<ProductList>();
+        page.FindAll(".segmented button").Single(b => b.TextContent == "Неактивни").Click();
 
         var search = page.Find("input[type=search]");
         search.Input("2000000000022");
@@ -78,6 +82,7 @@ public class CatalogPagesTests : BunitContext
         var page = Render<ProductEdit>();
 
         page.Find("#name").Change("Нова стока");
+        page.Find("#tab-Units").Click();
         page.Find("tbody input[type=number]").Change("10");
         page.FindAll("button").Single(b => b.TextContent == "Запиши").Click();
 
@@ -115,9 +120,40 @@ public class CatalogPagesTests : BunitContext
         Assert.Equal("20", page.Find("#vat").GetAttribute("value"));
         Assert.Equal(manufacturer.Id.ToString(), page.Find("#manufacturer").GetAttribute("value"));
         Assert.Equal(nameof(DispensingMode.Narcotic), page.Find("#mode").GetAttribute("value"));
+        page.Find("#tab-Prices").Click();
         Assert.Equal("кутия", page.Find("#saleunit").GetAttribute("value"));
+        page.Find("#tab-Units").Click();
         Assert.All(page.FindAll("tbody input[type=number]"), i => Assert.True(i.HasAttribute("disabled")));
         Assert.Empty(page.FindAll("button.link"));
+    }
+
+    [Fact]
+    public void F6_opens_the_row_chosen_with_the_arrow_keys()
+    {
+        var page = Render<ProductList>(); // only the active product
+        _queries.Items[1] = _queries.Items[1] with { IsActive = true };
+        page.FindAll(".segmented button").Single(b => b.TextContent == "Активни").Click();
+
+        page.Find("input[type=search]").KeyDown("ArrowDown");
+        Assert.Contains("selected", page.FindAll("tbody tr")[1].ClassName);
+        page.FindAll("button").Single(b => b.TextContent.StartsWith("Редактирай", StringComparison.Ordinal)).Click();
+
+        Assert.EndsWith($"catalog/{_queries.Items[1].Id}", Services.GetRequiredService<NavigationManager>().Uri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Product_card_keeps_the_data_of_every_tab_when_switching_and_saves_the_active_substance()
+    {
+        var page = Render<ProductEdit>();
+
+        page.Find("#name").Change("Нова стока");
+        page.Find("#substance").Change("Paracetamol 500 mg");
+        page.Find("#tab-Barcodes").Click();
+        page.Find("#tab-Main").Click();
+        Assert.Equal("Paracetamol 500 mg", page.Find("#substance").GetAttribute("value"));
+        page.FindAll("button").Single(b => b.TextContent == "Запиши").Click();
+
+        Assert.Equal("Paracetamol 500 mg", Assert.Single(_repository.Added).ActiveSubstance);
     }
 
     [Fact]
