@@ -7,6 +7,8 @@ using Apteka.Sales.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
+using Apteka.IntegrationTests.Infrastructure;
+
 namespace Apteka.IntegrationTests;
 
 [Collection(PostgresCollection.Name)]

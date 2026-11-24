@@ -1,0 +1,241 @@
+using System.Text.RegularExpressions;
+using Apteka.SharedKernel;
+
+namespace Apteka.Catalog.Domain.Products;
+
+/// <summary>
+/// A medicine or other article. Owns its units and barcodes and guards their rules:
+/// exactly one base unit (Factor = 1), unique unit names, valid and unique barcodes.
+/// Nothing is removed: a product is deactivated, units and barcodes are corrected.
+/// </summary>
+public sealed partial class Product : Entity<Guid>
+{
+    private readonly List<ProductUnit> _units = [];
+    private readonly List<Barcode> _barcodes = [];
+
+    private Product()
+    {
+        Name = string.Empty;
+    }
+
+    private Product(Guid id)
+        : base(id)
+    {
+        Name = string.Empty;
+    }
+
+    public string Name { get; private set; }
+
+    public string? AtcCode { get; private set; }
+
+    public string? Manufacturer { get; private set; }
+
+    /// <summary>VAT in percent: 0, 9 or 20.</summary>
+    public decimal VatRate { get; private set; }
+
+    /// <summary>Sold only with a prescription.</summary>
+    public bool IsRx { get; private set; }
+
+    public bool IsActive { get; private set; }
+
+    public IReadOnlyList<ProductUnit> Units => _units;
+
+    public IReadOnlyList<Barcode> Barcodes => _barcodes;
+
+    public ProductUnit BaseUnit => _units.Single(u => u.IsBaseUnit);
+
+    public static Result<Product> Create(ProductDetails details, IReadOnlyList<UnitSpec> units, IReadOnlyList<BarcodeSpec> barcodes)
+    {
+        var product = new Product(Guid.CreateVersion7());
+        var result = product.Apply(details, units, barcodes);
+
+        return result.IsSuccess ? Result.Success(product) : Result.Failure<Product>(result.Error);
+    }
+
+    /// <summary>Replaces the details, units and barcodes with the requested ones. Nothing changes if validation fails.</summary>
+    public Result Update(ProductDetails details, IReadOnlyList<UnitSpec> units, IReadOnlyList<BarcodeSpec> barcodes) =>
+        Apply(details, units, barcodes);
+
+    private Result Apply(ProductDetails details, IReadOnlyList<UnitSpec> units, IReadOnlyList<BarcodeSpec> barcodes)
+    {
+        var normalized = Normalize(details);
+        var requestedUnits = units.Select(u => u with { Name = u.Name.Trim() }).ToList();
+        var requestedBarcodes = barcodes.Select(b => b with { Code = b.Code.Trim(), UnitName = b.UnitName.Trim() }).ToList();
+
+        var error = ValidateDetails(normalized) ?? ValidateUnits(requestedUnits) ?? ValidateBarcodes(requestedBarcodes, requestedUnits);
+        if (error is not null)
+        {
+            return Result.Failure(error);
+        }
+
+        Name = normalized.Name;
+        AtcCode = normalized.AtcCode;
+        Manufacturer = normalized.Manufacturer;
+        VatRate = normalized.VatRate;
+        IsRx = normalized.IsRx;
+        IsActive = normalized.IsActive;
+
+        ApplyUnits(requestedUnits);
+        ApplyBarcodes(requestedBarcodes);
+
+        return Result.Success();
+    }
+
+    private static ProductDetails Normalize(ProductDetails details) => details with
+    {
+        Name = details.Name.Trim(),
+        AtcCode = string.IsNullOrWhiteSpace(details.AtcCode) ? null : details.AtcCode.Trim().ToUpperInvariant(),
+        Manufacturer = string.IsNullOrWhiteSpace(details.Manufacturer) ? null : details.Manufacturer.Trim(),
+    };
+
+    private static Error? ValidateDetails(ProductDetails details)
+    {
+        if (details.Name.Length == 0)
+        {
+            return CatalogErrors.NameRequired;
+        }
+
+        if (details.Name.Length > CatalogErrors.MaxNameLength)
+        {
+            return CatalogErrors.NameTooLong;
+        }
+
+        if (details.Manufacturer is { Length: > CatalogErrors.MaxNameLength })
+        {
+            return CatalogErrors.ManufacturerTooLong;
+        }
+
+        if (details.AtcCode is not null && !AtcCodePattern().IsMatch(details.AtcCode))
+        {
+            return CatalogErrors.InvalidAtcCode;
+        }
+
+        return VatRates.IsAllowed(details.VatRate) ? null : CatalogErrors.InvalidVatRate;
+    }
+
+    private Error? ValidateUnits(List<UnitSpec> units)
+    {
+        if (units.Count == 0)
+        {
+            return CatalogErrors.UnitsRequired;
+        }
+
+        foreach (var unit in units)
+        {
+            if (unit.Name.Length == 0)
+            {
+                return CatalogErrors.UnitNameRequired;
+            }
+
+            if (unit.Name.Length > CatalogErrors.MaxUnitNameLength)
+            {
+                return CatalogErrors.UnitNameTooLong;
+            }
+
+            if (unit.Factor < 1)
+            {
+                return CatalogErrors.FactorTooSmall;
+            }
+
+            if (unit.Id is { } id)
+            {
+                var existing = _units.Find(u => u.Id == id);
+                if (existing is null)
+                {
+                    return CatalogErrors.UnknownUnit;
+                }
+
+                if (existing.Factor != unit.Factor)
+                {
+                    return CatalogErrors.UnitFactorChanged;
+                }
+            }
+        }
+
+        var duplicate = units.GroupBy(u => u.Name, StringComparer.CurrentCultureIgnoreCase).FirstOrDefault(g => g.Count() > 1);
+        if (duplicate is not null)
+        {
+            return CatalogErrors.DuplicateUnitName(duplicate.Key);
+        }
+
+        if (units.Count(u => u.Factor == 1) != 1)
+        {
+            return CatalogErrors.ExactlyOneBaseUnit;
+        }
+
+        return _units.All(existing => units.Any(u => u.Id == existing.Id)) ? null : CatalogErrors.UnitRemoved;
+    }
+
+    private Error? ValidateBarcodes(List<BarcodeSpec> barcodes, List<UnitSpec> units)
+    {
+        foreach (var barcode in barcodes)
+        {
+            if (!Gtin.IsValid(barcode.Code))
+            {
+                return CatalogErrors.InvalidBarcode;
+            }
+
+            if (!units.Any(u => string.Equals(u.Name, barcode.UnitName, StringComparison.CurrentCultureIgnoreCase)))
+            {
+                return CatalogErrors.BarcodeUnitMissing;
+            }
+
+            if (barcode.Id is { } id && _barcodes.TrueForAll(b => b.Id != id))
+            {
+                return CatalogErrors.UnknownBarcode;
+            }
+        }
+
+        var duplicate = barcodes.GroupBy(b => b.Code).FirstOrDefault(g => g.Count() > 1);
+        if (duplicate is not null)
+        {
+            return CatalogErrors.DuplicateBarcode(duplicate.Key);
+        }
+
+        return _barcodes.All(existing => barcodes.Any(b => b.Id == existing.Id)) ? null : CatalogErrors.BarcodeRemoved;
+    }
+
+    private void ApplyUnits(List<UnitSpec> units)
+    {
+        foreach (var spec in units)
+        {
+            if (spec.Id is { } id)
+            {
+                var unit = _units.Single(u => u.Id == id);
+                if (unit.Name != spec.Name)
+                {
+                    unit.Rename(spec.Name);
+                }
+            }
+            else
+            {
+                _units.Add(new ProductUnit(Id, spec.Name, spec.Factor));
+            }
+        }
+    }
+
+    private void ApplyBarcodes(List<BarcodeSpec> barcodes)
+    {
+        foreach (var spec in barcodes)
+        {
+            var unitId = _units.Single(u => string.Equals(u.Name, spec.UnitName, StringComparison.CurrentCultureIgnoreCase)).Id;
+
+            if (spec.Id is { } id)
+            {
+                var barcode = _barcodes.Single(b => b.Id == id);
+                if (barcode.Code != spec.Code || barcode.ProductUnitId != unitId)
+                {
+                    barcode.Change(spec.Code, unitId);
+                }
+            }
+            else
+            {
+                _barcodes.Add(new Barcode(Id, unitId, spec.Code));
+            }
+        }
+    }
+
+    // ATC: anatomical group letter, two digits, then optionally letter, letter, two digits (e.g. N, N02, N02B, N02BE, N02BE01).
+    [GeneratedRegex("^[A-Z](\\d{2}([A-Z]([A-Z](\\d{2})?)?)?)?$", RegexOptions.CultureInvariant)]
+    private static partial Regex AtcCodePattern();
+}

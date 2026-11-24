@@ -1,0 +1,198 @@
+@page "/catalog/new"
+@page "/catalog/{Id:guid}"
+@using Apteka.Catalog.Application.Products
+@inject GetProductHandler GetProduct
+@inject CreateProductHandler CreateProduct
+@inject UpdateProductHandler UpdateProduct
+@inject NavigationManager Navigation
+
+<PageTitle>@Title</PageTitle>
+
+<h1>@Title</h1>
+
+@if (_notFound)
+{
+  <p class="alert error">Стоката не е намерена.</p>
+  <a href="catalog">Към номенклатурата</a>
+}
+else if (_model is not null)
+{
+  <fieldset>
+    <legend>Основни данни</legend>
+    <div class="form-grid">
+      <label for="name">Име</label>
+      <input id="name" @bind="_model.Name" maxlength="200" />
+
+      <label for="manufacturer">Производител</label>
+      <input id="manufacturer" @bind="_model.Manufacturer" maxlength="200" />
+
+      <label for="atc">ATC код</label>
+      <input id="atc" @bind="_model.AtcCode" maxlength="7" placeholder="напр. N02BE01" />
+
+      <label for="vat">ДДС</label>
+      <select id="vat" @bind="_model.VatRate">
+        <option value="20">20 %</option>
+        <option value="9">9 %</option>
+        <option value="0">0 %</option>
+      </select>
+
+      <label for="rx">По лекарско предписание</label>
+      <input id="rx" type="checkbox" @bind="_model.IsRx" />
+
+      <label for="active">Активна</label>
+      <input id="active" type="checkbox" @bind="_model.IsActive" />
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Мерки</legend>
+    <p class="muted">Коефициент = брой от най-малката мярка. Точно една мярка има коефициент 1.</p>
+    <table class="grid">
+      <thead><tr><th>Мярка</th><th class="num">Коефициент</th><th></th></tr></thead>
+      <tbody>
+        @foreach (var unit in _model.Units)
+        {
+          <tr>
+            <td><input @bind="unit.Name" maxlength="50" aria-label="Име на мярка" /></td>
+            <td class="num">
+              <input type="number" min="1" @bind="unit.Factor" disabled="@(unit.Id is not null)" aria-label="Коефициент" />
+            </td>
+            <td>
+              @if (unit.Id is null)
+              {
+                <button class="link" title="Премахни" @onclick="() => _model.Units.Remove(unit)">✕</button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <button class="secondary" @onclick="AddUnit">Добави мярка</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Баркодове</legend>
+    <table class="grid">
+      <thead><tr><th>Баркод</th><th>Мярка</th><th></th></tr></thead>
+      <tbody>
+        @foreach (var barcode in _model.Barcodes)
+        {
+          <tr>
+            <td><input @bind="barcode.Code" maxlength="14" inputmode="numeric" aria-label="Баркод" /></td>
+            <td>
+              <select @bind="barcode.UnitName" aria-label="Мярка на баркода">
+                @foreach (var unit in _model.Units)
+                {
+                  <option value="@unit.Name">@unit.Name</option>
+                }
+              </select>
+            </td>
+            <td>
+              @if (barcode.Id is null)
+              {
+                <button class="link" title="Премахни" @onclick="() => _model.Barcodes.Remove(barcode)">✕</button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <button class="secondary" @onclick="AddBarcode">Добави баркод</button>
+  </fieldset>
+
+  @if (_error is not null)
+  {
+    <p class="alert error" role="alert">@_error</p>
+  }
+  @if (_saved)
+  {
+    <p class="alert success" role="status">Записано.</p>
+  }
+
+  <div class="toolbar">
+    <button @onclick="Save" disabled="@_saving">Запиши</button>
+    <a class="button secondary" href="catalog">Назад</a>
+  </div>
+}
+
+@code {
+  [Parameter] public Guid? Id { get; set; }
+
+  private ProductFormModel? _model;
+  private bool _notFound;
+  private string? _error;
+  private bool _saved;
+  private bool _saving;
+
+  private string Title => Id is null ? "Нова стока" : "Редакция на стока";
+
+  protected override async Task OnParametersSetAsync()
+  {
+    _error = null;
+    _notFound = false;
+
+    if (Id is not { } id)
+    {
+      _model = ProductFormModel.New();
+      return;
+    }
+
+    var view = await GetProduct.HandleAsync(id);
+    _notFound = view is null;
+    _model = view is null ? null : ProductFormModel.From(view);
+  }
+
+  private void AddUnit()
+  {
+    var largest = _model!.Units.Count == 0 ? 1 : _model.Units.Max(u => u.Factor);
+    _model.Units.Add(new ProductFormModel.UnitRow { Factor = largest * 10 });
+    _saved = false;
+  }
+
+  private void AddBarcode()
+  {
+    var unit = _model!.Units.OrderByDescending(u => u.Factor).FirstOrDefault()?.Name ?? string.Empty;
+    _model.Barcodes.Add(new ProductFormModel.BarcodeRow { UnitName = unit });
+    _saved = false;
+  }
+
+  private async Task Save()
+  {
+    _saving = true;
+    _error = null;
+    _saved = false;
+
+    try
+    {
+      if (Id is { } id)
+      {
+        var result = await UpdateProduct.HandleAsync(id, _model!.ToInput());
+        if (result.IsFailure)
+        {
+          _error = result.Error.Message;
+          return;
+        }
+
+        // Reload so that new units and barcodes get their ids (and become non-removable).
+        var view = await GetProduct.HandleAsync(id);
+        _model = view is null ? _model : ProductFormModel.From(view);
+        _saved = true;
+      }
+      else
+      {
+        var result = await CreateProduct.HandleAsync(_model!.ToInput());
+        if (result.IsFailure)
+        {
+          _error = result.Error.Message;
+          return;
+        }
+
+        Navigation.NavigateTo($"catalog/{result.Value}");
+      }
+    }
+    finally
+    {
+      _saving = false;
+    }
+  }
+}

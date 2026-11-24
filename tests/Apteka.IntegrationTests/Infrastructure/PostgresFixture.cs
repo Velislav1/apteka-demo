@@ -1,6 +1,6 @@
 using Testcontainers.PostgreSql;
 
-namespace Apteka.IntegrationTests;
+namespace Apteka.IntegrationTests.Infrastructure;
 
 /// <summary>One real PostgreSQL 16 container shared by all integration tests.</summary>
 public sealed class PostgresFixture : IAsyncLifetime

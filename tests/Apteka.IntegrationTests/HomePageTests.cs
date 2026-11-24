@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 
+using Apteka.IntegrationTests.Infrastructure;
+
 namespace Apteka.IntegrationTests;
 
 [Collection(PostgresCollection.Name)]
