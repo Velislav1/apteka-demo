@@ -1,4 +1,5 @@
 using Apteka.Inventory.Contracts;
+using Apteka.Inventory.Domain.StockMovements;
 using Microsoft.EntityFrameworkCore;
 
 namespace Apteka.Inventory.Infrastructure.StockMovements;
@@ -135,6 +136,54 @@ internal sealed class StockQueries(InventoryDbContext context) : IStockQueries
                 b.PricedUnitSalePrice,
                 b.CreatedAt,
                 blocked.Contains(b.Id)))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<TurnoverRow>> GetTurnoverAsync(
+        IReadOnlyCollection<Guid>? productIds,
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var batches = context.Batches.AsNoTracking();
+        if (productIds is not null)
+        {
+            var ids = productIds.ToArray();
+            batches = batches.Where(b => ids.Contains(b.ProductId));
+        }
+
+        // One row per batch, kind and side of the period; summed per product in memory (small: a pharmacy's batches).
+        var rows = await (
+                from m in context.StockMovements.AsNoTracking()
+                join b in batches on m.BatchId equals b.Id
+                where m.CreatedAt < toUtc
+                group m.QuantityDelta by new { b.ProductId, b.PurchasePrice, m.Kind, m.DocumentType, Before = m.CreatedAt < fromUtc } into g
+                select new { g.Key.ProductId, g.Key.PurchasePrice, g.Key.Kind, g.Key.DocumentType, g.Key.Before, Quantity = g.Sum() })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(r => r.ProductId)
+            .Select(g =>
+            {
+                var before = g.Where(r => r.Before).ToList();
+                var during = g.Where(r => !r.Before).ToList();
+                var received = during.Where(r => r.Kind == MovementKind.Delivery || (r.Kind == MovementKind.Correction && r.DocumentType != "Stocktaking")).Sum(r => r.Quantity);
+                var sold = -during.Where(r => r.Kind is MovementKind.Sale or MovementKind.Reversal).Sum(r => r.Quantity);
+                var writtenOff = -during.Where(r => r.Kind == MovementKind.WriteOff).Sum(r => r.Quantity);
+                var counted = during.Where(r => r.Kind == MovementKind.Correction && r.DocumentType == "Stocktaking").Sum(r => r.Quantity);
+                var opening = before.Sum(r => r.Quantity);
+                return new TurnoverRow(
+                    g.Key,
+                    opening,
+                    decimal.Round(before.Sum(r => r.Quantity * r.PurchasePrice), 2, MidpointRounding.AwayFromZero),
+                    received,
+                    sold,
+                    writtenOff,
+                    counted,
+                    g.Sum(r => r.Quantity),
+                    decimal.Round(g.Sum(r => r.Quantity * r.PurchasePrice), 2, MidpointRounding.AwayFromZero));
+            })
+            .Where(r => r.Opening != 0 || r.Closing != 0 || r.Received != 0 || r.Sold != 0 || r.WrittenOff != 0 || r.Counted != 0)
             .ToList();
     }
 

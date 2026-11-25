@@ -40,6 +40,16 @@ public interface IStockQueries
     /// <summary>The prices of the product's most recently received batch (for „последни цени“), or null.</summary>
     Task<LastReceipt?> GetLastReceiptAsync(Guid productId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// „Оборотна ведомост“: per product, the quantity and purchase value at the start of [fromUtc, toUtc), what came in
+    /// and went out by kind, and what is left at the end. Only products that had stock or movements.
+    /// </summary>
+    Task<IReadOnlyList<TurnoverRow>> GetTurnoverAsync(
+        IReadOnlyCollection<Guid>? productIds,
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc,
+        CancellationToken cancellationToken = default);
+
     /// <summary>One batch (with or without stock), or null.</summary>
     Task<BatchInfo?> GetBatchAsync(Guid batchId, CancellationToken cancellationToken = default);
 
@@ -108,3 +118,19 @@ public sealed record BatchStock(
     decimal PricedUnitSalePrice,
     DateTimeOffset ReceivedAt,
     bool IsBlocked = false);
+
+/// <summary>Quantities in base units; values at the batches' purchase prices, without VAT.</summary>
+/// <param name="Received">Deliveries and their corrections (+ and −).</param>
+/// <param name="Sold">Sales less reversals and returns.</param>
+/// <param name="WrittenOff">Бракувани.</param>
+/// <param name="Counted">Differences found at stocktakings (+ surplus, − shortage).</param>
+public sealed record TurnoverRow(
+    Guid ProductId,
+    int Opening,
+    decimal OpeningValue,
+    int Received,
+    int Sold,
+    int WrittenOff,
+    int Counted,
+    int Closing,
+    decimal ClosingValue);
