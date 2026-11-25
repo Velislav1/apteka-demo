@@ -34,6 +34,7 @@ public static class SalesModule
         services.AddScoped<CustomersHandler>();
         services.AddScoped<CreateReturnHandler>();
         services.AddScoped<FindSaleHandler>();
+        services.AddScoped<Apteka.Sales.Application.BatchBuyers.BatchBuyersHandler>();
 
         return services;
     }

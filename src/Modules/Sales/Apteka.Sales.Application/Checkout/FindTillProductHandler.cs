@@ -79,7 +79,7 @@ public sealed class FindTillProductHandler(ICatalogLookup catalog, IStockQueries
         var unit = product.Units.FirstOrDefault(u => u.UnitId == unitId) ?? product.Units.MaxBy(u => u.Factor)!;
         var today = BulgarianTime.Today(clock.GetUtcNow());
         var sellable = (await stock.GetBatchesAsync(product.ProductId, null, cancellationToken))
-            .Where(b => b.ExpiryDate >= today)
+            .Where(b => b.ExpiryDate >= today && !b.IsBlocked)
             .ToList();
 
         if (sellable.Count == 0)

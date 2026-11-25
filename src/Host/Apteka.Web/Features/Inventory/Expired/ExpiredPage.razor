@@ -46,7 +46,7 @@ else
         <tr>
           <td class="num">@product.Code</td>
           <td>@product.Name</td>
-          <td>@batch.BatchNo</td>
+          <td><a href="inventory/batches/@batch.BatchId">@batch.BatchNo</a>@(batch.IsBlocked ? " (блокирана)" : null)</td>
           <td class="expiry @(batch.ExpiryDate < Today ? "expired" : "soon")">@Formats.Date(batch.ExpiryDate)</td>
           <td>@Formats.Quantity(batch.BaseQuantity, product.Units)</td>
           <td class="num">@Formats.Price(batch.PricedUnitSalePrice) / @UnitName(product, batch.PricedUnitFactor)</td>

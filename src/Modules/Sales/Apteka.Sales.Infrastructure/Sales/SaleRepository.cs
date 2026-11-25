@@ -54,6 +54,32 @@ internal sealed class SaleRepository(SalesDbContext context) : ISaleRepository
         return rows.Select(r => new ReturnOfSale(r.Return, r.Number, r.PaymentMethod)).ToList();
     }
 
+    public async Task<IReadOnlyList<BatchSale>> ListSalesOfBatchAsync(Guid batchId, CancellationToken cancellationToken)
+    {
+        var taken = await (
+                from b in context.SaleLineBatches.AsNoTracking()
+                join l in context.SaleLines on b.SaleLineId equals l.Id
+                join s in context.Sales on l.SaleId equals s.Id
+                where b.BatchId == batchId
+                select new { s.Id, s.Number, s.CreatedAt, s.Status, s.CustomerId, l.ProductName, b.BaseQuantity })
+            .ToListAsync(cancellationToken);
+
+        var returned = await (
+                from rb in context.Set<SaleReturnLineBatch>().AsNoTracking()
+                join rl in context.Set<SaleReturnLine>() on rb.ReturnLineId equals rl.Id
+                join r in context.SaleReturns on rl.ReturnId equals r.Id
+                where rb.BatchId == batchId
+                select new { r.SaleId, rb.BaseQuantity })
+            .ToListAsync(cancellationToken);
+
+        return taken
+            .GroupBy(t => new { t.Id, t.Number, t.CreatedAt, t.Status, t.CustomerId, t.ProductName })
+            .Select(g => new BatchSale(g.Key.Id, g.Key.Number, g.Key.CreatedAt, g.Key.Status, g.Key.CustomerId, g.Key.ProductName,
+                g.Sum(t => t.BaseQuantity), returned.Where(r => r.SaleId == g.Key.Id).Sum(r => r.BaseQuantity)))
+            .OrderByDescending(s => s.CreatedAt)
+            .ToList();
+    }
+
     public Task<Sale?> FindByNumberAsync(long number, CancellationToken cancellationToken) =>
         context.Sales.AsNoTracking().SingleOrDefaultAsync(s => s.Number == number, cancellationToken);
 

@@ -25,6 +25,8 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
 
     public DbSet<Stocktaking> Stocktakings => Set<Stocktaking>();
 
+    public DbSet<Domain.BatchBlocks.BatchBlock> BatchBlocks => Set<Domain.BatchBlocks.BatchBlock>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

@@ -15,8 +15,9 @@ public class CatalogPageTests(PostgresFixture postgres)
         var html = await client.GetStringAsync("/catalog", TestContext.Current.CancellationToken);
 
         Assert.Contains("Номенклатура", html);
-        Assert.Contains("Амброксол 30 мг таблетки", html);
-        // Only the first products by name are listed; test products from other tests never start with „А“.
-        Assert.Contains("Азитромицин 500 мг таблетки", html);
+        // The demo products are seeded only into an empty catalog; other tests may have added products first,
+        // so check that the page lists products, not which ones.
+        Assert.Contains("href=\"catalog/", html);
+        Assert.Contains("<table class=\"grid\"", html);
     }
 }

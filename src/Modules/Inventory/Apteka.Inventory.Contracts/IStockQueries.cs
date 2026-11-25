@@ -40,6 +40,9 @@ public interface IStockQueries
     /// <summary>The prices of the product's most recently received batch (for „последни цени“), or null.</summary>
     Task<LastReceipt?> GetLastReceiptAsync(Guid productId, CancellationToken cancellationToken = default);
 
+    /// <summary>One batch (with or without stock), or null.</summary>
+    Task<BatchInfo?> GetBatchAsync(Guid batchId, CancellationToken cancellationToken = default);
+
     /// <summary>Batches of a product that still have stock, nearest expiry first.</summary>
     Task<IReadOnlyList<BatchStock>> GetBatchesAsync(
         Guid productId,
@@ -73,6 +76,25 @@ public sealed record LastReceipt(
     decimal PricedUnitSalePrice,
     DateTimeOffset ReceivedAt);
 
+/// <summary>One batch with where it came from and whether it is blocked, for the batch page.</summary>
+public sealed record BatchInfo(
+    Guid BatchId,
+    Guid ProductId,
+    string BatchNo,
+    DateOnly ExpiryDate,
+    int BaseQuantity,
+    decimal PurchasePricePerBaseUnit,
+    decimal SalePricePerBaseUnit,
+    int PricedUnitFactor,
+    decimal PricedUnitSalePrice,
+    DateTimeOffset ReceivedAt,
+    string SourceDocumentType,
+    Guid SourceDocumentId,
+    bool IsBlocked,
+    IReadOnlyList<BatchBlockStep> BlockHistory);
+
+public sealed record BatchBlockStep(bool IsBlocked, string? Reason, Guid? UserId, DateTimeOffset At);
+
 public sealed record ProductStock(Guid ProductId, int BaseQuantity, DateOnly NearestExpiry, int BatchCount);
 
 public sealed record BatchStock(
@@ -84,4 +106,5 @@ public sealed record BatchStock(
     decimal SalePricePerBaseUnit,
     int PricedUnitFactor,
     decimal PricedUnitSalePrice,
-    DateTimeOffset ReceivedAt);
+    DateTimeOffset ReceivedAt,
+    bool IsBlocked = false);

@@ -1,0 +1,160 @@
+@page "/inventory/batches/{Id:guid}"
+@using Apteka.Catalog.Contracts
+@using Apteka.Inventory.Application.BatchBlocks
+@using Apteka.Inventory.Contracts
+@using Apteka.Sales.Application.BatchBuyers
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject IStockQueries Stock
+@inject ICatalogLookup Catalog
+@inject BlockBatchHandler BlockBatch
+@inject BatchBuyersHandler Buyers
+@inject Apteka.Identity.Contracts.IUserDirectory UserDirectory
+@inject TimeProvider Clock
+
+@* One batch: stock, where it came from, blocking for a recall (a blocked batch is never sold), who bought it,
+   and a quick way to give it back to the supplier with a correction of its delivery. *@
+
+<PageTitle>Партида</PageTitle>
+
+@if (_notFound)
+{
+  <p class="alert error">Партидата не е намерена.</p>
+}
+else if (_batch is not null && _product is not null)
+{
+  <h1>Партида @_batch.BatchNo <span class="badge @(_batch.IsBlocked ? "blocked" : null)">@(_batch.IsBlocked ? "блокирана" : "свободна")</span></h1>
+
+  <div class="doc-header card">
+    <div><span class="muted">Стока</span><strong>@_product.Name (№ @_product.Code)</strong></div>
+    <div><span class="muted">Годна до</span><strong class="@(_batch.ExpiryDate < Today ? "expired" : null)">@Formats.Date(_batch.ExpiryDate)</strong></div>
+    <div><span class="muted">Наличност</span><strong>@Formats.Quantity(_batch.BaseQuantity, _product.Units)</strong></div>
+    <div><span class="muted">Продажна цена</span><strong>@Formats.Price(_batch.PricedUnitSalePrice) / @(_product.Units.FirstOrDefault(u => u.Factor == _batch.PricedUnitFactor)?.Name)</strong></div>
+    <div><span class="muted">Заприходена</span><strong>
+      @if (_batch.SourceDocumentType == "Delivery")
+      {
+        <a href="purchasing/deliveries/@_batch.SourceDocumentId">@Formats.LocalTime(_batch.ReceivedAt)</a>
+      }
+      else
+      {
+        @Formats.LocalTime(_batch.ReceivedAt)
+      }
+    </strong></div>
+  </div>
+
+  <fieldset class="block-form">
+    <legend>@(_batch.IsBlocked ? "Освобождаване" : "Блокиране (изтегляне)")</legend>
+    <p class="muted">
+      @(_batch.IsBlocked
+        ? "Блокираната партида не се продава. Може да се бракува или да се върне на доставчика."
+        : "При сигнал за изтегляне блокирайте партидата: касата спира да я продава веднага.")
+    </p>
+    <div class="toolbar">
+      <input aria-label="Причина" placeholder="@(_batch.IsBlocked ? "Причина (по желание)" : "Причина, напр. писмо на ИАЛ № …")" @bind="_reason" maxlength="200" />
+      <button class="@(_batch.IsBlocked ? "secondary" : "danger")" @onclick="Toggle" disabled="@_busy">@(_batch.IsBlocked ? "Освободи партидата" : "Блокирай партидата")</button>
+      @if (_batch.SourceDocumentType == "Delivery" && _batch.BaseQuantity > 0)
+      {
+        <a class="button secondary" href="purchasing/corrections/new?delivery=@_batch.SourceDocumentId">Върни на доставчика</a>
+      }
+      @if (_batch.BaseQuantity > 0)
+      {
+        <a class="button secondary" href="inventory/write-offs/new">Бракувай</a>
+      }
+    </div>
+  </fieldset>
+
+  @if (_error is not null)
+  {
+    <p class="alert error" role="alert">@_error</p>
+  }
+
+  @if (_batch.BlockHistory.Count > 0)
+  {
+    <h2>История на блокирането</h2>
+    <ul>
+      @foreach (var step in _batch.BlockHistory)
+      {
+        <li>@Formats.LocalTime(step.At) — @(step.IsBlocked ? "блокирана" : "освободена")@(step.Reason is null ? null : $": {step.Reason}")@(step.UserId is { } user ? $" ({_users.GetValueOrDefault(user)})" : null)</li>
+      }
+    </ul>
+  }
+
+  <h2>Кой е купил от партидата</h2>
+  @if (_buyers is { Count: > 0 })
+  {
+    <table class="grid">
+      <thead><tr><th class="num">Продажба</th><th>Дата и час</th><th>Количество</th><th>Остава у клиента</th><th>Клиент</th><th>Телефон</th></tr></thead>
+      <tbody>
+        @foreach (var buyer in _buyers)
+        {
+          <tr class="@(buyer.Reversed ? "inactive" : null)">
+            <td class="num"><a href="sales/sales/@buyer.SaleId">@buyer.Number</a></td>
+            <td>@Formats.LocalTime(buyer.CreatedAt)</td>
+            <td>@Formats.Quantity(buyer.BaseQuantity, _product.Units)</td>
+            <td>@(buyer.Reversed ? "сторнирана" : Formats.Quantity(buyer.KeptBaseQuantity, _product.Units))</td>
+            <td>@if (buyer.CustomerId is { } customer) { <a href="sales/customers/@customer">@buyer.CustomerName</a> } else { <span class="muted">без клиент</span> }</td>
+            <td>@buyer.CustomerPhone</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <p class="muted">Клиент се вижда, когато е избран на касата с F2.</p>
+  }
+  else
+  {
+    <p class="muted">Нищо не е продадено от тази партида.</p>
+  }
+}
+
+@code {
+  [Parameter] public Guid Id { get; set; }
+
+  private BatchInfo? _batch;
+  private CatalogProductInfo? _product;
+  private IReadOnlyList<BatchBuyer>? _buyers;
+  private IReadOnlyDictionary<Guid, string> _users = new Dictionary<Guid, string>();
+  private bool _notFound;
+  private string? _reason;
+  private string? _error;
+  private bool _busy;
+
+  private DateOnly Today => BulgarianTime.Today(Clock.GetUtcNow());
+
+  protected override Task OnParametersSetAsync() => Load();
+
+  private async Task Load()
+  {
+    _batch = await Stock.GetBatchAsync(Id);
+    _notFound = _batch is null;
+    if (_batch is null)
+    {
+      return;
+    }
+
+    _product = await Catalog.GetProductAsync(_batch.ProductId);
+    _buyers = await Buyers.HandleAsync(Id);
+    _users = await UserDirectory.GetDisplayNamesAsync([.. _batch.BlockHistory.Where(s => s.UserId is not null).Select(s => s.UserId!.Value).Distinct()]);
+  }
+
+  private async Task Toggle()
+  {
+    _busy = true;
+    _error = null;
+    try
+    {
+      var result = await BlockBatch.HandleAsync(Id, !_batch!.IsBlocked, _reason);
+      if (result.IsFailure)
+      {
+        _error = result.Error.Message;
+        return;
+      }
+
+      _reason = null;
+      await Load();
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+}

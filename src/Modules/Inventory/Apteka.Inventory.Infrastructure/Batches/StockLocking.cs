@@ -32,7 +32,16 @@ internal sealed class StockLocking(InventoryDbContext context) : IStockLocking
             })
             .ToListAsync(cancellationToken);
 
-        return batches.Select(b => new BatchAvailability(b.Id, b.ExpiryDate, b.CreatedAt, b.Quantity)).ToList();
+        var steps = await context.BatchBlocks.AsNoTracking()
+            .Where(s => lockedIds.Contains(s.BatchId))
+            .Select(s => new { s.BatchId, s.IsBlocked, s.At, s.Id })
+            .ToListAsync(cancellationToken);
+        var blocked = steps.GroupBy(s => s.BatchId)
+            .Where(g => g.OrderBy(s => s.At).ThenBy(s => s.Id).Last().IsBlocked)
+            .Select(g => g.Key)
+            .ToHashSet();
+
+        return batches.Select(b => new BatchAvailability(b.Id, b.ExpiryDate, b.CreatedAt, b.Quantity, blocked.Contains(b.Id))).ToList();
     }
 
     public async Task<IReadOnlyDictionary<Guid, Batch>> GetBatchesAsync(IReadOnlyCollection<Guid> batchIds, CancellationToken cancellationToken)

@@ -45,7 +45,7 @@
         {
           <tr>
             <td>@product.Name</td>
-            <td>@batch.BatchNo</td>
+            <td><a href="inventory/batches/@batch.BatchId">@batch.BatchNo</a>@(batch.IsBlocked ? " (блокирана)" : null)</td>
             <td class="expiry @ExpiryClass(batch.ExpiryDate)">@Formats.Date(batch.ExpiryDate)</td>
             <td>@Formats.Quantity(batch.BaseQuantity, product.Units)</td>
             <td class="num">@batch.BaseQuantity</td>
@@ -93,7 +93,7 @@ else
                   @foreach (var batch in row.Batches)
                   {
                     <tr>
-                      <td>@batch.BatchNo</td>
+                      <td><a href="inventory/batches/@batch.BatchId">@batch.BatchNo</a>@(batch.IsBlocked ? " (блокирана)" : null)</td>
                       <td class="expiry @ExpiryClass(batch.ExpiryDate)">@Formats.Date(batch.ExpiryDate)</td>
                       <td>@Formats.Quantity(batch.BaseQuantity, row.Product.Units) (@batch.BaseQuantity)</td>
                       <td class="num">@Formats.Price(batch.PricedUnitSalePrice) / @UnitName(row.Product, batch.PricedUnitFactor)</td>

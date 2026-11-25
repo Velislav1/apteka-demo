@@ -26,11 +26,13 @@ public static class InventoryModule
         services.AddScoped<IStockLocking, StockLocking>();
         services.AddScoped<IWriteOffRepository, WriteOffRepository>();
         services.AddScoped<IStocktakingRepository, StocktakingRepository>();
+        services.AddScoped<Application.BatchBlocks.IBatchBlockRepository, BatchBlocks.BatchBlockRepository>();
 
         // Use cases
         services.AddScoped<CreateWriteOffHandler>();
         services.AddScoped<ListWriteOffsHandler>();
         services.AddScoped<GetWriteOffHandler>();
+        services.AddScoped<Application.BatchBlocks.BlockBatchHandler>();
         services.AddScoped<StartStocktakingHandler>();
         services.AddScoped<CountStocktakingHandler>();
         services.AddScoped<CloseStocktakingHandler>();

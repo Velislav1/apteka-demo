@@ -33,9 +33,11 @@ internal sealed class StockQueries(InventoryDbContext context) : IStockQueries
             .OrderBy(b => b.ExpiryDate)
             .ToListAsync(cancellationToken);
 
+        var blocked = await BlockedAsync(ids, cancellationToken);
         return batches
             .Select(b => new ProductBatchStock(b.ProductId, new BatchStock(
-                b.Id, b.BatchNo, b.ExpiryDate, stock[b.Id].Quantity, b.PurchasePrice, b.SalePrice, b.PricedUnitFactor, b.PricedUnitSalePrice, b.CreatedAt)))
+                b.Id, b.BatchNo, b.ExpiryDate, stock[b.Id].Quantity, b.PurchasePrice, b.SalePrice, b.PricedUnitFactor, b.PricedUnitSalePrice, b.CreatedAt,
+                blocked.Contains(b.Id))))
             .ToList();
     }
 
@@ -120,6 +122,7 @@ internal sealed class StockQueries(InventoryDbContext context) : IStockQueries
             .ThenBy(b => b.CreatedAt)
             .ToListAsync(cancellationToken);
 
+        var blocked = await BlockedAsync(ids, cancellationToken);
         return batches
             .Select(b => new BatchStock(
                 b.Id,
@@ -130,8 +133,44 @@ internal sealed class StockQueries(InventoryDbContext context) : IStockQueries
                 b.SalePrice,
                 b.PricedUnitFactor,
                 b.PricedUnitSalePrice,
-                b.CreatedAt))
+                b.CreatedAt,
+                blocked.Contains(b.Id)))
             .ToList();
+    }
+
+    public async Task<BatchInfo?> GetBatchAsync(Guid batchId, CancellationToken cancellationToken = default)
+    {
+        var batch = await context.Batches.AsNoTracking().SingleOrDefaultAsync(b => b.Id == batchId, cancellationToken);
+        if (batch is null)
+        {
+            return null;
+        }
+
+        var quantity = await context.StockMovements.Where(m => m.BatchId == batchId).SumAsync(m => m.QuantityDelta, cancellationToken);
+        var history = await context.BatchBlocks.AsNoTracking()
+            .Where(b => b.BatchId == batchId)
+            .OrderBy(b => b.At).ThenBy(b => b.Id)
+            .Select(b => new BatchBlockStep(b.IsBlocked, b.Reason, b.UserId, b.At))
+            .ToListAsync(cancellationToken);
+
+        return new BatchInfo(
+            batch.Id, batch.ProductId, batch.BatchNo, batch.ExpiryDate, quantity, batch.PurchasePrice, batch.SalePrice, batch.PricedUnitFactor,
+            batch.PricedUnitSalePrice, batch.CreatedAt, batch.SourceDocumentType, batch.SourceDocumentId, history.LastOrDefault()?.IsBlocked == true, history);
+    }
+
+    /// <summary>The batches among <paramref name="batchIds"/> whose latest blocking step blocks them.</summary>
+    internal async Task<HashSet<Guid>> BlockedAsync(IReadOnlyCollection<Guid> batchIds, CancellationToken cancellationToken)
+    {
+        var ids = batchIds.ToArray();
+        var steps = await context.BatchBlocks.AsNoTracking()
+            .Where(b => ids.Contains(b.BatchId))
+            .Select(b => new { b.BatchId, b.IsBlocked, b.At, b.Id })
+            .ToListAsync(cancellationToken);
+        return steps
+            .GroupBy(s => s.BatchId)
+            .Where(g => g.OrderBy(s => s.At).ThenBy(s => s.Id).Last().IsBlocked)
+            .Select(g => g.Key)
+            .ToHashSet();
     }
 
     /// <summary>Batches with a positive quantity; the sum is computed by PostgreSQL.</summary>

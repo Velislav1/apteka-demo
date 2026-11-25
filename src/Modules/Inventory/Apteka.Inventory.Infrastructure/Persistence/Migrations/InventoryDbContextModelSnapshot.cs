@@ -27,6 +27,42 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
 
             modelBuilder.HasSequence("write_off_numbers", "inventory");
 
+            modelBuilder.Entity("Apteka.Inventory.Domain.BatchBlocks.BatchBlock", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batch_id");
+
+                    b.Property<bool>("IsBlocked")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_blocked");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_batch_blocks");
+
+                    b.HasIndex("BatchId", "At")
+                        .HasDatabaseName("ix_batch_blocks_batch_id_at");
+
+                    b.ToTable("batch_blocks", "inventory");
+                });
+
             modelBuilder.Entity("Apteka.Inventory.Domain.Batches.Batch", b =>
                 {
                     b.Property<Guid>("Id")
@@ -392,6 +428,16 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_write_off_lines_quantity", "quantity > 0");
                         });
+                });
+
+            modelBuilder.Entity("Apteka.Inventory.Domain.BatchBlocks.BatchBlock", b =>
+                {
+                    b.HasOne("Apteka.Inventory.Domain.Batches.Batch", null)
+                        .WithMany()
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_batch_blocks_batches_batch_id");
                 });
 
             modelBuilder.Entity("Apteka.Inventory.Domain.StockMovements.StockMovement", b =>

@@ -26,6 +26,9 @@ public interface ISaleRepository
     /// <summary>Returns made in [fromUtc, toUtc), with the number and payment of their sale.</summary>
     Task<IReadOnlyList<ReturnOfSale>> ListReturnsAsync(DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
 
+    /// <summary>Sales that took goods from this batch, with what each took and what came back with corrections.</summary>
+    Task<IReadOnlyList<BatchSale>> ListSalesOfBatchAsync(Guid batchId, CancellationToken cancellationToken);
+
     /// <summary>The sale with this number, or null.</summary>
     Task<Sale?> FindByNumberAsync(long number, CancellationToken cancellationToken);
 
@@ -33,3 +36,7 @@ public interface ISaleRepository
 }
 
 public sealed record ReturnOfSale(SaleReturn Return, long SaleNumber, PaymentMethod PaymentMethod);
+
+/// <param name="BaseQuantity">Taken from the batch, in base units.</param>
+/// <param name="ReturnedBaseQuantity">Put back into the batch with corrections of this sale.</param>
+public sealed record BatchSale(Guid SaleId, long Number, DateTimeOffset CreatedAt, SaleStatus Status, Guid? CustomerId, string ProductName, int BaseQuantity, int ReturnedBaseQuantity);

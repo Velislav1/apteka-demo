@@ -4,7 +4,7 @@ using Apteka.SharedKernel;
 namespace Apteka.Inventory.Domain.Allocation;
 
 /// <summary>
-/// Chooses the batches to issue from (rule 5): first expiry first out; expired batches are never issued;
+/// Chooses the batches to issue from (rule 5): first expiry first out; expired and blocked batches are never issued;
 /// batches with the same expiry are taken in the order they were received.
 /// </summary>
 public static class FefoAllocator
@@ -20,7 +20,7 @@ public static class FefoAllocator
         }
 
         var sellable = batches
-            .Where(b => b.Quantity > 0 && b.ExpiryDate >= today)
+            .Where(b => b.Quantity > 0 && b.ExpiryDate >= today && !b.IsBlocked)
             .OrderBy(b => b.ExpiryDate)
             .ThenBy(b => b.ReceivedAt)
             .ThenBy(b => b.BatchId)
@@ -50,6 +50,7 @@ public static class FefoAllocator
 }
 
 /// <param name="Quantity">Current quantity in base units (sum of movements).</param>
-public sealed record BatchAvailability(Guid BatchId, DateOnly ExpiryDate, DateTimeOffset ReceivedAt, int Quantity);
+/// <param name="IsBlocked">Blocked (recall): never sold, but can be written off or returned.</param>
+public sealed record BatchAvailability(Guid BatchId, DateOnly ExpiryDate, DateTimeOffset ReceivedAt, int Quantity, bool IsBlocked = false);
 
 public sealed record BatchAllocation(Guid BatchId, int BaseQuantity);

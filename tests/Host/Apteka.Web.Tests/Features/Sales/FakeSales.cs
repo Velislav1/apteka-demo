@@ -35,6 +35,12 @@ internal sealed class FakeSales : ISaleRepository
             .Select(r => Saved.Single(s => s.Id == r.SaleId) is var sale ? new ReturnOfSale(r, sale.Number, sale.PaymentMethod) : null!)
             .ToList());
 
+    public Task<IReadOnlyList<BatchSale>> ListSalesOfBatchAsync(Guid batchId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<BatchSale>>(Saved
+            .SelectMany(s => s.Lines.SelectMany(l => l.Batches.Where(b => b.BatchId == batchId)
+                .Select(b => new BatchSale(s.Id, s.Number, s.CreatedAt, s.Status, s.CustomerId, l.ProductName, b.BaseQuantity, 0))))
+            .ToList());
+
     public Task<Sale?> FindByNumberAsync(long number, CancellationToken cancellationToken) => Task.FromResult(Saved.SingleOrDefault(s => s.Number == number));
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
