@@ -27,6 +27,8 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
 
             modelBuilder.HasSequence("delivery_numbers", "purchasing");
 
+            modelBuilder.HasSequence("purchase_order_numbers", "purchasing");
+
             modelBuilder.Entity("Apteka.Purchasing.Domain.Corrections.DeliveryCorrection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -279,6 +281,107 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Orders.PurchaseOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<long>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('purchasing.purchase_order_numbers')");
+
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_id");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_purchase_orders");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_purchase_orders_number");
+
+                    b.HasIndex("SupplierId")
+                        .HasDatabaseName("ix_purchase_orders_supplier_id");
+
+                    b.ToTable("purchase_orders", "purchasing");
+                });
+
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Orders.PurchaseOrderLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("IsRemoved")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_removed");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<Guid>("ProductUnitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_unit_id");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<int>("UnitFactor")
+                        .HasColumnType("integer")
+                        .HasColumnName("unit_factor");
+
+                    b.HasKey("Id")
+                        .HasName("pk_purchase_order_lines");
+
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("ix_purchase_order_lines_order_id");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_purchase_order_lines_product_id");
+
+                    b.ToTable("purchase_order_lines", "purchasing", t =>
+                        {
+                            t.HasCheckConstraint("ck_purchase_order_lines_quantity", "quantity > 0");
+                        });
+                });
+
             modelBuilder.Entity("Apteka.Purchasing.Domain.Suppliers.Supplier", b =>
                 {
                     b.Property<Guid>("Id")
@@ -366,12 +469,37 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_delivery_lines_deliveries_delivery_id");
                 });
 
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Orders.PurchaseOrder", b =>
+                {
+                    b.HasOne("Apteka.Purchasing.Domain.Suppliers.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_purchase_orders_suppliers_supplier_id");
+                });
+
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Orders.PurchaseOrderLine", b =>
+                {
+                    b.HasOne("Apteka.Purchasing.Domain.Orders.PurchaseOrder", null)
+                        .WithMany("AllLines")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_purchase_order_lines_purchase_orders_order_id");
+                });
+
             modelBuilder.Entity("Apteka.Purchasing.Domain.Corrections.DeliveryCorrection", b =>
                 {
                     b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("Apteka.Purchasing.Domain.Deliveries.Delivery", b =>
+                {
+                    b.Navigation("AllLines");
+                });
+
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Orders.PurchaseOrder", b =>
                 {
                     b.Navigation("AllLines");
                 });

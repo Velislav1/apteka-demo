@@ -1,0 +1,49 @@
+@page "/purchasing/orders"
+@using Apteka.Purchasing.Application.Orders
+@using Apteka.Purchasing.Domain.Orders
+@using Apteka.Web.Features.Shared
+@inject OrdersHandler Orders
+@inject NavigationManager Navigation
+
+<PageTitle>Заявки за доставка</PageTitle>
+
+<ListKeys OnAdd="@(() => Navigation.NavigateTo("purchasing/orders/new"))" />
+
+<h1>Заявки за доставка</h1>
+
+<div class="toolbar">
+  <a class="button" href="purchasing/orders/new"><Icon Name="plus" /> Нова заявка <kbd>F5</kbd></a>
+</div>
+
+@if (_items is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_items.Count == 0)
+{
+  <p class="muted">Няма заявки.</p>
+}
+else
+{
+  <table class="grid">
+    <thead><tr><th class="num">№</th><th>Създадена</th><th>Доставчик</th><th class="num">Редове</th><th>Състояние</th></tr></thead>
+    <tbody>
+      @foreach (var item in _items)
+      {
+        <tr>
+          <td class="num"><a href="purchasing/orders/@item.Id">@item.Number</a></td>
+          <td>@Formats.LocalTime(item.CreatedAt)</td>
+          <td>@item.SupplierName</td>
+          <td class="num">@item.LineCount</td>
+          <td>@(item.Status == PurchaseOrderStatus.Sent ? $"изпратена {Formats.LocalTime(item.SentAt!.Value)}" : "чернова")</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
+
+@code {
+  private IReadOnlyList<PurchaseOrderListItem>? _items;
+
+  protected override async Task OnInitializedAsync() => _items = await Orders.ListAsync();
+}

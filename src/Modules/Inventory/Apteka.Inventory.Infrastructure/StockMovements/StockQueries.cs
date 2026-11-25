@@ -79,6 +79,32 @@ internal sealed class StockQueries(InventoryDbContext context) : IStockQueries
             .Select(b => new LastReceipt(b.PurchasePrice, b.SalePrice, b.PricedUnitFactor, b.PricedUnitSalePrice, b.CreatedAt))
             .FirstOrDefaultAsync(cancellationToken);
 
+    public async Task<IReadOnlyDictionary<Guid, int>> GetSoldQuantitiesAsync(
+        IReadOnlyCollection<Guid>? productIds,
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var batches = context.Batches.AsNoTracking();
+        if (productIds is not null)
+        {
+            var ids = productIds.ToArray();
+            batches = batches.Where(b => ids.Contains(b.ProductId));
+        }
+
+        var rows = await (
+                from m in context.StockMovements.AsNoTracking()
+                join b in batches on m.BatchId equals b.Id
+                where m.CreatedAt >= fromUtc && m.CreatedAt < toUtc
+                    && (m.Kind == Domain.StockMovements.MovementKind.Sale || m.Kind == Domain.StockMovements.MovementKind.Reversal)
+                group m.QuantityDelta by b.ProductId into g
+                select new { ProductId = g.Key, Sold = -g.Sum() })
+            .Where(r => r.Sold > 0)
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(r => r.ProductId, r => r.Sold);
+    }
+
     public async Task<IReadOnlyList<BatchStock>> GetBatchesAsync(
         Guid productId,
         DateOnly? expiringOnOrBefore,

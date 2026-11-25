@@ -1,0 +1,334 @@
+@page "/purchasing/orders/new"
+@page "/purchasing/orders/{Id:guid}"
+@using Apteka.Catalog.Contracts
+@using Apteka.Purchasing.Application.Orders
+@using Apteka.Purchasing.Application.Suppliers
+@using Apteka.Purchasing.Domain.Orders
+@using Apteka.Web.Features.Shared
+@using Microsoft.JSInterop
+@inject OrdersHandler Orders
+@inject SuggestOrderHandler Suggest
+@inject SuppliersHandler Suppliers
+@inject ICatalogLookup Catalog
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@* „Заявка за доставка“ as in Apteka Expert 2: choose the supplier and a criterion, let the program propose quantities,
+   correct them, add products by code/barcode/name, save, print or mark as sent. *@
+
+<PageTitle>Заявка за доставка</PageTitle>
+
+<h1>Заявка за доставка @if (_number > 0) { <span>№ @_number</span> } <span class="badge">@(IsSent ? "изпратена" : "чернова")</span></h1>
+
+@if (_notFound)
+{
+  <p class="alert error">Заявката не е намерена.</p>
+}
+else
+{
+  <fieldset class="header-form no-print" disabled="@IsSent">
+    <legend>Данни за заявката</legend>
+    <div class="form-grid">
+      <label for="supplier">Доставчик</label>
+      <select id="supplier" @bind="_supplierId">
+        <option value="">— изберете —</option>
+        @foreach (var supplier in _suppliers.Where(s => s.IsActive || s.Id.ToString() == _supplierId))
+        {
+          <option value="@supplier.Id">@supplier.Name</option>
+        }
+      </select>
+
+      <label for="criterion">Критерий за количество</label>
+      <select id="criterion" @bind="_criterion">
+        <option value="@OrderCriterion.Manual">Ръчно попълване</option>
+        <option value="@OrderCriterion.MinStock">Според минималния запас</option>
+        <option value="@OrderCriterion.Sales">Според продажбите за … дни напред</option>
+        <option value="@OrderCriterion.SalesLessStock">Според продажбите и наличността за … дни напред</option>
+      </select>
+
+      <label for="days">Дни</label>
+      <input id="days" type="number" min="1" max="365" @bind="_days" disabled="@(_criterion is OrderCriterion.Manual or OrderCriterion.MinStock)" />
+
+      <label for="group">Група</label>
+      <select id="group" @bind="_groupId">
+        <option value="">Всички групи</option>
+        @foreach (var group in _groups)
+        {
+          <option value="@group.Id">@group.Name</option>
+        }
+      </select>
+
+      <label for="note">Бележка</label>
+      <input id="note" @bind="_note" maxlength="200" />
+    </div>
+    <div class="toolbar">
+      <button class="secondary" @onclick="Propose" disabled="@(_criterion == OrderCriterion.Manual)">Предложи количества</button>
+    </div>
+  </fieldset>
+
+  @if (!IsSent)
+  {
+    <div class="entry card no-print">
+      <ProductPicker OnPicked="Picked" />
+    </div>
+  }
+
+  <div class="print-only">
+    <p><strong>Заявка № @_number</strong> до <strong>@SupplierName</strong> от @Formats.Date(DateOnly.FromDateTime(DateTime.Today))@(string.IsNullOrEmpty(_note) ? null : $" — {_note}")</p>
+  </div>
+
+  @if (_lines.Count > 0)
+  {
+    <table class="grid">
+      <thead>
+        <tr><th>№</th><th class="num">Код</th><th>Стока</th><th class="no-print">Наличност</th><th class="num no-print">Продадено</th><th class="num">Количество</th><th>Мярка</th><th class="no-print"></th></tr>
+      </thead>
+      <tbody>
+        @foreach (var (line, index) in _lines.Select((line, index) => (line, index)))
+        {
+          <tr>
+            <td>@(index + 1)</td>
+            <td class="num">@line.Code</td>
+            <td>@line.Name</td>
+            <td class="no-print">@(line.OnHand is { } have ? Formats.Quantity(have, line.Units) : null)</td>
+            <td class="num no-print">@(line.Sold > 0 ? line.Sold : null)</td>
+            <td class="num">
+              @if (IsSent)
+              {
+                @line.Quantity
+              }
+              else
+              {
+                <input type="number" min="1" class="qty" aria-label="Количество @line.Name" @bind="line.Quantity" />
+              }
+            </td>
+            <td>
+              @if (IsSent)
+              {
+                @line.Units.FirstOrDefault(u => u.UnitId == line.UnitId)?.Name
+              }
+              else
+              {
+                <select @bind="line.UnitIdText" aria-label="Мярка @line.Name">
+                  @foreach (var unit in line.Units.OrderByDescending(u => u.Factor))
+                  {
+                    <option value="@unit.UnitId">@unit.Name</option>
+                  }
+                </select>
+              }
+            </td>
+            <td class="no-print">
+              @if (!IsSent)
+              {
+                <button class="link" title="Премахни" @onclick="() => _lines.Remove(line)">✕</button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <p class="muted">Позиции: @_lines.Count</p>
+  }
+  else if (_proposed)
+  {
+    <p class="muted">Няма какво да се поръча по този критерий.</p>
+  }
+
+  @if (_error is not null)
+  {
+    <p class="alert error" role="alert">@_error</p>
+  }
+  @if (_message is not null)
+  {
+    <p class="alert success" role="status">@_message</p>
+  }
+
+  <div class="toolbar no-print">
+    @if (!IsSent)
+    {
+      <button @onclick="Save" disabled="@_busy">Запиши</button>
+      @if (Id is not null)
+      {
+        <button class="secondary" @onclick="MarkSent" disabled="@_busy">Изпратена</button>
+      }
+    }
+    <button class="secondary" @onclick="Print" disabled="@(_lines.Count == 0)">Печат</button>
+    <a class="button secondary" href="purchasing/orders">Затвори</a>
+  </div>
+}
+
+@code {
+  [Parameter] public Guid? Id { get; set; }
+
+  private IReadOnlyList<SupplierView> _suppliers = [];
+  private IReadOnlyList<CatalogGroup> _groups = [];
+  private string _supplierId = string.Empty;
+  private OrderCriterion _criterion = OrderCriterion.SalesLessStock;
+  private int _days = 14;
+  private string _groupId = string.Empty;
+  private string? _note;
+  private long _number;
+  private PurchaseOrderStatus _status = PurchaseOrderStatus.Draft;
+  private readonly List<Line> _lines = [];
+  private bool _notFound;
+  private bool _proposed;
+  private bool _busy;
+  private string? _error;
+  private string? _message;
+
+  private bool IsSent => _status == PurchaseOrderStatus.Sent;
+
+  private string SupplierName => _suppliers.FirstOrDefault(s => s.Id.ToString() == _supplierId)?.Name ?? "—";
+
+  protected override async Task OnParametersSetAsync()
+  {
+    _suppliers = await Suppliers.ListAsync();
+    _groups = await Catalog.ListGroupsAsync();
+    if (Id is { } id)
+    {
+      await Load(id);
+    }
+  }
+
+  private async Task Load(Guid id)
+  {
+    var view = await Orders.GetAsync(id);
+    _notFound = view is null;
+    if (view is null)
+    {
+      return;
+    }
+
+    (_number, _supplierId, _note, _status) = (view.Number, view.SupplierId.ToString(), view.Note, view.Status);
+    _lines.Clear();
+    _lines.AddRange(view.Lines.Select(l => new Line(l.ProductId, l.Code, l.ProductName, l.UnitId, l.Quantity, l.Units)));
+  }
+
+  /// <summary>Adds the proposed products; a product already on the order keeps its line and gets the proposed quantity.</summary>
+  private async Task Propose()
+  {
+    _error = null;
+    _message = null;
+    var proposed = await Suggest.HandleAsync(_criterion, _days, Guid.TryParse(_groupId, out var group) ? group : null);
+    if (proposed.IsFailure)
+    {
+      _error = proposed.Error.Message;
+      return;
+    }
+
+    _proposed = true;
+    foreach (var item in proposed.Value)
+    {
+      var line = _lines.FirstOrDefault(l => l.ProductId == item.ProductId && l.UnitId == item.UnitId);
+      if (line is null)
+      {
+        _lines.Add(new Line(item.ProductId, item.Code, item.Name, item.UnitId, item.Quantity, item.Units) { OnHand = item.OnHand, Sold = item.Sold });
+      }
+      else
+      {
+        (line.Quantity, line.OnHand, line.Sold) = (item.Quantity, item.OnHand, item.Sold);
+      }
+    }
+
+    _message = $"Предложени позиции: {proposed.Value.Count}.";
+  }
+
+  private void Picked((CatalogProductInfo Product, Guid? UnitId) picked)
+  {
+    var unit = picked.Product.Units.FirstOrDefault(u => u.UnitId == picked.UnitId) ?? picked.Product.Units.MaxBy(u => u.Factor)!;
+    var line = _lines.FirstOrDefault(l => l.ProductId == picked.Product.ProductId && l.UnitId == unit.UnitId);
+    if (line is null)
+    {
+      _lines.Add(new Line(picked.Product.ProductId, picked.Product.Code, picked.Product.Name, unit.UnitId, 1, picked.Product.Units));
+    }
+    else
+    {
+      line.Quantity++;
+    }
+  }
+
+  private async Task Save()
+  {
+    _error = null;
+    _message = null;
+    if (!Guid.TryParse(_supplierId, out var supplier))
+    {
+      _error = "Изберете доставчик.";
+      return;
+    }
+
+    _busy = true;
+    try
+    {
+      var saved = await Orders.SaveAsync(Id, new OrderInput(supplier, _note, _lines.Select(l => new OrderLineInput(l.ProductId, l.UnitId, l.Quantity)).ToList()));
+      if (saved.IsFailure)
+      {
+        _error = saved.Error.Message;
+        return;
+      }
+
+      if (Id is null)
+      {
+        Navigation.NavigateTo($"purchasing/orders/{saved.Value}");
+        return;
+      }
+
+      await Load(saved.Value);
+      _message = "Записано.";
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+
+  private async Task MarkSent()
+  {
+    await Save();
+    if (_error is not null || Id is not { } id)
+    {
+      return;
+    }
+
+    var sent = await Orders.MarkSentAsync(id);
+    _error = sent.IsFailure ? sent.Error.Message : null;
+    await Load(id);
+    _message = sent.IsSuccess ? "Заявката е отбелязана като изпратена." : null;
+  }
+
+  private async Task Print()
+  {
+    try
+    {
+      await JS.InvokeVoidAsync("print");
+    }
+    catch (JSDisconnectedException)
+    {
+    }
+  }
+
+  private sealed class Line(Guid productId, long code, string name, Guid unitId, int quantity, IReadOnlyList<CatalogUnit> units)
+  {
+    public Guid ProductId { get; } = productId;
+
+    public long Code { get; } = code;
+
+    public string Name { get; } = name;
+
+    public Guid UnitId { get; set; } = unitId;
+
+    public string UnitIdText
+    {
+      get => UnitId.ToString();
+      set => UnitId = Guid.TryParse(value, out var id) ? id : UnitId;
+    }
+
+    public int Quantity { get; set; } = quantity;
+
+    public IReadOnlyList<CatalogUnit> Units { get; } = units;
+
+    public int? OnHand { get; set; }
+
+    public int Sold { get; set; }
+  }
+}

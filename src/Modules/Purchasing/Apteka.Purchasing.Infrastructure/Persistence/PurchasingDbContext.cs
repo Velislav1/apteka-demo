@@ -11,6 +11,7 @@ public static class PurchasingSchema
     public const string Name = "purchasing";
     public const string DeliveryNumberSequence = "delivery_numbers";
     public const string CorrectionNumberSequence = "delivery_correction_numbers";
+    public const string OrderNumberSequence = "purchase_order_numbers";
 }
 
 public sealed class PurchasingDbContext(DbContextOptions<PurchasingDbContext> options)
@@ -24,11 +25,14 @@ public sealed class PurchasingDbContext(DbContextOptions<PurchasingDbContext> op
 
     public DbSet<DeliveryCorrection> DeliveryCorrections => Set<DeliveryCorrection>();
 
+    public DbSet<Apteka.Purchasing.Domain.Orders.PurchaseOrder> PurchaseOrders => Set<Apteka.Purchasing.Domain.Orders.PurchaseOrder>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.HasSequence<long>(PurchasingSchema.DeliveryNumberSequence, PurchasingSchema.Name).StartsAt(1);
         modelBuilder.HasSequence<long>(PurchasingSchema.CorrectionNumberSequence, PurchasingSchema.Name).StartsAt(1);
+        modelBuilder.HasSequence<long>(PurchasingSchema.OrderNumberSequence, PurchasingSchema.Name).StartsAt(1);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(PurchasingDbContext).Assembly);
         UseSnakeCaseNames(modelBuilder);
     }

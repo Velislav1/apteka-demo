@@ -22,6 +22,7 @@ public static class PurchasingModule
         services.AddScoped<ISupplierRepository, SupplierRepository>();
         services.AddScoped<IDeliveryRepository, DeliveryRepository>();
         services.AddScoped<IDeliveryCorrectionRepository, DeliveryCorrectionRepository>();
+        services.AddScoped<Apteka.Purchasing.Application.Orders.IPurchaseOrderRepository, Orders.PurchaseOrderRepository>();
 
         // Use cases
         services.AddScoped<SuppliersHandler>();
@@ -33,6 +34,8 @@ public static class PurchasingModule
         services.AddScoped<ListCorrectionsHandler>();
         services.AddScoped<DeliveryCorrectionsHandler>();
         services.AddScoped<GetCorrectionHandler>();
+        services.AddScoped<Apteka.Purchasing.Application.Orders.SuggestOrderHandler>();
+        services.AddScoped<Apteka.Purchasing.Application.Orders.OrdersHandler>();
 
         return services;
     }

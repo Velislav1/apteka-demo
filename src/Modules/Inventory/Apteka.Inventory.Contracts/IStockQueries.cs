@@ -24,6 +24,16 @@ public interface IStockQueries
     /// </summary>
     Task<ProductCard> GetProductCardAsync(Guid productId, DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Sold per product in [fromUtc, toUtc), in base units: sales less reversals and returns (only products that sold).
+    /// <paramref name="productIds"/> null = all products.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, int>> GetSoldQuantitiesAsync(
+        IReadOnlyCollection<Guid>? productIds,
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Purchase price per base unit (without VAT) of the given batches, for profit in reports.</summary>
     Task<IReadOnlyDictionary<Guid, decimal>> GetPurchasePricesAsync(IReadOnlyCollection<Guid> batchIds, CancellationToken cancellationToken = default);
 

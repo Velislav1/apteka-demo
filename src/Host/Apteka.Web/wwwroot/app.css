@@ -323,3 +323,12 @@ table.grid tr.selected > td { background: color-mix(in srgb, var(--primary-soft)
 
 /* Codes that are read digit by digit (ЕГН, баркод). */
 .mono { font-family: var(--font-mono); letter-spacing: 0.02em; }
+
+/* Printing a document (e.g. „Заявка за доставка“): only the page content, no menus. */
+.print-only { display: none; }
+@media print {
+  .menubar, .toolbar-strip, .statusbar, .no-print, .toolbar, nav { display: none !important; }
+  .print-only { display: block; }
+  body { background: #fff; }
+  table.grid { box-shadow: none; }
+}
