@@ -382,6 +382,93 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Payments.PaymentAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("DeliveryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("delivery_id");
+
+                    b.Property<Guid>("PaymentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_payment_allocations");
+
+                    b.HasIndex("DeliveryId")
+                        .HasDatabaseName("ix_payment_allocations_delivery_id");
+
+                    b.HasIndex("PaymentId")
+                        .HasDatabaseName("ix_payment_allocations_payment_id");
+
+                    b.ToTable("payment_allocations", "purchasing", t =>
+                        {
+                            t.HasCheckConstraint("ck_payment_allocations_amount", "amount > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Payments.SupplierPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("channel");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<DateOnly>("PaidOn")
+                        .HasColumnType("date")
+                        .HasColumnName("paid_on");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_id");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_supplier_payments");
+
+                    b.HasIndex("PaidOn")
+                        .HasDatabaseName("ix_supplier_payments_paid_on");
+
+                    b.HasIndex("SupplierId")
+                        .HasDatabaseName("ix_supplier_payments_supplier_id");
+
+                    b.ToTable("supplier_payments", "purchasing", t =>
+                        {
+                            t.HasCheckConstraint("ck_supplier_payments_amount", "amount > 0");
+                        });
+                });
+
             modelBuilder.Entity("Apteka.Purchasing.Domain.Suppliers.Supplier", b =>
                 {
                     b.Property<Guid>("Id")
@@ -489,6 +576,33 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_purchase_order_lines_purchase_orders_order_id");
                 });
 
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Payments.PaymentAllocation", b =>
+                {
+                    b.HasOne("Apteka.Purchasing.Domain.Deliveries.Delivery", null)
+                        .WithMany()
+                        .HasForeignKey("DeliveryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_payment_allocations_deliveries_delivery_id");
+
+                    b.HasOne("Apteka.Purchasing.Domain.Payments.SupplierPayment", null)
+                        .WithMany("Allocations")
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_payment_allocations_supplier_payments_payment_id");
+                });
+
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Payments.SupplierPayment", b =>
+                {
+                    b.HasOne("Apteka.Purchasing.Domain.Suppliers.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_supplier_payments_suppliers_supplier_id");
+                });
+
             modelBuilder.Entity("Apteka.Purchasing.Domain.Corrections.DeliveryCorrection", b =>
                 {
                     b.Navigation("Lines");
@@ -502,6 +616,11 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Apteka.Purchasing.Domain.Orders.PurchaseOrder", b =>
                 {
                     b.Navigation("AllLines");
+                });
+
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Payments.SupplierPayment", b =>
+                {
+                    b.Navigation("Allocations");
                 });
 #pragma warning restore 612, 618
         }
