@@ -232,6 +232,25 @@ public class CheckoutPageTests : BunitContext
     }
 
     [Fact]
+    public void F7_shows_the_drug_details_and_products_with_the_same_substance()
+    {
+        _catalog.Products[0] = _catalog.Products[0] with { ActiveSubstance = "Paracetamol", AtcCode = "N02BE01" };
+        _catalog.Products.Add(new CatalogProductInfo(Guid.CreateVersion7(), "Панадол 500 мг", 20m, CatalogDispensingMode.OverTheCounter, true, null,
+            [new CatalogUnit(Guid.CreateVersion7(), "таблетка", 1)], Code: 77, ActiveSubstance: "paracetamol"));
+        var page = Render<CheckoutPage>();
+        Type(page, OtcBarcode);
+
+        Press(page, "F7");
+
+        var info = page.Find(".till-info");
+        Assert.Contains("N02BE01", info.TextContent);
+        Assert.Contains("Панадол 500 мг", info.TextContent);
+        Press(page, "Escape");
+        Assert.Empty(page.FindAll(".till-info"));
+        Assert.Single(page.FindAll(".till-lines tbody tr")); // Esc closed the panel, not the sale
+    }
+
+    [Fact]
     public void Ctrl_Enter_completes_the_sale_in_cash_with_the_exact_amount()
     {
         var page = Render<CheckoutPage>();

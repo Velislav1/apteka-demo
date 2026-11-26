@@ -9,6 +9,8 @@
 @inject FindTillProductHandler FindProduct
 @inject CompleteSaleHandler CompleteSale
 @inject Apteka.Sales.Application.Customers.CustomersHandler Customers
+@inject Apteka.Catalog.Contracts.ICatalogLookup Catalog
+@inject Apteka.Inventory.Contracts.IStockQueries Stock
 @inject TimeProvider Clock
 @inject IJSRuntime JS
 
@@ -61,6 +63,42 @@
         </dl>
       }
     </div>
+
+    @if (_info is { } info)
+    {
+      <div class="till-info card" role="region" aria-label="Лекарствена справка">
+        <h2>Лекарствена справка <span class="muted">F7 / Esc — затвори</span></h2>
+        <dl class="current-item">
+          <div><dt>Стока</dt><dd>@info.Product.Name (№ @info.Product.Code)</dd></div>
+          <div><dt>Активно вещество</dt><dd>@(info.Product.ActiveSubstance ?? "—")</dd></div>
+          <div><dt>Генерика</dt><dd>@(info.Product.GenericName ?? "—")</dd></div>
+          <div><dt>ATC</dt><dd>@(info.Product.AtcCode ?? "—")</dd></div>
+          <div><dt>Отпускане</dt><dd>@(info.Product.DispensingMode switch { Apteka.Catalog.Contracts.CatalogDispensingMode.Prescription => "по лекарско предписание", Apteka.Catalog.Contracts.CatalogDispensingMode.Narcotic => "упойващо", _ => "без рецепта" })</dd></div>
+        </dl>
+        @if (info.Alternatives.Count > 0)
+        {
+          <h3>Заместители (същото вещество)</h3>
+          <table class="grid">
+            <thead><tr><th class="num">Код</th><th>Наименование</th><th>Наличност</th></tr></thead>
+            <tbody>
+              @foreach (var (alternative, onHand) in info.Alternatives)
+              {
+                <tr class="@(onHand == 0 ? "inactive" : null)">
+                  <td class="num">@alternative.Code</td>
+                  <td>@alternative.Name</td>
+                  <td>@(onHand == 0 ? "няма" : Formats.Quantity(onHand, alternative.Units))</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <p class="muted">За да добавите заместител, напишете кода му и Enter. Заменя се само ако рецептата го позволява.</p>
+        }
+        else
+        {
+          <p class="muted">Няма други стоки със същото активно вещество.</p>
+        }
+      </div>
+    }
 
     @if (_cart.IsEmpty)
     {
@@ -126,6 +164,7 @@
       <li><kbd>↑</kbd> <kbd>↓</kbd> избор на ред</li>
       <li><kbd>F2</kbd> клиент (ЕГН, код, телефон или име)</li>
       <li><kbd>F4</kbd> отстъпка (ТО %) на реда</li>
+      <li><kbd>F7</kbd> лекарствена справка и заместители</li>
       <li><kbd>%10</kbd> + Enter — обща ТО 10 % на цялата продажба</li>
       <li><kbd>F12</kbd> смяна на мярката</li>
       <li><kbd>F8</kbd> изтрий реда</li>
@@ -153,6 +192,9 @@
   private int _pendingQuantity = 1;
   private IJSObjectReference? _module;
   private Apteka.Sales.Application.Customers.CustomerListItem? _customer;
+  private DrugInfo? _info;
+
+  private sealed record DrugInfo(Apteka.Catalog.Contracts.CatalogProductInfo Product, IReadOnlyList<(Apteka.Catalog.Contracts.CatalogProductInfo Product, int OnHand)> Alternatives);
   private IReadOnlyList<Apteka.Sales.Application.Customers.CustomerListItem> _customerMatches = [];
 
   private string Prompt => _mode switch
@@ -190,6 +232,9 @@
         break;
       case "ArrowDown" when _mode == Mode.Scan:
         _cart.Move(1);
+        break;
+      case "F7" when _mode == Mode.Scan:
+        await ToggleInfo();
         break;
       case "F2" when _mode == Mode.Scan:
         Switch(Mode.Customer);
@@ -452,8 +497,33 @@
     _cart.ReplaceCurrent(priced.Value);
   }
 
+  /// <summary>F7 („Лек. справка“ in Apteka Expert 2): details of the current product and products with the same substance.</summary>
+  private async Task ToggleInfo()
+  {
+    if (_info is not null || _cart.Current is not { } current)
+    {
+      _info = null;
+      return;
+    }
+
+    if (await Catalog.GetProductAsync(current.Product.ProductId) is not { } product)
+    {
+      return;
+    }
+
+    var alternatives = await Catalog.FindAlternativesAsync(product.ProductId, 20);
+    var stock = (await Stock.GetProductStockAsync([.. alternatives.Select(a => a.ProductId)], null)).ToDictionary(s => s.ProductId, s => s.BaseQuantity);
+    _info = new DrugInfo(product, alternatives.Select(a => (a, stock.GetValueOrDefault(a.ProductId))).OrderByDescending(a => a.Item2 > 0).ThenBy(a => a.a.Name).ToList());
+  }
+
   private void OnEscape()
   {
+    if (_info is not null)
+    {
+      _info = null;
+      return;
+    }
+
     _input = string.Empty;
     _error = null;
 

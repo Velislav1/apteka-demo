@@ -29,6 +29,12 @@ public interface ICatalogLookup
     /// <summary>Active product groups by name, for report filters.</summary>
     Task<IReadOnlyList<CatalogGroup>> ListGroupsAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// „Заместители“: other active products with the same active substance (or, without one, the same generic name
+    /// or the same 7-character ATC code), by name.
+    /// </summary>
+    Task<IReadOnlyList<CatalogProductInfo>> FindAlternativesAsync(Guid productId, int limit, CancellationToken cancellationToken = default);
+
     /// <summary>Active shelves by name (e.g. for „Инвентаризация“ of one shelf).</summary>
     Task<IReadOnlyList<CatalogShelf>> ListShelvesAsync(CancellationToken cancellationToken = default);
 }
@@ -50,7 +56,10 @@ public sealed record CatalogProductInfo(
     decimal MarkupPercent = 25m,
     Guid? ProductGroupId = null,
     int? MinStock = null,
-    int? MaxStock = null);
+    int? MaxStock = null,
+    string? AtcCode = null,
+    string? ActiveSubstance = null,
+    string? GenericName = null);
 
 public static class CatalogCodes
 {

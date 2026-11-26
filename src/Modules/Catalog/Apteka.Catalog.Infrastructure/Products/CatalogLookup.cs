@@ -100,6 +100,35 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
             .Select(g => new CatalogGroup(g.Id, g.Name))
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<CatalogProductInfo>> FindAlternativesAsync(Guid productId, int limit, CancellationToken cancellationToken = default)
+    {
+        var product = await context.Products.AsNoTracking().SingleOrDefaultAsync(p => p.Id == productId, cancellationToken);
+        if (product is null)
+        {
+            return [];
+        }
+
+        var others = context.Products.AsNoTracking().Include(p => p.Units).Where(p => p.IsActive && p.Id != productId);
+        if (product.ActiveSubstance is { } substance)
+        {
+            others = others.Where(p => p.ActiveSubstance != null && EF.Functions.ILike(p.ActiveSubstance, substance));
+        }
+        else if (product.GenericName is { } generic)
+        {
+            others = others.Where(p => p.GenericName != null && EF.Functions.ILike(p.GenericName, generic));
+        }
+        else if (product.AtcCode is { Length: 7 } atc)
+        {
+            others = others.Where(p => p.AtcCode == atc);
+        }
+        else
+        {
+            return [];
+        }
+
+        return await ToInfoAsync(await others.OrderBy(p => p.Name).Take(limit).ToListAsync(cancellationToken), cancellationToken);
+    }
+
     public async Task<IReadOnlyList<CatalogShelf>> ListShelvesAsync(CancellationToken cancellationToken = default) =>
         await context.Shelves.AsNoTracking()
             .Where(s => s.IsActive)
@@ -142,7 +171,10 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
         markupPercent,
         product.ProductGroupId,
         product.MinStock,
-        product.MaxStock);
+        product.MaxStock,
+        product.AtcCode,
+        product.ActiveSubstance,
+        product.GenericName);
 
     // The values match by design (see CatalogDispensingMode); mapping by name keeps it safe if one side changes.
     private static CatalogDispensingMode ToContract(DispensingMode mode) => Enum.Parse<CatalogDispensingMode>(mode.ToString());

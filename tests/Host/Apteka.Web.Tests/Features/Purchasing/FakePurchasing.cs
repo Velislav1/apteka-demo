@@ -58,6 +58,14 @@ internal sealed class FakeCatalogLookup : ICatalogLookup
     public Task<IReadOnlyList<CatalogGroup>> ListGroupsAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<CatalogGroup>>(Groups);
 
+    public Task<IReadOnlyList<CatalogProductInfo>> FindAlternativesAsync(Guid productId, int limit, CancellationToken cancellationToken = default)
+    {
+        var product = Products.SingleOrDefault(p => p.ProductId == productId);
+        return Task.FromResult<IReadOnlyList<CatalogProductInfo>>(product?.ActiveSubstance is not { } substance
+            ? []
+            : Products.Where(p => p.ProductId != productId && p.IsActive && string.Equals(p.ActiveSubstance, substance, StringComparison.OrdinalIgnoreCase)).Take(limit).ToList());
+    }
+
     public Task<IReadOnlyList<CatalogShelf>> ListShelvesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<CatalogShelf>>([]);
 }

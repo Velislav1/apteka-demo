@@ -96,6 +96,26 @@ public class CodesAndMarkupsTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Alternatives_are_the_active_products_with_the_same_substance()
+    {
+        await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);
+        var substance = CatalogInputs.UniqueName("Ibuprofenum");
+        Guid first, second, inactive;
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var create = scope.ServiceProvider.GetRequiredService<CreateProductHandler>();
+            first = (await create.HandleAsync(CatalogInputs.Tablets(CatalogInputs.UniqueName("Заместител А"), TestBarcodes.Next()) with { ActiveSubstance = substance }, Ct)).Value;
+            second = (await create.HandleAsync(CatalogInputs.Tablets(CatalogInputs.UniqueName("Заместител Б"), TestBarcodes.Next()) with { ActiveSubstance = substance.ToUpperInvariant() }, Ct)).Value;
+            inactive = (await create.HandleAsync(CatalogInputs.Tablets(CatalogInputs.UniqueName("Заместител В"), TestBarcodes.Next()) with { ActiveSubstance = substance, IsActive = false }, Ct)).Value;
+        }
+
+        await using var check = provider.CreateAsyncScope();
+        var alternatives = await check.ServiceProvider.GetRequiredService<ICatalogLookup>().FindAlternativesAsync(first, 10, Ct);
+        Assert.Equal([second], alternatives.Select(a => a.ProductId));
+        Assert.Equal(substance.ToUpperInvariant(), alternatives[0].ActiveSubstance);
+    }
+
+    [Fact]
     public async Task Markup_is_the_products_else_the_groups_else_25_percent()
     {
         await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);
