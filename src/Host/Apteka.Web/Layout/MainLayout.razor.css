@@ -135,3 +135,11 @@
   .statusbar > span:first-child { display: none; }
   .content { padding: 1rem; }
 }
+
+/* „Справки“: two columns of groups, as the submenus of Apteka Expert 2. */
+.menu:hover .dropdown.wide, .menu:focus-within .dropdown.wide { grid-template-columns: repeat(2, max-content); gap: 0 1rem; }
+.dropdown-column { display: grid; gap: 1px; align-content: start; }
+
+@media (max-width: 720px) {
+  .menu:hover .dropdown.wide, .menu:focus-within .dropdown.wide { grid-template-columns: 1fr; }
+}

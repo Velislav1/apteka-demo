@@ -46,17 +46,35 @@
           </div>
           <div class="menu">
             <button class="menu-title" type="button">Справки</button>
-            <div class="dropdown">
-              <NavLink href="inventory/card"><Icon Name="draft" /> Картон на стока</NavLink>
-              <NavLink href="inventory/stock" Match="NavLinkMatch.All"><Icon Name="boxes" /> Стокова наличност</NavLink>
-              <NavLink href="sales/report"><Icon Name="coins" /> Дневен опис на продажбите</NavLink>
-              <NavLink href="inventory/stock?expiring=true"><Icon Name="clock" /> Срок на годност до 90 дни</NavLink>
-              <NavLink href="inventory/expired"><Icon Name="clock" /> Изтекъл срок на годност</NavLink>
-              <NavLink href="inventory/below-minimum"><Icon Name="boxes" /> Под минимален запас</NavLink>
-              <NavLink href="inventory/overstock"><Icon Name="boxes" /> Свръхналичности и залежала стока</NavLink>
-              <NavLink href="inventory/turnover"><Icon Name="draft" /> Оборотна ведомост</NavLink>
-              <NavLink href="sales/statistics"><Icon Name="coins" /> Статистика на продажбите</NavLink>
-              <NavLink href="reports/recap"><Icon Name="coins" /> Рекапитулация</NavLink>
+            @* Grouped as the submenus of „Справки“ in Apteka Expert 2. *@
+            <div class="dropdown wide">
+              <div class="dropdown-column">
+                <span class="dropdown-group">Наличности</span>
+                <NavLink href="inventory/stock" Match="NavLinkMatch.All"><Icon Name="boxes" /> Стокова наличност</NavLink>
+                <NavLink href="inventory/card"><Icon Name="draft" /> Картон на стока</NavLink>
+                <NavLink href="inventory/below-minimum"><Icon Name="boxes" /> Под минимален запас</NavLink>
+                <NavLink href="inventory/overstock"><Icon Name="boxes" /> Свръхналичности и залежала стока</NavLink>
+                <NavLink href="inventory/stock?expiring=true"><Icon Name="clock" /> Срок на годност до 90 дни</NavLink>
+                <NavLink href="inventory/expired"><Icon Name="clock" /> Изтекъл срок на годност</NavLink>
+                <span class="dropdown-group">Изписвания и инвентаризация</span>
+                <NavLink href="inventory/write-offs?kind=writeoff"><Icon Name="draft" /> Бракувания</NavLink>
+                <NavLink href="inventory/write-offs?kind=protocol"><Icon Name="draft" /> Изписвания с протокол</NavLink>
+                <NavLink href="inventory/stocktakings"><Icon Name="boxes" /> Инвентаризации</NavLink>
+              </div>
+              <div class="dropdown-column">
+                <span class="dropdown-group">Продажби</span>
+                <NavLink href="sales/report"><Icon Name="coins" /> Дневен опис на продажбите</NavLink>
+                <NavLink href="sales/statistics"><Icon Name="coins" /> Статистика на продажбите</NavLink>
+                <NavLink href="sales/receivables"><Icon Name="coins" /> Вземания от клиенти</NavLink>
+                <span class="dropdown-group">Доставки</span>
+                <NavLink href="purchasing/payables"><Icon Name="coins" /> Задължения към доставчиците</NavLink>
+                <NavLink href="purchasing/refusals"><Icon Name="draft" /> Откази</NavLink>
+                <span class="dropdown-group">Рекапитулация</span>
+                <NavLink href="reports/recap"><Icon Name="coins" /> Рекапитулация</NavLink>
+                <NavLink href="inventory/turnover"><Icon Name="draft" /> Оборотна ведомост</NavLink>
+                <span class="dropdown-group">Цени</span>
+                <NavLink href="inventory/price-changes"><Icon Name="coins" /> Промени на цени</NavLink>
+              </div>
             </div>
           </div>
           <div class="menu">
