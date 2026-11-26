@@ -13,6 +13,9 @@ public enum PaymentMethod
 {
     Cash = 1,
     Card = 2,
+
+    /// <summary>„На отложено плащане“ (Apteka Expert 2: „Плащане … след N дни“): the customer pays later.</summary>
+    OnAccount = 3,
 }
 
 public enum SaleStatus

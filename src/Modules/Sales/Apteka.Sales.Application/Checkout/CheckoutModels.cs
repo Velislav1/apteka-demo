@@ -29,6 +29,7 @@ public sealed record TillProduct(
 public sealed record CheckoutLineInput(Guid ProductId, Guid UnitId, int Quantity, decimal DiscountPercent = 0m, bool PrescriptionConfirmed = false);
 
 /// <param name="CustomerId">„Клиент“ chosen with F2, if any.</param>
-public sealed record CheckoutInput(IReadOnlyList<CheckoutLineInput> Lines, PaymentMethod PaymentMethod, decimal? CashReceived, Guid? CustomerId = null);
+/// <param name="PaymentTermDays">For <see cref="PaymentMethod.OnAccount"/>: days to pay.</param>
+public sealed record CheckoutInput(IReadOnlyList<CheckoutLineInput> Lines, PaymentMethod PaymentMethod, decimal? CashReceived, Guid? CustomerId = null, int PaymentTermDays = 0);
 
 public sealed record CompletedSale(Guid SaleId, long Number, decimal Total, decimal? Change);

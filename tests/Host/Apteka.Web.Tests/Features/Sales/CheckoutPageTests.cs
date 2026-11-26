@@ -209,6 +209,29 @@ public class CheckoutPageTests : BunitContext
     }
 
     [Fact]
+    public void F9_in_the_payment_step_sells_on_account_to_the_chosen_customer_for_the_typed_days()
+    {
+        var customer = Apteka.Sales.Domain.Customers.Customer.Create(new("Демо Фирма", null, null, null)).Value;
+        _customers.Items.Add(customer);
+        var page = Render<CheckoutPage>();
+        Type(page, OtcBarcode);
+        Press(page, "F10");
+        Press(page, "F9");
+        Assert.Contains("изберете го с F2", page.Markup);
+        Assert.Empty(_sales.Saved);
+
+        Press(page, "Escape");
+        Press(page, "F2");
+        Type(page, "Демо Фирма");
+        Press(page, "F10");
+        page.Find("#till-input").Input("15");
+        Press(page, "F9");
+
+        var sale = Assert.Single(_sales.Saved);
+        Assert.Equal((PaymentMethod.OnAccount, 15, customer.Id), (sale.PaymentMethod, sale.PaymentTermDays, sale.CustomerId!.Value));
+    }
+
+    [Fact]
     public void Ctrl_Enter_completes_the_sale_in_cash_with_the_exact_amount()
     {
         var page = Render<CheckoutPage>();

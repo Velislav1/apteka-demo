@@ -24,7 +24,13 @@ public interface IShiftRepository
 /// „Смяна на касата“: open with the cash in the drawer, put cash in or take it out with a reason, close with the
 /// counted cash. Expected cash = opening + the user's cash sales in the shift − cash refunds (corrections) + in − out.
 /// </summary>
-public sealed class ShiftsHandler(IShiftRepository shifts, ISaleRepository sales, IUnitOfWork unitOfWork, ICurrentUser currentUser, TimeProvider clock)
+public sealed class ShiftsHandler(
+    IShiftRepository shifts,
+    ISaleRepository sales,
+    Receivables.IReceivablesRepository receivables,
+    IUnitOfWork unitOfWork,
+    ICurrentUser currentUser,
+    TimeProvider clock)
 {
     public const int ListLimit = 60;
 
@@ -139,8 +145,10 @@ public sealed class ShiftsHandler(IShiftRepository shifts, ISaleRepository sales
         var refunds = (await sales.ListReturnsAsync(shift.OpenedAt, until, cancellationToken))
             .Where(r => r.Return.UserId == shift.UserId && r.PaymentMethod == PaymentMethod.Cash)
             .Sum(r => r.Return.Total);
+        // Cash a customer brings for a sale on account goes into the drawer too.
+        var fromCustomers = await receivables.CashTakenAsync(shift.UserId, shift.OpenedAt, until, cancellationToken);
         return new Totals(
-            mine.Where(s => s.PaymentMethod == PaymentMethod.Cash).Sum(s => s.Total),
+            mine.Where(s => s.PaymentMethod == PaymentMethod.Cash).Sum(s => s.Total) + fromCustomers,
             mine.Where(s => s.PaymentMethod == PaymentMethod.Card).Sum(s => s.Total),
             refunds,
             mine.Count);

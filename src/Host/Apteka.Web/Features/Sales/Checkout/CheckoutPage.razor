@@ -129,7 +129,7 @@
       <li><kbd>%10</kbd> + Enter — обща ТО 10 % на цялата продажба</li>
       <li><kbd>F12</kbd> смяна на мярката</li>
       <li><kbd>F8</kbd> изтрий реда</li>
-      <li><kbd>F10</kbd> плащане и ресто</li>
+      <li><kbd>F10</kbd> плащане и ресто; там <kbd>F9</kbd> — на отложено (дни, празно = 30)</li>
       <li><kbd>Ctrl+Enter</kbd> приключи (в брой, точна сума)</li>
       <li><kbd>Esc</kbd> назад / отказ</li>
     </ul>
@@ -161,7 +161,7 @@
     Mode.Choose or Mode.ChooseCustomer => "Номер от списъка и Enter (Esc — назад)",
     Mode.Customer => "Клиент: ЕГН, код, телефон или име и Enter (празно — без клиент · Esc — назад)",
     Mode.ConfirmPrescription => $"„{_pendingPrescription?.Product.Name}“ е по лекарско предписание. Има ли рецепта? Enter — да, Esc — не",
-    Mode.Payment => $"Плащане {Formats.Euro(_cart.Total)}: получена сума в брой и Enter (празно — точна сума) · F10 — с карта · Esc — назад",
+    Mode.Payment => $"Плащане {Formats.Euro(_cart.Total)}: получена сума в брой и Enter (празно — точна сума) · F10 — с карта · F9 — на отложено плащане (дни; празно = 30) · Esc — назад",
     Mode.ConfirmCancel => "Отказ на цялата продажба? Esc — да, Enter — не",
     _ => "Стока: код, баркод или име и Enter",
   };
@@ -205,6 +205,9 @@
         break;
       case "F10" when _mode == Mode.Scan && !_cart.IsEmpty:
         Switch(Mode.Payment);
+        break;
+      case "F9" when _mode == Mode.Payment:
+        await PayOnAccount();
         break;
       case "F10" when _mode == Mode.Payment:
         await Pay(PaymentMethod.Card, null);
@@ -489,10 +492,24 @@
     await Pay(PaymentMethod.Cash, _cart.Total);
   }
 
-  private async Task Pay(PaymentMethod method, decimal? cash)
+  /// <summary>F9 in the payment step: the customer (F2) pays later; the typed number is the days to pay (empty = 30).</summary>
+  private async Task PayOnAccount()
+  {
+    if (_customer is null)
+    {
+      _error = "На отложено плащане се продава само на клиент: изберете го с F2.";
+      return;
+    }
+
+    var text = _input.Trim();
+    var days = text.Length == 0 ? 30 : int.TryParse(text, out var typed) ? typed : -1;
+    await Pay(PaymentMethod.OnAccount, null, days);
+  }
+
+  private async Task Pay(PaymentMethod method, decimal? cash, int paymentTermDays = 0)
   {
     _input = string.Empty;
-    var result = await CompleteSale.HandleAsync(new CheckoutInput(_cart.ToInput(), method, cash, _customer?.Id));
+    var result = await CompleteSale.HandleAsync(new CheckoutInput(_cart.ToInput(), method, cash, _customer?.Id, paymentTermDays));
     if (result.IsFailure)
     {
       _error = result.Error.Message;

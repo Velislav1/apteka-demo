@@ -1,0 +1,186 @@
+@page "/sales/receivables"
+@using Apteka.Sales.Application.Customers
+@using Apteka.Sales.Application.Receivables
+@using Apteka.Sales.Domain.CustomerPayments
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject ReceivablesHandler Receivables
+@inject CustomersHandler Customers
+@inject TimeProvider Clock
+@implements IDisposable
+
+@* „Плащания от клиенти“ (Apteka Expert 2): sales on account that are not paid yet, by due date, and taking a payment
+   („Плати“ pays that sale first; the rest of the sum goes to the customer's oldest unpaid sales). *@
+
+<PageTitle>Плащания от клиенти</PageTitle>
+
+<h1>Вземания и плащания от клиенти</h1>
+
+<div class="toolbar">
+  <select id="customer" aria-label="Клиент" @bind="_customerId" @bind:after="Load">
+    <option value="">Всички клиенти</option>
+    @foreach (var customer in _customers)
+    {
+      <option value="@customer.Id">@customer.Name</option>
+    }
+  </select>
+  <label>Към дата <input type="date" @bind="_asOf" @bind:after="Load" /></label>
+  <label><input type="checkbox" @bind="_onlyUnpaid" @bind:after="Load" /> само неплатени</label>
+</div>
+
+@if (_error is not null)
+{
+  <p class="alert error" role="alert">@_error</p>
+}
+@if (_message is not null)
+{
+  <p class="alert success" role="status">@_message</p>
+}
+
+@if (_rows is { Count: > 0 })
+{
+  <table class="grid">
+    <thead><tr><th>Клиент</th><th class="num">Продажба</th><th>Дата</th><th>Падеж</th><th class="num">Сума</th><th class="num">Платено</th><th class="num">Дължимо</th><th>Просрочие</th><th></th></tr></thead>
+    <tbody>
+      @foreach (var row in _rows)
+      {
+        <tr class="@(row.DaysOverdue > 0 && row.Owed > 0 ? "overdue" : null)">
+          <td><a href="sales/customers/@row.CustomerId">@row.CustomerName</a></td>
+          <td class="num"><a href="sales/sales/@row.SaleId">@row.Number</a></td>
+          <td>@Formats.LocalTime(row.CreatedAt)</td>
+          <td>@Formats.Date(row.DueDate)</td>
+          <td class="num">@Formats.Euro(row.Total)</td>
+          <td class="num">@(row.Paid == 0 ? null : Formats.Euro(row.Paid))</td>
+          <td class="num"><strong>@Formats.Euro(row.Owed)</strong></td>
+          <td>@(row.Owed <= 0 ? "платена" : row.DaysOverdue > 0 ? $"{row.DaysOverdue} дни" : "—")</td>
+          <td>
+            @if (row.Owed > 0)
+            {
+              <button class="secondary" @onclick="() => StartPay(row)">Плати</button>
+            }
+          </td>
+        </tr>
+        @if (_paying?.SaleId == row.SaleId)
+        {
+          <tr class="details">
+            <td colspan="9">
+              <div class="pay-form">
+                <label>Сума <input id="amount" type="number" min="0.01" step="0.01" @bind="_amount" /></label>
+                <label>Начин
+                  <select @bind="_channel">
+                    <option value="@CustomerPaymentChannel.Cash">в брой</option>
+                    <option value="@CustomerPaymentChannel.Card">с карта</option>
+                    <option value="@CustomerPaymentChannel.Bank">по банка</option>
+                  </select>
+                </label>
+                <label>Бележка <input @bind="_note" maxlength="200" /></label>
+                <button @onclick="Pay" disabled="@_busy">Запиши плащането</button>
+                <button class="secondary" @onclick="() => _paying = null">Отказ</button>
+              </div>
+            </td>
+          </tr>
+        }
+      }
+    </tbody>
+    <tfoot><tr><td colspan="6"><strong>Общо дължимо</strong></td><td class="num"><strong>@Formats.Euro(_rows.Sum(r => r.Owed))</strong></td><td colspan="2"></td></tr></tfoot>
+  </table>
+}
+else if (_rows is not null)
+{
+  <p class="muted">Няма неплатени продажби на отложено плащане.</p>
+}
+
+<h2>Плащания</h2>
+<div class="toolbar">
+  <label>От <input type="date" @bind="_from" @bind:after="Load" /></label>
+  <label>до <input type="date" @bind="_to" @bind:after="Load" /></label>
+</div>
+@if (_payments is { Count: > 0 })
+{
+  <table class="grid">
+    <thead><tr><th>Дата</th><th>Клиент</th><th>Начин</th><th>Бележка</th><th class="num">Продажби</th><th class="num">Сума</th></tr></thead>
+    <tbody>
+      @foreach (var (payment, name) in _payments)
+      {
+        <tr>
+          <td>@Formats.Date(payment.PaidOn)</td>
+          <td>@name</td>
+          <td>@(payment.Channel switch { CustomerPaymentChannel.Cash => "в брой", CustomerPaymentChannel.Card => "с карта", _ => "по банка" })</td>
+          <td>@payment.Note</td>
+          <td class="num">@payment.SaleCount</td>
+          <td class="num">@Formats.Euro(payment.Amount)</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
+else
+{
+  <p class="muted">Няма плащания за периода.</p>
+}
+
+@code {
+  private readonly OneAtATime _loads = new();
+  private IReadOnlyList<CustomerListItem> _customers = [];
+  private string _customerId = string.Empty;
+  private DateOnly _asOf;
+  private DateOnly _from;
+  private DateOnly _to;
+  private bool _onlyUnpaid = true;
+  private IReadOnlyList<ReceivableRow>? _rows;
+  private IReadOnlyList<(CustomerPaymentItem Payment, string Name)>? _payments;
+  private ReceivableRow? _paying;
+  private decimal _amount;
+  private CustomerPaymentChannel _channel = CustomerPaymentChannel.Cash;
+  private string? _note;
+  private string? _error;
+  private string? _message;
+  private bool _busy;
+
+  private Guid? CustomerId => Guid.TryParse(_customerId, out var id) ? id : null;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _asOf = _to = BulgarianTime.Today(Clock.GetUtcNow());
+    _from = new DateOnly(_to.Year, _to.Month, 1);
+    _customers = await Customers.SearchAsync(CustomerSearchField.Name, null);
+    await Load();
+  }
+
+  private Task Load() => _loads.RunAsync(async () =>
+  {
+    _rows = await Receivables.ListAsync(CustomerId, _asOf, _onlyUnpaid);
+    _payments = await Receivables.ListPaymentsAsync(CustomerId, _from, _to);
+  });
+
+  private void StartPay(ReceivableRow row) => (_paying, _amount, _note, _error, _message) = (row, row.Owed, null, null, null);
+
+  private async Task Pay()
+  {
+    if (_paying is not { } row || _busy)
+    {
+      return;
+    }
+
+    _busy = true;
+    try
+    {
+      var paid = await Receivables.PayAsync(row.CustomerId, BulgarianTime.Today(Clock.GetUtcNow()), _amount, _channel, _note, row.SaleId);
+      if (paid.IsFailure)
+      {
+        _error = paid.Error.Message;
+        return;
+      }
+
+      _message = $"Платени {Formats.Euro(_amount)} от {row.CustomerName}.";
+      _paying = null;
+      await Load();
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+
+  public void Dispose() => _loads.Dispose();
+}

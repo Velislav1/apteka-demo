@@ -33,6 +33,10 @@ public sealed class SalesDbContext(DbContextOptions<SalesDbContext> options)
 
     public DbSet<Apteka.Sales.Domain.Shifts.CashShift> CashShifts => Set<Apteka.Sales.Domain.Shifts.CashShift>();
 
+    public DbSet<Apteka.Sales.Domain.CustomerPayments.CustomerPayment> CustomerPayments => Set<Apteka.Sales.Domain.CustomerPayments.CustomerPayment>();
+
+    public DbSet<Apteka.Sales.Domain.CustomerPayments.CustomerPaymentAllocation> CustomerPaymentAllocations => Set<Apteka.Sales.Domain.CustomerPayments.CustomerPaymentAllocation>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

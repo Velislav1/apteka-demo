@@ -31,6 +31,93 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
 
             modelBuilder.HasSequence("sale_return_numbers", "sales");
 
+            modelBuilder.Entity("Apteka.Sales.Domain.CustomerPayments.CustomerPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("channel");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<DateOnly>("PaidOn")
+                        .HasColumnType("date")
+                        .HasColumnName("paid_on");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_customer_payments");
+
+                    b.HasIndex("CustomerId")
+                        .HasDatabaseName("ix_customer_payments_customer_id");
+
+                    b.HasIndex("PaidOn")
+                        .HasDatabaseName("ix_customer_payments_paid_on");
+
+                    b.ToTable("customer_payments", "sales", t =>
+                        {
+                            t.HasCheckConstraint("ck_customer_payments_amount", "amount > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.CustomerPayments.CustomerPaymentAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("PaymentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_id");
+
+                    b.Property<Guid>("SaleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sale_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_customer_payment_allocations");
+
+                    b.HasIndex("PaymentId")
+                        .HasDatabaseName("ix_customer_payment_allocations_payment_id");
+
+                    b.HasIndex("SaleId")
+                        .HasDatabaseName("ix_customer_payment_allocations_sale_id");
+
+                    b.ToTable("customer_payment_allocations", "sales", t =>
+                        {
+                            t.HasCheckConstraint("ck_customer_payment_allocations_amount", "amount > 0");
+                        });
+                });
+
             modelBuilder.Entity("Apteka.Sales.Domain.Customers.Customer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -281,6 +368,10 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
                         .HasColumnName("payment_method");
+
+                    b.Property<int>("PaymentTermDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("payment_term_days");
 
                     b.Property<string>("SaleType")
                         .IsRequired()
@@ -544,6 +635,33 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
                     b.ToTable("cash_shifts", "sales");
                 });
 
+            modelBuilder.Entity("Apteka.Sales.Domain.CustomerPayments.CustomerPayment", b =>
+                {
+                    b.HasOne("Apteka.Sales.Domain.Customers.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_customer_payments_customers_customer_id");
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.CustomerPayments.CustomerPaymentAllocation", b =>
+                {
+                    b.HasOne("Apteka.Sales.Domain.CustomerPayments.CustomerPayment", null)
+                        .WithMany("Allocations")
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_customer_payment_allocations_customer_payments_payment_id");
+
+                    b.HasOne("Apteka.Sales.Domain.Sales.Sale", null)
+                        .WithMany()
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_customer_payment_allocations_sales_sale_id");
+                });
+
             modelBuilder.Entity("Apteka.Sales.Domain.Returns.SaleReturn", b =>
                 {
                     b.HasOne("Apteka.Sales.Domain.Sales.Sale", null)
@@ -628,6 +746,11 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_cash_movements_cash_shifts_shift_id");
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.CustomerPayments.CustomerPayment", b =>
+                {
+                    b.Navigation("Allocations");
                 });
 
             modelBuilder.Entity("Apteka.Sales.Domain.Returns.SaleReturn", b =>

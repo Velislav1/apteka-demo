@@ -24,6 +24,7 @@ public static class SalesModule
         services.AddScoped<ISaleRepository, SaleRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<Apteka.Sales.Application.Shifts.IShiftRepository, Shifts.ShiftRepository>();
+        services.AddScoped<Apteka.Sales.Application.Receivables.IReceivablesRepository, Receivables.ReceivablesRepository>();
 
         // Use cases
         services.AddScoped<FindTillProductHandler>();
@@ -38,6 +39,7 @@ public static class SalesModule
         services.AddScoped<Apteka.Sales.Application.BatchBuyers.BatchBuyersHandler>();
         services.AddScoped<Apteka.Sales.Application.Statistics.SalesStatisticsHandler>();
         services.AddScoped<Apteka.Sales.Application.Shifts.ShiftsHandler>();
+        services.AddScoped<Apteka.Sales.Application.Receivables.ReceivablesHandler>();
 
         return services;
     }

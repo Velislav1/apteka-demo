@@ -31,7 +31,9 @@ public sealed class DailySalesHandler(ISaleRepository sales, Customers.ICustomer
                 - returns.Where(r => r.PaymentMethod == PaymentMethod.Card).Sum(r => r.Return.Total),
             returns.OrderByDescending(r => r.Return.Number)
                 .Select(r => new DailyReturnItem(r.Return.Id, r.Return.Number, r.Return.CreatedAt, r.Return.SaleId, r.SaleNumber, r.Return.Total, r.PaymentMethod, r.Return.Reason))
-                .ToList());
+                .ToList(),
+            completed.Where(s => s.PaymentMethod == PaymentMethod.OnAccount).Sum(s => s.Total)
+                - returns.Where(r => r.PaymentMethod == PaymentMethod.OnAccount).Sum(r => r.Return.Total));
     }
 
     private static DateTimeOffset StartOfDayUtc(DateOnly day) => BulgarianTime.StartOfDayUtc(day);
@@ -77,9 +79,10 @@ public sealed class FindSaleHandler(ISaleRepository sales)
         (await sales.FindByNumberAsync(number, cancellationToken))?.Id;
 }
 
-public sealed record DailySalesView(DateOnly Day, IReadOnlyList<DailySaleItem> Sales, decimal CashTotal, decimal CardTotal, IReadOnlyList<DailyReturnItem>? Returns = null)
+/// <param name="OnAccountTotal">Sold on account (to be paid later).</param>
+public sealed record DailySalesView(DateOnly Day, IReadOnlyList<DailySaleItem> Sales, decimal CashTotal, decimal CardTotal, IReadOnlyList<DailyReturnItem>? Returns = null, decimal OnAccountTotal = 0m)
 {
-    public decimal Total => CashTotal + CardTotal;
+    public decimal Total => CashTotal + CardTotal + OnAccountTotal;
 }
 
 public sealed record DailySaleItem(Guid Id, long Number, DateTimeOffset CreatedAt, int LineCount, decimal Total, PaymentMethod PaymentMethod, SaleStatus Status, Guid? UserId = null, string? CustomerName = null);

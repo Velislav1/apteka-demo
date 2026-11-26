@@ -13,6 +13,13 @@ public static class Formats
 
     public static string Price(decimal price) => UnitPrice.Of(price).ToString();
 
+    public static string Payment(Apteka.Sales.Domain.Sales.PaymentMethod method) => method switch
+    {
+        Apteka.Sales.Domain.Sales.PaymentMethod.Cash => "в брой",
+        Apteka.Sales.Domain.Sales.PaymentMethod.Card => "с карта",
+        _ => "на отложено",
+    };
+
     public static string Date(DateOnly date) => date.ToString("dd.MM.yyyy", Bulgarian);
 
     public static string LocalTime(DateTimeOffset utc) => BulgarianTime.ToLocal(utc).ToString("dd.MM.yyyy HH:mm", Bulgarian);

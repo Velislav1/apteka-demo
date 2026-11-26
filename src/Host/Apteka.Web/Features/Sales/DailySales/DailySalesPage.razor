@@ -29,6 +29,10 @@
   {
     <span>В брой: <strong>@Formats.Euro(_view.CashTotal)</strong></span>
     <span>С карта: <strong>@Formats.Euro(_view.CardTotal)</strong></span>
+    @if (_view.OnAccountTotal != 0)
+    {
+      <span>На отложено: <strong>@Formats.Euro(_view.OnAccountTotal)</strong></span>
+    }
     <span>Общо: <strong>@Formats.Euro(_view.Total)</strong></span>
   }
 </div>
@@ -64,7 +68,7 @@ else
           <td>@sale.CustomerName</td>
           <td class="num">@sale.LineCount</td>
           <td class="num">@Formats.Euro(sale.Total)</td>
-          <td>@(sale.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</td>
+          <td>@Formats.Payment(sale.PaymentMethod)</td>
           <td>@(sale.Status == SaleStatus.Reversed ? "сторнирана" : "приключена")</td>
           <td>
             <a href="sales/sales/@sale.Id">Отвори</a>
@@ -125,7 +129,7 @@ else
           <td>@BulgarianTime.ToLocal(item.CreatedAt).ToString("HH:mm", CultureInfo.InvariantCulture)</td>
           <td><a href="sales/sales/@item.SaleId">№ @item.SaleNumber</a></td>
           <td>@item.Reason</td>
-          <td>@(item.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</td>
+          <td>@Formats.Payment(item.PaymentMethod)</td>
           <td class="num">−@Formats.Euro(item.Total)</td>
         </tr>
       }

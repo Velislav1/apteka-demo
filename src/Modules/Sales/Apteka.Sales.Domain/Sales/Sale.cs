@@ -43,6 +43,9 @@ public sealed class Sale : Entity<Guid>
 
     public decimal? CashReceived { get; private set; }
 
+    /// <summary>For a sale on account: days to pay after the sale (the due date is the Sofia date of the sale + these days).</summary>
+    public int PaymentTermDays { get; private set; }
+
     public decimal? Change => CashReceived - Total;
 
     public IReadOnlyList<SaleLine> Lines => _lines;
@@ -54,7 +57,8 @@ public sealed class Sale : Entity<Guid>
         decimal? cashReceived,
         Guid? userId,
         DateTimeOffset at,
-        Guid? customerId = null)
+        Guid? customerId = null,
+        int paymentTermDays = 0)
     {
         if (lines.Count == 0)
         {
@@ -108,6 +112,14 @@ public sealed class Sale : Entity<Guid>
                 break;
             case PaymentMethod.Card:
                 sale.CashReceived = null;
+                break;
+            case PaymentMethod.OnAccount when customerId is null:
+                return Result.Failure<Sale>(SalesErrors.OnAccountNeedsCustomer);
+            case PaymentMethod.OnAccount when paymentTermDays is < 1 or > 365:
+                return Result.Failure<Sale>(SalesErrors.InvalidPaymentTerm);
+            case PaymentMethod.OnAccount:
+                sale.CashReceived = null;
+                sale.PaymentTermDays = paymentTermDays;
                 break;
             default:
                 return Result.Failure<Sale>(SalesErrors.InvalidPayment);

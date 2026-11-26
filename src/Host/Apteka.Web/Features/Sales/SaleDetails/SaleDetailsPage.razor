@@ -28,7 +28,7 @@ else if (_sale is not null)
   <div class="doc-header card">
     <div><span class="muted">Дата и час</span><strong>@Formats.LocalTime(_sale.CreatedAt)</strong></div>
     <div><span class="muted">Потребител</span><strong>@(_userName ?? "—")</strong></div>
-    <div><span class="muted">Плащане</span><strong>@(_sale.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</strong></div>
+    <div><span class="muted">Плащане</span><strong>@Formats.Payment(_sale.PaymentMethod)</strong></div>
     <div><span class="muted">Клиент</span><strong>@if (_sale.CustomerId is { } customerId) { <a href="sales/customers/@customerId">@_sale.CustomerName</a> } else { <span>—</span> }</strong></div>
     <div><span class="muted">Сума</span><strong>@Formats.Euro(_sale.Total)</strong></div>
     @if (_sale.Returns is { Count: > 0 })
@@ -197,8 +197,10 @@ else if (_sale is not null)
         return;
       }
 
-      _message = $"Корекция № {result.Value.Number}: върнете на клиента {Formats.Euro(result.Value.Total)} " +
-        (result.Value.PaymentMethod == PaymentMethod.Cash ? "в брой." : "по картата.");
+      _message = result.Value.PaymentMethod == PaymentMethod.OnAccount
+        ? $"Корекция № {result.Value.Number}: дългът на клиента намалява с {Formats.Euro(result.Value.Total)}."
+        : $"Корекция № {result.Value.Number}: върнете на клиента {Formats.Euro(result.Value.Total)} " +
+          (result.Value.PaymentMethod == PaymentMethod.Cash ? "в брой." : "по картата.");
       _reason = null;
       await Load();
     }

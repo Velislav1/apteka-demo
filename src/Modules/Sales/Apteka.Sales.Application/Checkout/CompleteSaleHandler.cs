@@ -100,7 +100,7 @@ public sealed class CompleteSaleHandler(
         }
 
         // Keep the order in which the lines were scanned.
-        var sale = Sale.Create(saleId, [.. lines.Select(l => specs[l.LineId])], input.PaymentMethod, input.CashReceived, currentUser.UserId, now, input.CustomerId);
+        var sale = Sale.Create(saleId, [.. lines.Select(l => specs[l.LineId])], input.PaymentMethod, input.CashReceived, currentUser.UserId, now, input.CustomerId, input.PaymentTermDays);
         if (sale.IsFailure)
         {
             return Result.Failure<CompletedSale>(sale.Error);

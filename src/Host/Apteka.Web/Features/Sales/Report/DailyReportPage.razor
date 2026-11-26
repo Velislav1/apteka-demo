@@ -71,7 +71,7 @@
             <td>@Time(sale.CreatedAt)</td>
             <td>@UserName(sale.UserId)</td>
             <td>@sale.Number@(sale.Status == SaleStatus.Reversed ? " (сторно)" : null)@(sale.IsReturn ? $" (корекция № {sale.ReturnNumber})" : null)</td>
-            <td>@(sale.PaymentMethod == PaymentMethod.Cash ? "в брой" : "с карта")</td>
+            <td>@Formats.Payment(sale.PaymentMethod)</td>
             <td class="num">@Formats.Euro(sale.Total)</td>
             <td class="num">@Formats.Euro(sale.NetRevenue)</td>
             <td class="num">@Formats.Euro(sale.Cost)</td>

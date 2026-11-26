@@ -8,6 +8,8 @@ public static class SalesErrors
     public static readonly Error NoLines = new("sales.no_lines", "Няма стоки за продажба.");
     public static readonly Error CashTooLow = new("sales.cash_too_low", "Получената сума е по-малка от дължимата.");
     public static readonly Error InvalidPayment = new("sales.invalid_payment", "Невалиден начин на плащане.");
+    public static readonly Error OnAccountNeedsCustomer = new("sales.on_account_customer", "Продажба на отложено плащане е само на клиент: изберете клиента с F2.");
+    public static readonly Error InvalidPaymentTerm = new("sales.payment_term", "Дните за плащане трябва да са от 1 до 365.");
     public static readonly Error AlreadyReversed = new("sales.already_reversed", "Продажбата вече е сторнирана.");
     public static readonly Error NotFound = new("sales.not_found", "Продажбата не е намерена.");
     public static readonly Error ManagersOnly = new("sales.managers_only", "Само управител може да сторнира продажба.");
