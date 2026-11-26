@@ -1,0 +1,122 @@
+@page "/reports/accounting"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = Apteka.Identity.Contracts.Roles.Manager)]
+@using Apteka.Purchasing.Application.Accounting
+@using Apteka.Sales.Application.Accounting
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject PurchaseLedgerHandler Purchases
+@inject SalesLedgerHandler Sales
+@inject TimeProvider Clock
+@implements IDisposable
+
+@* „Експорт към счетоводство“: the purchase ledger (supplier invoices and notes) and the sales ledger (per day and VAT
+   rate) of a period, to check on screen and to give to the accountant as CSV. Not the NAP file format. *@
+
+<PageTitle>Експорт към счетоводство</PageTitle>
+
+<h1>Експорт към счетоводство</h1>
+
+<div class="toolbar">
+  <label>От <input id="from" type="date" @bind="_from" @bind:after="Load" /></label>
+  <label>до <input id="to" type="date" @bind="_to" @bind:after="Load" /></label>
+</div>
+
+<div class="tabs" role="tablist">
+  <button role="tab" class="@(_tab == 0 ? "active" : null)" aria-selected="@(_tab == 0 ? "true" : "false")" @onclick="() => _tab = 0">Дневник на покупките</button>
+  <button role="tab" class="@(_tab == 1 ? "active" : null)" aria-selected="@(_tab == 1 ? "true" : "false")" @onclick="() => _tab = 1">Дневник на продажбите</button>
+</div>
+
+@if (_purchases is null || _sales is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_tab == 0)
+{
+  <div class="toolbar">
+    <a class="button" href="@AccountingExport.PurchasesUrl(_from, _to)" download>Изтегли CSV</a>
+    <span>Данъчна основа <strong>@Formats.Euro(_purchases.Sum(r => r.TaxBase))</strong> · ДДС <strong>@Formats.Euro(_purchases.Sum(r => r.Vat))</strong></span>
+  </div>
+  @if (_purchases.Count == 0)
+  {
+    <p class="muted">Няма документи за периода.</p>
+  }
+  else
+  {
+    <table class="grid">
+      <thead><tr><th>Дата</th><th>Вид</th><th>Номер</th><th>Доставчик</th><th>ЕИК</th><th class="num">СР №</th><th class="num">ДДС %</th><th class="num">Данъчна основа</th><th class="num">ДДС</th><th class="num">Общо</th></tr></thead>
+      <tbody>
+        @foreach (var row in _purchases)
+        {
+          <tr>
+            <td>@Formats.Date(row.Date)</td>
+            <td>@row.Kind@(row.IsConsignment ? " (консигнация)" : null)</td>
+            <td>@row.DocumentNo</td>
+            <td>@row.SupplierName</td>
+            <td class="mono">@row.SupplierEik</td>
+            <td class="num">@row.DeliveryNumber</td>
+            <td class="num">@row.VatRate.ToString("0.##")</td>
+            <td class="num">@Formats.Euro(row.TaxBase)</td>
+            <td class="num">@Formats.Euro(row.Vat)</td>
+            <td class="num">@Formats.Euro(row.Total)</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+}
+else
+{
+  <div class="toolbar">
+    <a class="button" href="@AccountingExport.SalesUrl(_from, _to)" download>Изтегли CSV</a>
+    <span>Данъчна основа <strong>@Formats.Euro(_sales.Sum(r => r.TaxBase))</strong> · ДДС <strong>@Formats.Euro(_sales.Sum(r => r.Vat))</strong></span>
+  </div>
+  @if (_sales.Count == 0)
+  {
+    <p class="muted">Няма продажби за периода.</p>
+  }
+  else
+  {
+    <table class="grid">
+      <thead><tr><th>Дата</th><th>Вид</th><th class="num">ДДС %</th><th class="num">Документи</th><th class="num">Данъчна основа</th><th class="num">ДДС</th><th class="num">Общо</th></tr></thead>
+      <tbody>
+        @foreach (var row in _sales)
+        {
+          <tr>
+            <td>@Formats.Date(row.Day)</td>
+            <td>@row.KindName</td>
+            <td class="num">@row.VatRate.ToString("0.##")</td>
+            <td class="num">@row.Documents</td>
+            <td class="num">@Formats.Euro(row.TaxBase)</td>
+            <td class="num">@Formats.Euro(row.Vat)</td>
+            <td class="num">@Formats.Euro(row.Total)</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+}
+<p class="muted">Покупките са по датата на фактурата / известието, по нетните покупни цени и ставката на стоката. Продажбите са по дни; сторно и корекции — в деня, в който са направени.</p>
+
+@code {
+  private readonly OneAtATime _loads = new();
+  private DateOnly _from;
+  private DateOnly _to;
+  private int _tab;
+  private IReadOnlyList<PurchaseLedgerRow>? _purchases;
+  private IReadOnlyList<SalesLedgerRow>? _sales;
+
+  protected override Task OnInitializedAsync()
+  {
+    _to = BulgarianTime.Today(Clock.GetUtcNow());
+    _from = new DateOnly(_to.Year, _to.Month, 1);
+    return Load();
+  }
+
+  private Task Load() => _loads.RunAsync(async () =>
+  {
+    _purchases = await Purchases.HandleAsync(_from, _to);
+    _sales = await Sales.HandleAsync(_from, _to);
+  });
+
+  public void Dispose() => _loads.Dispose();
+}

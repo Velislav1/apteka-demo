@@ -74,6 +74,9 @@
                 <span class="dropdown-group">Рекапитулация</span>
                 <NavLink href="reports/recap"><Icon Name="coins" /> Рекапитулация</NavLink>
                 <NavLink href="inventory/turnover"><Icon Name="draft" /> Оборотна ведомост</NavLink>
+                <AuthorizeView Roles="@Roles.Manager" Context="manager">
+                  <NavLink href="reports/accounting"><Icon Name="coins" /> Експорт към счетоводство</NavLink>
+                </AuthorizeView>
                 <span class="dropdown-group">Цени</span>
                 <NavLink href="inventory/price-changes"><Icon Name="coins" /> Промени на цени</NavLink>
               </div>

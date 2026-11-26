@@ -22,6 +22,8 @@ public static class SalesModule
 
         // Infrastructure
         services.AddScoped<ISaleRepository, SaleRepository>();
+        services.AddScoped<Apteka.Sales.Application.Accounting.ISalesLedgerQueries, Accounting.SalesLedgerQueries>();
+        services.AddScoped<Apteka.Sales.Application.Accounting.SalesLedgerHandler>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<Apteka.Sales.Application.Shifts.IShiftRepository, Shifts.ShiftRepository>();
         services.AddScoped<Apteka.Sales.Application.Receivables.IReceivablesRepository, Receivables.ReceivablesRepository>();

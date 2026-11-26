@@ -41,6 +41,8 @@ public static class PurchasingModule
         services.AddScoped<Apteka.Purchasing.Application.Orders.OrdersHandler>();
         services.AddScoped<Apteka.Purchasing.Application.Payments.PayablesHandler>();
         services.AddScoped<Apteka.Purchasing.Application.Consignments.ConsignmentReportHandler>();
+        services.AddScoped<Apteka.Purchasing.Application.Accounting.IPurchaseLedgerQueries, Accounting.PurchaseLedgerQueries>();
+        services.AddScoped<Apteka.Purchasing.Application.Accounting.PurchaseLedgerHandler>();
         services.AddScoped<Apteka.Purchasing.Application.Refusals.RefusalsHandler>();
         services.AddScoped<Apteka.Purchasing.Application.Expenses.ExpensesHandler>();
 

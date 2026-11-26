@@ -8,6 +8,7 @@ using Apteka.Sales.Infrastructure;
 using Apteka.Identity.Infrastructure;
 using Apteka.Audit.Infrastructure;
 using Apteka.Identity.Infrastructure.Seed;
+using Apteka.Web.Features.Reports.Accounting;
 using Apteka.Web.Components;
 using Apteka.Web.Features.Identity.Session;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -72,6 +73,7 @@ app.UseCurrentUser();
 app.UseAntiforgery();
 
 app.MapAccountEndpoints();
+app.MapAccountingExport();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 await app.RunAsync();
