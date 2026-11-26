@@ -5,8 +5,10 @@ namespace Apteka.Inventory.Application.WriteOffs;
 /// <summary>„Бракувания“ for a period (Sofia dates, both included), newest first.</summary>
 public sealed class ListWriteOffsHandler(IWriteOffRepository writeOffs)
 {
-    public Task<IReadOnlyList<WriteOffListItem>> HandleAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default) =>
-        writeOffs.ListAsync(BulgarianTime.StartOfDayUtc(from), BulgarianTime.StartOfDayUtc(to.AddDays(1)), cancellationToken);
+    public async Task<IReadOnlyList<WriteOffListItem>> HandleAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default, Domain.WriteOffs.WriteOffKind? kind = null) =>
+        (await writeOffs.ListAsync(BulgarianTime.StartOfDayUtc(from), BulgarianTime.StartOfDayUtc(to.AddDays(1)), cancellationToken))
+            .Where(w => kind is null || w.Kind == kind)
+            .ToList();
 }
 
 public sealed class GetWriteOffHandler(IWriteOffRepository writeOffs)
@@ -26,6 +28,8 @@ public sealed class GetWriteOffHandler(IWriteOffRepository writeOffs)
                     .OrderBy(l => l.Position)
                     .Select(l => new WriteOffLineView(l.Position, l.ProductId, l.ProductName, l.UnitName, l.Quantity, l.BatchNo, l.ExpiryDate, l.PurchaseTotal.Amount))
                     .ToList(),
-                writeOff.PurchaseTotal.Amount);
+                writeOff.PurchaseTotal.Amount,
+                writeOff.Kind,
+                writeOff.Recipient);
     }
 }

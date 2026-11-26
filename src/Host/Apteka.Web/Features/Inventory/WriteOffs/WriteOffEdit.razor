@@ -12,14 +12,20 @@
 @* „Бракуване на стоки“ as in Apteka Expert 2: stock is entered like a sale, but from a chosen batch (expired ones too).
    Enter adds the line, ✕ removes it, Ctrl+Enter twice completes; nothing moves until then. *@
 
-<PageTitle>Ново бракуване</PageTitle>
+<PageTitle>@WriteOffKinds.Title(Kind)</PageTitle>
 
-<h1>Ново бракуване</h1>
+<h1>@WriteOffKinds.Title(Kind)</h1>
 
 <div @onkeydown="OnKeyDown">
   <fieldset class="header-form">
     <legend>Документ</legend>
     <div class="form-grid">
+      @if (Kind == Apteka.Inventory.Domain.WriteOffs.WriteOffKind.Protocol)
+      {
+        <label for="recipient">Предава се на</label>
+        <input id="recipient" @bind="_recipient" maxlength="200" placeholder="напр. отделение, лекар, дом за възрастни" />
+      }
+
       <label for="reason">Основание</label>
       <input id="reason" @bind="_reason" maxlength="200" placeholder="напр. изтекъл срок, счупена опаковка" />
     </div>
@@ -100,12 +106,18 @@
 
   <div class="toolbar">
     <button @onclick="Complete" disabled="@(_busy || _lines.Count == 0)">Приключване <kbd>Ctrl+Enter</kbd></button>
-    <a class="button secondary" href="inventory/write-offs">Отказ</a>
+    <a class="button secondary" href="inventory/write-offs?kind=@WriteOffKinds.Slug(Kind)">Отказ</a>
   </div>
 </div>
 
 @code {
   private string? _reason;
+  private string? _recipient;
+
+  /// <summary>„?kind=sample|protocol|shortage“; без него — бракуване.</summary>
+  [SupplyParameterFromQuery(Name = "kind")] public string? KindParameter { get; set; }
+
+  private Apteka.Inventory.Domain.WriteOffs.WriteOffKind Kind => WriteOffKinds.Parse(KindParameter);
   private CatalogProductInfo? _product;
   private IReadOnlyList<BatchStock> _batches = [];
   private Guid? _batchId;
@@ -207,7 +219,7 @@
     {
       var result = await CreateWriteOff.HandleAsync(new WriteOffInput(
         _reason,
-        _lines.Select(l => new WriteOffLineInput(l.ProductId, l.UnitId, l.Quantity, l.BatchId)).ToList()));
+        _lines.Select(l => new WriteOffLineInput(l.ProductId, l.UnitId, l.Quantity, l.BatchId)).ToList(), Kind, _recipient));
       _confirm = false;
       if (result.IsFailure)
       {

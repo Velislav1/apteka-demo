@@ -9,14 +9,14 @@
 
 @implements IDisposable
 
-<PageTitle>Бракуване на стоки</PageTitle>
+<PageTitle>@WriteOffKinds.Title(Kind)</PageTitle>
 
-<ListKeys OnAdd="@(() => Navigation.NavigateTo("inventory/write-offs/new"))" />
+<ListKeys OnAdd="@(() => Navigation.NavigateTo($"inventory/write-offs/new?kind={WriteOffKinds.Slug(Kind)}"))" />
 
-<h1>Бракуване на стоки</h1>
+<h1>@WriteOffKinds.Title(Kind)</h1>
 
 <div class="toolbar">
-  <a class="button" href="inventory/write-offs/new"><Icon Name="plus" /> Ново бракуване <kbd>F5</kbd></a>
+  <a class="button" href="inventory/write-offs/new?kind=@WriteOffKinds.Slug(Kind)"><Icon Name="plus" /> Нов документ <kbd>F5</kbd></a>
   <label>От <input id="from" type="date" @bind="_from" @bind:after="Load" /></label>
   <label>до <input id="to" type="date" @bind="_to" @bind:after="Load" /></label>
 </div>
@@ -27,12 +27,12 @@
 }
 else if (_items.Count == 0)
 {
-  <p class="muted">Няма бракувания за периода.</p>
+  <p class="muted">Няма документи за периода.</p>
 }
 else
 {
   <table class="grid">
-    <thead><tr><th class="num">№</th><th>Дата и час</th><th>Потребител</th><th>Основание</th><th class="num">Редове</th><th class="num">Стойност (покупни цени)</th></tr></thead>
+    <thead><tr><th class="num">№</th><th>Дата и час</th><th>Потребител</th><th>Основание</th>@if (Kind == Apteka.Inventory.Domain.WriteOffs.WriteOffKind.Protocol) { <th>Предадено на</th> }<th class="num">Редове</th><th class="num">Стойност (покупни цени)</th></tr></thead>
     <tbody>
       @foreach (var item in _items)
       {
@@ -41,6 +41,10 @@ else
           <td>@Formats.LocalTime(item.CreatedAt)</td>
           <td>@(item.UserId is { } user ? _users.GetValueOrDefault(user) : null)</td>
           <td>@item.Reason</td>
+          @if (Kind == Apteka.Inventory.Domain.WriteOffs.WriteOffKind.Protocol)
+          {
+            <td>@item.Recipient</td>
+          }
           <td class="num">@item.LineCount</td>
           <td class="num">@Formats.Euro(item.PurchaseTotal)</td>
         </tr>
@@ -51,6 +55,10 @@ else
 }
 
 @code {
+  [SupplyParameterFromQuery(Name = "kind")] public string? KindParameter { get; set; }
+
+  private Apteka.Inventory.Domain.WriteOffs.WriteOffKind Kind => WriteOffKinds.Parse(KindParameter);
+
   private readonly OneAtATime _loads = new();
 
   private Task Load() => _loads.RunAsync(LoadNow);
@@ -60,16 +68,18 @@ else
   private IReadOnlyList<WriteOffListItem>? _items;
   private IReadOnlyDictionary<Guid, string> _users = new Dictionary<Guid, string>();
 
-  protected override Task OnInitializedAsync()
+  protected override void OnInitialized()
   {
     _to = BulgarianTime.Today(Clock.GetUtcNow());
     _from = new DateOnly(_to.Year, _to.Month, 1);
-    return Load();
   }
+
+  // The menu opens the same page for every kind („?kind=…“): reload when it changes.
+  protected override Task OnParametersSetAsync() => Load();
 
   private async Task LoadNow()
   {
-    _items = await ListWriteOffs.HandleAsync(_from, _to);
+    _items = await ListWriteOffs.HandleAsync(_from, _to, default, Kind);
     _users = await UserDirectory.GetDisplayNamesAsync([.. _items.Where(i => i.UserId is not null).Select(i => i.UserId!.Value).Distinct()]);
   }
 

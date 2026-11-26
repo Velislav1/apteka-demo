@@ -13,4 +13,13 @@ public interface IWriteOffRepository
     Task<IReadOnlyList<WriteOffListItem>> ListAsync(DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
 }
 
-public sealed record WriteOffListItem(Guid Id, long Number, DateTimeOffset CreatedAt, Guid? UserId, string? Reason, int LineCount, decimal PurchaseTotal);
+public sealed record WriteOffListItem(
+    Guid Id,
+    long Number,
+    DateTimeOffset CreatedAt,
+    Guid? UserId,
+    string? Reason,
+    int LineCount,
+    decimal PurchaseTotal,
+    WriteOffKind Kind = WriteOffKind.WriteOff,
+    string? Recipient = null);

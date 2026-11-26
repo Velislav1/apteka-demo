@@ -17,6 +17,8 @@ internal sealed class WriteOffConfiguration : IEntityTypeConfiguration<WriteOff>
             .ValueGeneratedOnAdd();
         builder.HasIndex(w => w.Number).IsUnique();
         builder.Property(w => w.Reason).HasMaxLength(WriteOff.MaxReasonLength);
+        builder.Property(w => w.Kind).HasConversion<string>().HasMaxLength(10).HasDefaultValue(WriteOffKind.WriteOff);
+        builder.Property(w => w.Recipient).HasMaxLength(WriteOff.MaxReasonLength);
         builder.Ignore(w => w.PurchaseTotal);
         builder.Ignore(w => w.DomainEvents);
 

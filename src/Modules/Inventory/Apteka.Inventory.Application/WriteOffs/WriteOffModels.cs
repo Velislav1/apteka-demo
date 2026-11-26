@@ -1,7 +1,7 @@
 namespace Apteka.Inventory.Application.WriteOffs;
 
 /// <summary>What the „Бракуване“ screen sends when the document is completed.</summary>
-public sealed record WriteOffInput(string? Reason, IReadOnlyList<WriteOffLineInput> Lines);
+public sealed record WriteOffInput(string? Reason, IReadOnlyList<WriteOffLineInput> Lines, Domain.WriteOffs.WriteOffKind Kind = Domain.WriteOffs.WriteOffKind.WriteOff, string? Recipient = null);
 
 /// <param name="Quantity">In the unit <paramref name="UnitId"/>.</param>
 public sealed record WriteOffLineInput(Guid ProductId, Guid UnitId, int Quantity, Guid BatchId);
@@ -13,7 +13,9 @@ public sealed record WriteOffView(
     Guid? UserId,
     string? Reason,
     IReadOnlyList<WriteOffLineView> Lines,
-    decimal PurchaseTotal);
+    decimal PurchaseTotal,
+    Domain.WriteOffs.WriteOffKind Kind = Domain.WriteOffs.WriteOffKind.WriteOff,
+    string? Recipient = null);
 
 public sealed record WriteOffLineView(
     int Position,

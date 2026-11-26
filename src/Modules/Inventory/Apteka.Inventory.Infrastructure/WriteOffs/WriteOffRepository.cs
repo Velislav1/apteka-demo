@@ -20,7 +20,7 @@ internal sealed class WriteOffRepository(InventoryDbContext context) : IWriteOff
             .ToListAsync(cancellationToken);
 
         return writeOffs
-            .Select(w => new WriteOffListItem(w.Id, w.Number, w.CreatedAt, w.UserId, w.Reason, w.Lines.Count, w.PurchaseTotal.Amount))
+            .Select(w => new WriteOffListItem(w.Id, w.Number, w.CreatedAt, w.UserId, w.Reason, w.Lines.Count, w.PurchaseTotal.Amount, w.Kind, w.Recipient))
             .ToList();
     }
 }

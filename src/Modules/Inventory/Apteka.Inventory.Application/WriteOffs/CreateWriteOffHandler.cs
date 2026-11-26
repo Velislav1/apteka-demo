@@ -86,7 +86,7 @@ public sealed class CreateWriteOffHandler(
         }
 
         var now = clock.GetUtcNow();
-        var created = WriteOff.Create(Guid.CreateVersion7(), input.Reason, specs, currentUser.UserId, now);
+        var created = WriteOff.Create(Guid.CreateVersion7(), input.Reason, specs, currentUser.UserId, now, input.Kind, input.Recipient);
         if (created.IsFailure)
         {
             return Result.Failure<Guid>(created.Error);

@@ -118,4 +118,28 @@ public class WriteOffTests(PostgresFixture postgres)
         Assert.Contains("append-only", update.MessageText, StringComparison.Ordinal);
         Assert.Contains("append-only", delete.MessageText, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task A_protocol_needs_a_recipient_and_the_list_shows_only_the_chosen_kind()
+    {
+        await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);
+        var (product, box, _) = await StockFixtures.StockedProductAsync(provider, DispensingMode.OverTheCounter, (3, 400));
+        var batch = Assert.Single(await BatchesAsync(provider, product));
+
+        await using var scope = provider.CreateAsyncScope();
+        var create = scope.ServiceProvider.GetRequiredService<CreateWriteOffHandler>();
+        var line = new WriteOffLineInput(product, box, 1, batch.BatchId);
+        Assert.Equal(WriteOffErrors.RecipientRequired, (await create.HandleAsync(new WriteOffInput(null, [line], WriteOffKind.Protocol), Ct)).Error);
+
+        var protocol = (await create.HandleAsync(new WriteOffInput("договор", [line], WriteOffKind.Protocol, "Отделение Демо"), Ct)).Value;
+        var sample = (await create.HandleAsync(new WriteOffInput(null, [line], WriteOffKind.Sample), Ct)).Value;
+        Assert.Equal(20, await StockFixtures.StockAsync(provider, product));
+
+        var today = BulgarianTime.Today(DateTimeOffset.UtcNow);
+        var list = scope.ServiceProvider.GetRequiredService<ListWriteOffsHandler>();
+        var protocols = await list.HandleAsync(today, today, Ct, WriteOffKind.Protocol);
+        Assert.Contains(protocols, w => w.Id == protocol && w.Recipient == "Отделение Демо");
+        Assert.DoesNotContain(protocols, w => w.Id == sample);
+        Assert.Equal(WriteOffKind.Sample, (await scope.ServiceProvider.GetRequiredService<GetWriteOffHandler>().HandleAsync(sample, Ct))!.Kind);
+    }
 }

@@ -26,6 +26,12 @@ public sealed class WriteOff : Entity<Guid>
 
     public string? Reason { get; private set; }
 
+    /// <summary>Брак, мостра, протокол or липси (Apteka Expert 2 has a menu item for each).</summary>
+    public WriteOffKind Kind { get; private set; }
+
+    /// <summary>For a protocol: who receives the goods (a hospital ward, a doctor, a care home …).</summary>
+    public string? Recipient { get; private set; }
+
     public Guid? UserId { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
@@ -35,8 +41,31 @@ public sealed class WriteOff : Entity<Guid>
     /// <summary>What the written-off goods cost (purchase prices without VAT), in euro.</summary>
     public Money PurchaseTotal => _lines.Aggregate(Money.Zero, (sum, l) => sum + l.PurchaseTotal);
 
-    public static Result<WriteOff> Create(Guid id, string? reason, IReadOnlyList<WriteOffLineSpec> lines, Guid? userId, DateTimeOffset at)
+    public static Result<WriteOff> Create(
+        Guid id,
+        string? reason,
+        IReadOnlyList<WriteOffLineSpec> lines,
+        Guid? userId,
+        DateTimeOffset at,
+        WriteOffKind kind = WriteOffKind.WriteOff,
+        string? recipient = null)
     {
+        var to = string.IsNullOrWhiteSpace(recipient) ? null : recipient.Trim();
+        if (!Enum.IsDefined(kind))
+        {
+            return Result.Failure<WriteOff>(WriteOffErrors.InvalidKind);
+        }
+
+        if (kind == WriteOffKind.Protocol && to is null)
+        {
+            return Result.Failure<WriteOff>(WriteOffErrors.RecipientRequired);
+        }
+
+        if (to is { Length: > MaxReasonLength })
+        {
+            return Result.Failure<WriteOff>(WriteOffErrors.ReasonTooLong);
+        }
+
         if (lines.Count == 0)
         {
             return Result.Failure<WriteOff>(WriteOffErrors.NoLines);
@@ -48,7 +77,7 @@ public sealed class WriteOff : Entity<Guid>
             return Result.Failure<WriteOff>(WriteOffErrors.ReasonTooLong);
         }
 
-        var writeOff = new WriteOff(id) { Reason = trimmed, UserId = userId, CreatedAt = at };
+        var writeOff = new WriteOff(id) { Reason = trimmed, UserId = userId, CreatedAt = at, Kind = kind, Recipient = to };
         for (var i = 0; i < lines.Count; i++)
         {
             var spec = lines[i];
@@ -129,3 +158,19 @@ public sealed record WriteOffLineSpec(
     string BatchNo,
     DateOnly ExpiryDate,
     decimal PurchasePricePerBaseUnit);
+
+/// <summary>Why goods are taken out of stock without a sale.</summary>
+public enum WriteOffKind
+{
+    /// <summary>Бракуване: expired, broken, spoiled.</summary>
+    WriteOff = 1,
+
+    /// <summary>Изписване за мостра: a sample (e.g. for the Drug Agency, a check).</summary>
+    Sample = 2,
+
+    /// <summary>Изписване с протокол: handed over to an institution or a doctor with a protocol.</summary>
+    Protocol = 3,
+
+    /// <summary>Изписване на липси: found missing (theft, error).</summary>
+    Shortage = 4,
+}

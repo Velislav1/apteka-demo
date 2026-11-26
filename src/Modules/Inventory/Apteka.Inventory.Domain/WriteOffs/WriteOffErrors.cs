@@ -5,6 +5,8 @@ namespace Apteka.Inventory.Domain.WriteOffs;
 /// <summary>Errors of „Бракуване“, shown to the user in Bulgarian.</summary>
 public static class WriteOffErrors
 {
+    public static readonly Error InvalidKind = new("inventory.write_off_kind", "Невалиден вид изписване.");
+    public static readonly Error RecipientRequired = new("inventory.write_off_recipient", "При изписване с протокол въведете на кого се предава стоката.");
     public static readonly Error NoLines = new("inventory.write_off_no_lines", "Добавете поне една стока за бракуване.");
     public static readonly Error ReasonTooLong = new("inventory.write_off_reason_too_long", $"Основанието е по-дълго от {WriteOff.MaxReasonLength} знака.");
 

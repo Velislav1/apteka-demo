@@ -11,11 +11,15 @@
 }
 else if (_view is not null)
 {
-  <h1>Бракуване № @_view.Number</h1>
+  <h1>@WriteOffKinds.Title(_view.Kind) № @_view.Number</h1>
 
   <div class="doc-header card">
     <div><span class="muted">Дата и час</span><strong>@Formats.LocalTime(_view.CreatedAt)</strong></div>
     <div><span class="muted">Основание</span><strong>@(_view.Reason ?? "—")</strong></div>
+    @if (_view.Recipient is { } recipient)
+    {
+      <div><span class="muted">Предадено на</span><strong>@recipient</strong></div>
+    }
   </div>
 
   <table class="grid">
