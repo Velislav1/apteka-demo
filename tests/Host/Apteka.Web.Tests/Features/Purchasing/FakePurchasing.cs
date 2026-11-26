@@ -155,6 +155,9 @@ internal sealed class NoStockQueries : IStockQueries
 
     public Task<BatchInfo?> GetBatchAsync(Guid batchId, CancellationToken cancellationToken = default) => Task.FromResult<BatchInfo?>(null);
 
+    public Task<IReadOnlyDictionary<Guid, SourceLineFlow>> GetSourceLineFlowsAsync(IReadOnlyCollection<Guid> sourceLineIds, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, SourceLineFlow>>(new Dictionary<Guid, SourceLineFlow>());
+
     public Task<IReadOnlyDictionary<Guid, int>> GetSoldQuantitiesAsync(IReadOnlyCollection<Guid>? productIds, DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
 

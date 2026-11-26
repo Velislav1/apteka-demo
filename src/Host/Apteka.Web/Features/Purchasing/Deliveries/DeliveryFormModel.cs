@@ -26,6 +26,9 @@ public sealed class DeliveryFormModel
 
     public DeliveryStatus Status { get; private set; } = DeliveryStatus.Draft;
 
+    /// <summary>„Вземане на консигнация“: paid only for what is no longer in stock.</summary>
+    public bool IsConsignment { get; set; }
+
     public bool IsReadOnly => Status == DeliveryStatus.Posted;
 
     public List<LineRow> Lines { get; } = [];
@@ -47,6 +50,7 @@ public sealed class DeliveryFormModel
             Number = view.Number,
             PaymentTermDays = view.PaymentTermDays,
             Status = view.Status,
+            IsConsignment = view.IsConsignment,
         };
 
         model.Lines.AddRange(view.Lines.Select(l => new LineRow
@@ -83,7 +87,8 @@ public sealed class DeliveryFormModel
             l.BatchNo,
             l.ExpiryDate,
             l.SupplierDiscountPercent)).ToList(),
-        PaymentTermDays);
+        PaymentTermDays,
+        IsConsignment);
 
     /// <summary>A copy of a line for the entry form (F6 edits a copy; it replaces the line only on Enter).</summary>
     public static LineRow Copy(LineRow line) => new()

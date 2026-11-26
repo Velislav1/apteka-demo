@@ -207,6 +207,26 @@ internal sealed class StockQueries(InventoryDbContext context) : IStockQueries
             batch.PricedUnitSalePrice, batch.CreatedAt, batch.SourceDocumentType, batch.SourceDocumentId, history.LastOrDefault()?.IsBlocked == true, history);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, SourceLineFlow>> GetSourceLineFlowsAsync(IReadOnlyCollection<Guid> sourceLineIds, CancellationToken cancellationToken = default)
+    {
+        var ids = sourceLineIds.ToArray();
+        var rows = await (
+                from m in context.StockMovements.AsNoTracking()
+                join b in context.Batches.AsNoTracking() on m.BatchId equals b.Id
+                where ids.Contains(b.SourceLineId)
+                group m by b.SourceLineId into g
+                select new
+                {
+                    SourceLineId = g.Key,
+                    Sold = -g.Where(m => m.Kind == MovementKind.Sale || m.Kind == MovementKind.Reversal).Sum(m => m.QuantityDelta),
+                    WrittenOff = -g.Where(m => m.Kind == MovementKind.WriteOff).Sum(m => m.QuantityDelta),
+                    OnHand = g.Sum(m => m.QuantityDelta),
+                })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(r => r.SourceLineId, r => new SourceLineFlow(r.Sold, r.WrittenOff, r.OnHand));
+    }
+
     /// <summary>The batches among <paramref name="batchIds"/> whose latest blocking step blocks them.</summary>
     internal async Task<HashSet<Guid>> BlockedAsync(IReadOnlyCollection<Guid> batchIds, CancellationToken cancellationToken)
     {

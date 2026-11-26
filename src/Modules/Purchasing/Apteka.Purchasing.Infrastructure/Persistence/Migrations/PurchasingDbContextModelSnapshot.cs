@@ -153,6 +153,10 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(30)")
                         .HasColumnName("invoice_no");
 
+                    b.Property<bool>("IsConsignment")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_consignment");
+
                     b.Property<long>("Number")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")

@@ -69,6 +69,9 @@ else if (_model is not null)
 
           <span>Падеж</span>
           <strong>@Formats.Date(_model.DueDate)</strong>
+
+          <label for="consignment" title="Стоката остава на доставчика; плаща се само продаденото, останалото се връща">Консигнация</label>
+          <input id="consignment" type="checkbox" @bind="_model.IsConsignment" />
         </div>
         <div class="toolbar">
           <button @onclick="ConfirmHeader" disabled="@_busy">Потвърди</button>
@@ -90,6 +93,10 @@ else if (_model is not null)
         <div><span class="muted">Фактура №</span><strong>@_model.InvoiceNo</strong></div>
         <div><span class="muted">Фактура дата</span><strong>@Formats.Date(_model.InvoiceDate)</strong></div>
         <div><span class="muted">Падеж</span><strong>@Formats.Date(_model.DueDate) (@_model.PaymentTermDays дни)</strong></div>
+        @if (_model.IsConsignment)
+        {
+          <div><span class="muted">Вид</span><strong>Консигнация</strong></div>
+        }
         @if (!_model.IsReadOnly)
         {
           <button class="secondary" @onclick="() => _editHeader = true">Промени</button>
@@ -279,6 +286,9 @@ else if (_model is not null)
 @code {
   [Parameter] public Guid? Id { get; set; }
 
+  /// <summary>„Вземане на консигнация“ opens a new delivery already marked as a consignment.</summary>
+  [SupplyParameterFromQuery(Name = "consignment")] public bool Consignment { get; set; }
+
   private const int MaxMatches = 10;
 
   private DeliveryFormModel? _model;
@@ -321,6 +331,7 @@ else if (_model is not null)
     if (Id is not { } id)
     {
       _model = DeliveryFormModel.New(Today);
+      _model.IsConsignment = Consignment;
       return;
     }
 

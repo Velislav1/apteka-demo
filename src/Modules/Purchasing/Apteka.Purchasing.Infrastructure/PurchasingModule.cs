@@ -40,6 +40,7 @@ public static class PurchasingModule
         services.AddScoped<Apteka.Purchasing.Application.Orders.SuggestOrderHandler>();
         services.AddScoped<Apteka.Purchasing.Application.Orders.OrdersHandler>();
         services.AddScoped<Apteka.Purchasing.Application.Payments.PayablesHandler>();
+        services.AddScoped<Apteka.Purchasing.Application.Consignments.ConsignmentReportHandler>();
         services.AddScoped<Apteka.Purchasing.Application.Refusals.RefusalsHandler>();
         services.AddScoped<Apteka.Purchasing.Application.Expenses.ExpensesHandler>();
 

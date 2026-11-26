@@ -53,12 +53,21 @@ public interface IStockQueries
     /// <summary>One batch (with or without stock), or null.</summary>
     Task<BatchInfo?> GetBatchAsync(Guid batchId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// What became of the batches received on the given document lines (e.g. a consignment's): per source line,
+    /// in base units, sold (less reversals and returns), written off and still in stock.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, SourceLineFlow>> GetSourceLineFlowsAsync(IReadOnlyCollection<Guid> sourceLineIds, CancellationToken cancellationToken = default);
+
     /// <summary>Batches of a product that still have stock, nearest expiry first.</summary>
     Task<IReadOnlyList<BatchStock>> GetBatchesAsync(
         Guid productId,
         DateOnly? expiringOnOrBefore,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>Base units; a line with no batch yet counts as all zeros.</summary>
+public sealed record SourceLineFlow(int Sold, int WrittenOff, int OnHand);
 
 public sealed record ProductBatchStock(Guid ProductId, BatchStock Batch);
 

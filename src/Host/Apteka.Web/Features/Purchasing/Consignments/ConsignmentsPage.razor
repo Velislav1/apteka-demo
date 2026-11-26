@@ -1,0 +1,104 @@
+@page "/purchasing/consignments"
+@using Apteka.Purchasing.Application.Consignments
+@using Apteka.Purchasing.Application.Suppliers
+@using Apteka.Web.Features.Shared
+@inject ConsignmentReportHandler Report
+@inject SuppliersHandler Suppliers
+@inject NavigationManager Navigation
+@implements IDisposable
+
+@* „Консигнация“ (Apteka Expert 2): goods taken from a supplier who is paid only for what was sold (or otherwise left
+   the shelf). Taking is a delivery marked „Консигнация“, giving back is a correction, paying is „Задължения и плащания“. *@
+
+<PageTitle>Консигнация</PageTitle>
+
+<ListKeys OnAdd="@(() => Navigation.NavigateTo("purchasing/deliveries/new?consignment=true"))" />
+
+<h1>Консигнация</h1>
+
+<div class="toolbar">
+  <a class="button" href="purchasing/deliveries/new?consignment=true"><Icon Name="plus" /> Вземане на консигнация <kbd>F5</kbd></a>
+  <select id="supplier" aria-label="Доставчик" @bind="_supplierId" @bind:after="Load">
+    <option value="">Всички доставчици</option>
+    @foreach (var supplier in _suppliers)
+    {
+      <option value="@supplier.Id">@supplier.Name</option>
+    }
+  </select>
+  <label><input type="checkbox" @bind="_onlyOpen" @bind:after="Load" /> само неуредени</label>
+  <a class="button secondary" href="purchasing/payables">Плащане към доставчика</a>
+</div>
+
+@if (_report is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_report.Rows.Count == 0)
+{
+  <p class="muted">Няма стока на консигнация.</p>
+}
+else
+{
+  <div class="consignment-totals">
+    <div class="card"><span class="muted">Дължимо за изписаното</span><strong>@Formats.Euro(_report.Owed)</strong></div>
+    <div class="card"><span class="muted">Платено</span><strong>@Formats.Euro(_report.Paid)</strong></div>
+    <div class="card"><span class="muted">Остава за плащане</span><strong>@Formats.Euro(_report.Remaining)</strong></div>
+    <div class="card"><span class="muted">На склад (за връщане)</span><strong>@_report.Rows.Sum(r => r.OnHand) бр.</strong></div>
+  </div>
+
+  <table class="grid">
+    <thead>
+      <tr>
+        <th class="num">СР №</th><th>Доставчик</th><th>Фактура</th><th>Стока</th><th>Партида</th><th>Срок</th>
+        <th class="num">Получено</th><th class="num">Върнато</th><th class="num">Продадено</th><th class="num">Бракувано</th>
+        <th class="num">Наличност</th><th class="num">За плащане</th><th class="num">Сума с ДДС</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @foreach (var row in _report.Rows)
+      {
+        <tr>
+          <td class="num"><a href="purchasing/deliveries/@row.DeliveryId">@row.Number</a></td>
+          <td>@row.SupplierName</td>
+          <td>@row.InvoiceNo / @Formats.Date(row.InvoiceDate)</td>
+          <td>@row.ProductName</td>
+          <td class="mono">@row.BatchNo</td>
+          <td>@Formats.Date(row.ExpiryDate)</td>
+          <td class="num">@row.Received</td>
+          <td class="num">@row.Returned</td>
+          <td class="num">@row.Sold</td>
+          <td class="num">@row.WrittenOff</td>
+          <td class="num">@row.OnHand</td>
+          <td class="num">@row.Chargeable</td>
+          <td class="num">@Formats.Euro(row.Owed)</td>
+          <td>
+            @if (row.OnHand > 0)
+            {
+              <a href="purchasing/corrections/new?delivery=@row.DeliveryId">Върни</a>
+            }
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <p class="muted">Количествата са в най-малка мярка. Плаща се изписаното: получено − върнато − наличност (продажби, брак, липси).</p>
+}
+
+@code {
+  private readonly OneAtATime _loads = new();
+  private IReadOnlyList<SupplierView> _suppliers = [];
+  private string _supplierId = string.Empty;
+  private bool _onlyOpen = true;
+  private ConsignmentReport? _report;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _suppliers = await Suppliers.ListAsync();
+    await Load();
+  }
+
+  private Task Load() => _loads.RunAsync(async () =>
+    _report = await Report.HandleAsync(Guid.TryParse(_supplierId, out var id) ? id : null, _onlyOpen));
+
+  public void Dispose() => _loads.Dispose();
+}

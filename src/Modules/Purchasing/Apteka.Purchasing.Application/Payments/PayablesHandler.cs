@@ -1,4 +1,6 @@
 using Apteka.Catalog.Contracts;
+using Apteka.Inventory.Contracts;
+using Apteka.Purchasing.Application.Consignments;
 using Apteka.Purchasing.Application.Suppliers;
 using Apteka.Purchasing.Domain.Payments;
 using Apteka.SharedKernel;
@@ -8,11 +10,13 @@ namespace Apteka.Purchasing.Application.Payments;
 /// <summary>
 /// „Задължения към доставчиците“ and „Плащания към доставчици“. An invoice's amount is its net lines (and
 /// corrections) with the products' VAT; what is owed is that amount less the payments allocated to it.
+/// A consignment's amount is only what is no longer in stock (<see cref="ConsignmentMath"/>).
 /// </summary>
 public sealed class PayablesHandler(
     IPaymentRepository payments,
     ISupplierRepository suppliers,
     ICatalogLookup catalog,
+    IStockQueries stock,
     IUnitOfWork unitOfWork,
     ICurrentUser currentUser,
     TimeProvider clock)
@@ -21,14 +25,20 @@ public sealed class PayablesHandler(
     public async Task<IReadOnlyList<PayableRow>> ListAsync(Guid? supplierId, DateOnly asOf, bool onlyUnpaid = true, CancellationToken cancellationToken = default)
     {
         var deliveries = await payments.ListPostedDeliveriesAsync(supplierId, cancellationToken);
-        var vat = (await catalog.GetProductsAsync([.. deliveries.SelectMany(d => d.Lines).Select(l => l.ProductId).Distinct()], cancellationToken))
+        var consigned = deliveries.SelectMany(d => d.ConsignmentLines ?? []).ToList();
+        var vat = (await catalog.GetProductsAsync(
+                [.. deliveries.SelectMany(d => d.Lines).Select(l => l.ProductId).Concat(consigned.Select(l => l.ProductId)).Distinct()], cancellationToken))
             .ToDictionary(p => p.ProductId, p => p.VatRate);
+        var flows = consigned.Count == 0
+            ? new Dictionary<Guid, SourceLineFlow>()
+            : await stock.GetSourceLineFlowsAsync([.. consigned.Select(l => l.DeliveryLineId)], cancellationToken);
         var paid = await payments.GetPaidAsync([.. deliveries.Select(d => d.Id)], cancellationToken);
 
         return deliveries
             .Select(d =>
             {
-                var total = d.Lines.Sum(l => Round(l.NetAmount * (1 + (vat.GetValueOrDefault(l.ProductId) / 100m))));
+                var total = d.Lines.Sum(l => Round(l.NetAmount * (1 + (vat.GetValueOrDefault(l.ProductId) / 100m))))
+                    + (d.ConsignmentLines ?? []).Sum(l => ConsignmentMath.Owed(l, flows.GetValueOrDefault(l.DeliveryLineId), vat.GetValueOrDefault(l.ProductId)));
                 var paidSoFar = paid.GetValueOrDefault(d.Id);
                 return new PayableRow(d.Id, d.Number, d.SupplierId, d.SupplierName, d.InvoiceNo, d.InvoiceDate, d.DueDate, total, paidSoFar, total - paidSoFar,
                     Math.Max(0, asOf.DayNumber - d.DueDate.DayNumber));

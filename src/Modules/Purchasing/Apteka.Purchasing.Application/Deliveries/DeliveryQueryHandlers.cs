@@ -61,7 +61,8 @@ public sealed class GetDeliveryHandler(IDeliveryRepository deliveries, ICatalogL
                     l.PurchaseTotal.Amount,
                     l.SupplierDiscountPercent,
                     l.NetUnitPurchasePrice);
-            }).ToList());
+            }).ToList(),
+            delivery.IsConsignment);
     }
 }
 
@@ -77,7 +78,8 @@ public sealed record DeliveryView(
     DeliveryStatus Status,
     DateTimeOffset? PostedAt,
     decimal PurchaseTotal,
-    IReadOnlyList<DeliveryLineView> Lines);
+    IReadOnlyList<DeliveryLineView> Lines,
+    bool IsConsignment = false);
 
 public sealed record DeliveryLineView(
     Guid Id,

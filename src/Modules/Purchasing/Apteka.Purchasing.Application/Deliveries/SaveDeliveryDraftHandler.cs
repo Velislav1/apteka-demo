@@ -36,7 +36,7 @@ public sealed class SaveDeliveryDraftHandler(
 
             delivery = found;
             previousSupplier = delivery.SupplierId;
-            var header = delivery.UpdateHeader(input.SupplierId, input.InvoiceNo, input.InvoiceDate, paymentTermDays);
+            var header = delivery.UpdateHeader(input.SupplierId, input.InvoiceNo, input.InvoiceDate, paymentTermDays, input.IsConsignment);
             if (header.IsFailure)
             {
                 return Result.Failure<Guid>(header.Error);
@@ -44,7 +44,7 @@ public sealed class SaveDeliveryDraftHandler(
         }
         else
         {
-            var created = Delivery.Create(input.SupplierId, input.InvoiceNo, input.InvoiceDate, clock.GetUtcNow(), currentUser.UserId, paymentTermDays);
+            var created = Delivery.Create(input.SupplierId, input.InvoiceNo, input.InvoiceDate, clock.GetUtcNow(), currentUser.UserId, paymentTermDays, input.IsConsignment);
             if (created.IsFailure)
             {
                 return Result.Failure<Guid>(created.Error);

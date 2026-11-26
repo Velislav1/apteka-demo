@@ -34,6 +34,12 @@ public sealed class Delivery : Entity<Guid>
 
     public string InvoiceNo { get; private set; }
 
+    /// <summary>
+    /// Консигнация: the goods stay the supplier's until sold. The pharmacy owes only for what is no longer in stock
+    /// (sold, written off, missing); the rest is returned with a correction.
+    /// </summary>
+    public bool IsConsignment { get; private set; }
+
     public DateOnly InvoiceDate { get; private set; }
 
     public DateTimeOffset ReceivedAt { get; private set; }
@@ -52,7 +58,7 @@ public sealed class Delivery : Entity<Guid>
 
     public Money PurchaseTotal => Lines.Aggregate(Money.Zero, (sum, line) => sum + line.PurchaseTotal);
 
-    public static Result<Delivery> Create(Guid supplierId, string invoiceNo, DateOnly invoiceDate, DateTimeOffset receivedAt, Guid? userId, int paymentTermDays = 0)
+    public static Result<Delivery> Create(Guid supplierId, string invoiceNo, DateOnly invoiceDate, DateTimeOffset receivedAt, Guid? userId, int paymentTermDays = 0, bool isConsignment = false)
     {
         var delivery = new Delivery(Guid.CreateVersion7())
         {
@@ -61,11 +67,11 @@ public sealed class Delivery : Entity<Guid>
             UserId = userId,
         };
 
-        var result = delivery.UpdateHeader(supplierId, invoiceNo, invoiceDate, paymentTermDays);
+        var result = delivery.UpdateHeader(supplierId, invoiceNo, invoiceDate, paymentTermDays, isConsignment);
         return result.IsSuccess ? Result.Success(delivery) : Result.Failure<Delivery>(result.Error);
     }
 
-    public Result UpdateHeader(Guid supplierId, string invoiceNo, DateOnly invoiceDate, int paymentTermDays)
+    public Result UpdateHeader(Guid supplierId, string invoiceNo, DateOnly invoiceDate, int paymentTermDays, bool isConsignment = false)
     {
         if (Status != DeliveryStatus.Draft)
         {
@@ -92,6 +98,7 @@ public sealed class Delivery : Entity<Guid>
         InvoiceNo = trimmed;
         InvoiceDate = invoiceDate;
         PaymentTermDays = paymentTermDays;
+        IsConsignment = isConsignment;
         return Result.Success();
     }
 

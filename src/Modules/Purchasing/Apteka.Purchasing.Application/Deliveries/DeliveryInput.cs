@@ -7,7 +7,8 @@ public sealed record DeliveryInput(
     string InvoiceNo,
     DateOnly InvoiceDate,
     IReadOnlyList<DeliveryLineInput> Lines,
-    int? PaymentTermDays = null);
+    int? PaymentTermDays = null,
+    bool IsConsignment = false);
 
 /// <param name="Id">Null for a new line.</param>
 /// <param name="UnitPurchasePrice">Per <paramref name="ProductUnitId"/>, without VAT.</param>

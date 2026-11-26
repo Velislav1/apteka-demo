@@ -30,30 +30,47 @@ internal sealed class PaymentRepository(PurchasingDbContext context) : IPaymentR
                     d.InvoiceNo,
                     d.InvoiceDate,
                     d.PaymentTermDays,
-                    Lines = d.AllLines.Where(l => !l.IsRemoved).Select(l => new { l.Id, l.ProductId, l.Quantity, l.UnitPurchasePrice, l.SupplierDiscountPercent }).ToList(),
+                    d.IsConsignment,
+                    Lines = d.AllLines.Where(l => !l.IsRemoved)
+                        .Select(l => new { l.Id, l.ProductId, l.Quantity, l.UnitFactor, l.UnitPurchasePrice, l.SupplierDiscountPercent, l.BatchNo, l.ExpiryDate })
+                        .ToList(),
                 })
             .ToListAsync(cancellationToken);
 
         var ids = rows.Select(r => r.Id).ToArray();
         var corrections = await context.DeliveryCorrections.AsNoTracking()
             .Where(c => ids.Contains(c.DeliveryId))
-            .SelectMany(c => c.Lines.Select(l => new { c.DeliveryId, l.ProductId, l.QuantityDelta, l.UnitPurchasePrice }))
+            .SelectMany(c => c.Lines.Select(l => new { c.DeliveryId, l.DeliveryLineId, l.ProductId, l.QuantityDelta, l.UnitPurchasePrice }))
             .ToListAsync(cancellationToken);
 
-        return rows.Select(r => new PayableDelivery(
-                r.Id,
-                r.Number,
-                r.SupplierId,
-                r.SupplierName,
-                r.InvoiceNo,
-                r.InvoiceDate,
-                r.PaymentTermDays,
-                r.Lines.Select(l => new PayableLine(l.ProductId, UnitPrice.Of(l.UnitPurchasePrice * (1 - (l.SupplierDiscountPercent / 100m))).Times(l.Quantity).Amount))
-                    .Concat(corrections.Where(c => c.DeliveryId == r.Id).Select(c => new PayableLine(c.ProductId,
-                        c.QuantityDelta >= 0 ? UnitPrice.Of(c.UnitPurchasePrice).Times(c.QuantityDelta).Amount : -UnitPrice.Of(c.UnitPurchasePrice).Times(-c.QuantityDelta).Amount)))
-                    .ToList()))
+        return rows.Select(r =>
+            {
+                var corrected = corrections.Where(c => c.DeliveryId == r.Id).ToList();
+                IReadOnlyList<PayableLine> lines = r.IsConsignment
+                    ? []
+                    : r.Lines.Select(l => new PayableLine(l.ProductId, UnitPrice.Of(NetPrice(l.UnitPurchasePrice, l.SupplierDiscountPercent)).Times(l.Quantity).Amount))
+                        .Concat(corrected.Select(c => new PayableLine(c.ProductId,
+                            c.QuantityDelta >= 0 ? UnitPrice.Of(c.UnitPurchasePrice).Times(c.QuantityDelta).Amount : -UnitPrice.Of(c.UnitPurchasePrice).Times(-c.QuantityDelta).Amount)))
+                        .ToList();
+                IReadOnlyList<ConsignmentLine> consigned = r.IsConsignment
+                    ? r.Lines.Select(l => new ConsignmentLine(
+                            l.Id,
+                            l.ProductId,
+                            l.BatchNo,
+                            l.ExpiryDate,
+                            l.UnitFactor,
+                            l.Quantity,
+                            corrected.Where(c => c.DeliveryLineId == l.Id).Sum(c => c.QuantityDelta),
+                            NetPrice(l.UnitPurchasePrice, l.SupplierDiscountPercent)))
+                        .ToList()
+                    : [];
+                return new PayableDelivery(r.Id, r.Number, r.SupplierId, r.SupplierName, r.InvoiceNo, r.InvoiceDate, r.PaymentTermDays, lines, r.IsConsignment, consigned);
+            })
             .ToList();
     }
+
+    private static decimal NetPrice(decimal unitPurchasePrice, decimal discountPercent) =>
+        UnitPrice.Of(unitPurchasePrice * (1 - (discountPercent / 100m))).Amount;
 
     public async Task<IReadOnlyDictionary<Guid, decimal>> GetPaidAsync(IReadOnlyCollection<Guid> deliveryIds, CancellationToken cancellationToken)
     {
