@@ -81,6 +81,21 @@ public class CodesAndMarkupsTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task A_2D_code_finds_the_product_by_its_gtin()
+    {
+        await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);
+        var barcode = TestBarcodes.Next();
+        var id = await ProductPersistenceTests.CreateAsync(provider, CatalogInputs.UniqueName("2D"), barcode);
+
+        await using var scope = provider.CreateAsyncScope();
+        var lookup = scope.ServiceProvider.GetRequiredService<ICatalogLookup>();
+        var gs = '\u001d';
+
+        Assert.Equal(id, (await lookup.FindByBarcodeAsync($"]d201{"0" + barcode}17281231{gs}10LOT9{gs}21SN123", Ct))!.ProductId);
+        Assert.Equal(id, (await lookup.FindByBarcodeAsync("0" + barcode, Ct))!.ProductId); // GTIN-14 typed by hand
+    }
+
+    [Fact]
     public async Task Markup_is_the_products_else_the_groups_else_25_percent()
     {
         await using var provider = await ModuleServices.CreateAsync(postgres.ConnectionString);

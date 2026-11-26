@@ -29,6 +29,9 @@
   /// <summary>The chosen product and, for a barcode, the unit it is printed on.</summary>
   [Parameter, EditorRequired] public EventCallback<(CatalogProductInfo Product, Guid? UnitId)> OnPicked { get; set; }
 
+  /// <summary>The last 2D code (DataMatrix) scanned, with its batch and expiry; null after any other search.</summary>
+  public Gs1Code? LastGs1 { get; private set; }
+
   private const int MaxMatches = 20;
   private string _text = string.Empty;
   private string? _error;
@@ -46,8 +49,17 @@
 
     var text = _text.Trim();
     _error = null;
+    LastGs1 = null;
     if (text.Length == 0)
     {
+      return;
+    }
+
+    if (Gs1Code.LooksLikeGs1(text))
+    {
+      LastGs1 = Gs1Code.Parse(text);
+      var byCode = await Catalog.FindByBarcodeAsync(text);
+      await PickOrFail(byCode is null ? null : await Catalog.GetProductAsync(byCode.ProductId), byCode?.UnitId, $"Непознат 2D код ({LastGs1?.Ean13 ?? text}).");
       return;
     }
 

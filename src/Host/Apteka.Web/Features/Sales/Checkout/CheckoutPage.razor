@@ -383,7 +383,7 @@
       return;
     }
 
-    if (text.All(char.IsAsciiDigit))
+    if (text.All(char.IsAsciiDigit) || Apteka.Catalog.Contracts.Gs1Code.LooksLikeGs1(text))
     {
       var found = await FindProduct.ByBarcodeAsync(text);
       if (found.IsFailure)

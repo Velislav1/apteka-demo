@@ -127,7 +127,9 @@
     _error = null;
     _product = picked.Product;
     _batches = await Stock.GetBatchesAsync(picked.Product.ProductId, null);
-    _batchId = _batches.FirstOrDefault()?.BatchId; // nearest expiry (expired ones first)
+    // A scanned 2D code names the batch; otherwise the nearest expiry (expired ones first).
+    _batchId = (_picker?.LastGs1?.BatchNo is { } scannedBatch ? _batches.FirstOrDefault(b => b.BatchNo == scannedBatch) : null)?.BatchId
+      ?? _batches.FirstOrDefault()?.BatchId;
     var unit = picked.Product.Units.FirstOrDefault(u => u.UnitId == picked.UnitId) ?? picked.Product.Units.MaxBy(u => u.Factor)!;
     _unitId = unit.UnitId.ToString();
     _quantity = 1;

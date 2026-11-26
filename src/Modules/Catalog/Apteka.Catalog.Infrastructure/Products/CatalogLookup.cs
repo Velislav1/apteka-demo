@@ -8,11 +8,14 @@ internal sealed class CatalogLookup(CatalogDbContext context) : ICatalogLookup
 {
     public async Task<CatalogUnitInfo?> FindByBarcodeAsync(string code, CancellationToken cancellationToken = default)
     {
+        // A GS1 DataMatrix carries the GTIN-14; barcodes are kept as printed (usually EAN-13 = GTIN-14 without the leading 0).
         var trimmed = code.Trim();
+        var gtin = Gs1Code.LooksLikeGs1(trimmed) ? Gs1Code.Parse(trimmed)?.Gtin : trimmed.Length == 14 && trimmed.All(char.IsAsciiDigit) ? trimmed : null;
+        string[] candidates = gtin is null ? [trimmed] : [gtin, gtin[0] == '0' ? gtin[1..] : gtin];
 
         var row = await (
                 from barcode in context.Barcodes.AsNoTracking()
-                where barcode.Code == trimmed
+                where candidates.Contains(barcode.Code)
                 join unit in context.ProductUnits on barcode.ProductUnitId equals unit.Id
                 join product in context.Products on barcode.ProductId equals product.Id
                 select new { product.Id, product.Name, product.VatRate, product.DispensingMode, product.IsActive, UnitId = unit.Id, UnitName = unit.Name, unit.Factor })

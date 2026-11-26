@@ -184,4 +184,16 @@ public class DeliveryEditTests : BunitContext
         Assert.Equal(-1, Assert.Single(correction.Lines).QuantityDelta);
         Assert.Equal(-20, Assert.Single(Assert.Single(_stock.Corrections).Lines).BaseQuantityDelta);
     }
+
+    [Fact]
+    public void A_scanned_2D_code_fills_the_batch_and_the_expiry_date()
+    {
+        var page = Open(Draft());
+
+        Scan(page, "(01)02000000000015(17)280600(10)DM-77(21)SER1");
+
+        Assert.Equal("DM-77", page.Find(".line-grid input[maxlength='30']").GetAttribute("value"));
+        Assert.Equal("2028-06-30", page.Find(".line-grid input[type=date]").GetAttribute("value"));
+        Assert.Equal(_box.ToString(), page.Find(".qty select").GetAttribute("value"));
+    }
 }

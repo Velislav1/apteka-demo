@@ -469,13 +469,27 @@ else if (_model is not null)
       return;
     }
 
-    if (text.All(char.IsAsciiDigit) && await Catalog.FindByBarcodeAsync(text) is { } scanned)
+    var gs1 = Gs1Code.LooksLikeGs1(text) ? Gs1Code.Parse(text) : null;
+    if ((text.All(char.IsAsciiDigit) || gs1 is not null) && await Catalog.FindByBarcodeAsync(text) is { } scanned)
     {
       if (await Catalog.GetProductAsync(scanned.ProductId) is { } product)
       {
         await Select(product, scanned.UnitId);
+
+        // The 2D code (DataMatrix) of the pack also gives the batch and the expiry date.
+        if (gs1 is not null && _line is not null)
+        {
+          _line.BatchNo = gs1.BatchNo ?? _line.BatchNo;
+          _line.ExpiryDate = gs1.ExpiryDate ?? _line.ExpiryDate;
+        }
       }
 
+      return;
+    }
+
+    if (gs1 is not null)
+    {
+      _error = $"Непознат баркод {gs1.Ean13} (от 2D кода). Добавете го към стоката в номенклатурата.";
       return;
     }
 

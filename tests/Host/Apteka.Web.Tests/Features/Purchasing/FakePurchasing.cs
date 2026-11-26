@@ -18,6 +18,11 @@ internal sealed class FakeCatalogLookup : ICatalogLookup
 
     public Task<CatalogUnitInfo?> FindByBarcodeAsync(string code, CancellationToken cancellationToken = default)
     {
+        if (Gs1Code.LooksLikeGs1(code) && Gs1Code.Parse(code) is { } gs1)
+        {
+            code = gs1.Ean13;
+        }
+
         if (!Barcodes.TryGetValue(code, out var hit))
         {
             return Task.FromResult<CatalogUnitInfo?>(null);
