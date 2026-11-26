@@ -1,0 +1,102 @@
+@page "/inventory/turnover"
+@using Apteka.Catalog.Contracts
+@using Apteka.Inventory.Contracts
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject IStockQueries Stock
+@inject ICatalogLookup Catalog
+@inject TimeProvider Clock
+@implements IDisposable
+
+@* „Оборотна ведомост“ (Apteka Expert 2): per product, opening stock, what came in and went out by kind, closing stock,
+   with the values at purchase prices. Everything is computed from the stock movements. *@
+
+<PageTitle>Оборотна ведомост</PageTitle>
+
+<h1>Оборотна ведомост</h1>
+
+<div class="toolbar">
+  <label>От <input id="from" type="date" @bind="_from" @bind:after="Load" /></label>
+  <label>до <input id="to" type="date" @bind="_to" @bind:after="Load" /></label>
+  <select id="group" aria-label="Група" @bind="_groupId" @bind:after="Load">
+    <option value="">Всички групи</option>
+    @foreach (var group in _groups)
+    {
+      <option value="@group.Id">@group.Name</option>
+    }
+  </select>
+</div>
+
+@if (_rows is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_rows.Count == 0)
+{
+  <p class="muted">Няма движения и наличност за периода.</p>
+}
+else
+{
+  <table class="grid">
+    <thead>
+      <tr><th class="num">Код</th><th>Стока</th><th class="num">Начално</th><th class="num">Ст-ст нач.</th><th class="num">Доставено</th><th class="num">Продадено</th><th class="num">Бракувано</th><th class="num">Инвентар.</th><th class="num">Крайно</th><th class="num">Ст-ст крайна</th></tr>
+    </thead>
+    <tbody>
+      @foreach (var (product, row) in _rows)
+      {
+        <tr>
+          <td class="num">@product.Code</td>
+          <td>@product.Name</td>
+          <td class="num">@row.Opening</td>
+          <td class="num">@Formats.Euro(row.OpeningValue)</td>
+          <td class="num">@Zero(row.Received)</td>
+          <td class="num">@Zero(row.Sold)</td>
+          <td class="num">@Zero(row.WrittenOff)</td>
+          <td class="num">@(row.Counted == 0 ? null : row.Counted.ToString("+0;−0"))</td>
+          <td class="num"><strong>@row.Closing</strong></td>
+          <td class="num">@Formats.Euro(row.ClosingValue)</td>
+        </tr>
+      }
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3"><strong>Общо</strong></td>
+        <td class="num">@Formats.Euro(_rows.Sum(r => r.Row.OpeningValue))</td>
+        <td colspan="5"></td>
+        <td class="num"><strong>@Formats.Euro(_rows.Sum(r => r.Row.ClosingValue))</strong></td>
+      </tr>
+    </tfoot>
+  </table>
+  <p class="muted">Количествата са в най-малката мярка; стойностите — по покупни цени без ДДС. Начално + доставено − продадено − бракувано ± инвентаризация = крайно.</p>
+}
+
+@code {
+  private readonly OneAtATime _loads = new();
+  private DateOnly _from;
+  private DateOnly _to;
+  private string _groupId = string.Empty;
+  private IReadOnlyList<CatalogGroup> _groups = [];
+  private List<(CatalogProductInfo Product, TurnoverRow Row)>? _rows;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _to = BulgarianTime.Today(Clock.GetUtcNow());
+    _from = new DateOnly(_to.Year, _to.Month, 1);
+    _groups = await Catalog.ListGroupsAsync();
+    await Load();
+  }
+
+  private Task Load() => _loads.RunAsync(async () =>
+  {
+    IReadOnlyCollection<Guid>? ids = Guid.TryParse(_groupId, out var group)
+      ? (await Catalog.ListProductsAsync(group, withMinStockOnly: false)).Select(p => p.ProductId).ToList()
+      : null;
+    var rows = await Stock.GetTurnoverAsync(ids, BulgarianTime.StartOfDayUtc(_from), BulgarianTime.StartOfDayUtc(_to.AddDays(1)));
+    var products = (await Catalog.GetProductsAsync([.. rows.Select(r => r.ProductId)])).ToDictionary(p => p.ProductId);
+    _rows = rows.Where(r => products.ContainsKey(r.ProductId)).Select(r => (products[r.ProductId], r)).OrderBy(r => r.Item1.Name).ToList();
+  });
+
+  private static string? Zero(int value) => value == 0 ? null : value.ToString();
+
+  public void Dispose() => _loads.Dispose();
+}

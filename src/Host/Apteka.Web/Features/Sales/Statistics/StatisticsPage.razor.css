@@ -1,0 +1,4 @@
+.abc { display: inline-block; min-width: 1.6rem; text-align: center; font-weight: 700; border-radius: var(--radius-sm); padding: 0 0.3rem; }
+.abc-A { background: var(--success-soft); color: var(--success); }
+.abc-B { background: var(--info-soft); }
+.abc-C { background: var(--surface-muted); color: var(--text-muted); }

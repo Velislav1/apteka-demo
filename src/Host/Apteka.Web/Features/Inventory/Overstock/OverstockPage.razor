@@ -1,0 +1,107 @@
+@page "/inventory/overstock"
+@using Apteka.Catalog.Contracts
+@using Apteka.Inventory.Contracts
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject IStockQueries Stock
+@inject ICatalogLookup Catalog
+@inject TimeProvider Clock
+@implements IDisposable
+
+@* „Свръхналичности според продажбите“ (Apteka Expert 2) and „залежала стока“: stock above what sold in the last N days,
+   with its value at purchase prices; goods that did not sell at all are marked — candidates to return to the supplier. *@
+
+<PageTitle>Свръхналичности</PageTitle>
+
+<h1>Свръхналичности и залежала стока</h1>
+
+<div class="toolbar">
+  <label>Продажби за последните <input id="days" type="number" min="1" max="365" @bind="_days" @bind:after="Load" /> дни</label>
+  <select id="group" aria-label="Група" @bind="_groupId" @bind:after="Load">
+    <option value="">Всички групи</option>
+    @foreach (var group in _groups)
+    {
+      <option value="@group.Id">@group.Name</option>
+    }
+  </select>
+  <label><input type="checkbox" @bind="_onlyDead" @bind:after="Load" /> само без продажби</label>
+</div>
+
+@if (_rows is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_rows.Count == 0)
+{
+  <p class="muted">Няма свръхналичности.</p>
+}
+else
+{
+  <table class="grid">
+    <thead><tr><th class="num">Код</th><th>Стока</th><th>Наличност</th><th>Продадено</th><th>Свръх</th><th class="num">Стойност на свръх</th><th></th></tr></thead>
+    <tbody>
+      @foreach (var row in _rows)
+      {
+        <tr class="@(row.Sold == 0 ? "dead" : null)">
+          <td class="num">@row.Product.Code</td>
+          <td>@row.Product.Name</td>
+          <td>@Formats.Quantity(row.OnHand, row.Product.Units)</td>
+          <td>@(row.Sold == 0 ? "—" : Formats.Quantity(row.Sold, row.Product.Units))</td>
+          <td>@Formats.Quantity(row.Over, row.Product.Units)</td>
+          <td class="num">@Formats.Euro(row.Value)</td>
+          <td>@(row.Sold == 0 ? "без продажби" : null)</td>
+        </tr>
+      }
+    </tbody>
+    <tfoot>
+      <tr><td colspan="5"><strong>Общо замразени средства</strong></td><td class="num"><strong>@Formats.Euro(_rows.Sum(r => r.Value))</strong></td><td></td></tr>
+    </tfoot>
+  </table>
+  <p class="muted">Свръх = наличност − продаденото за периода; стойност по покупни цени без ДДС (средна за партидите). Стоките без продажби са кандидати за връщане към доставчика.</p>
+}
+
+@code {
+  private readonly OneAtATime _loads = new();
+  private int _days = 90;
+  private bool _onlyDead;
+  private string _groupId = string.Empty;
+  private IReadOnlyList<CatalogGroup> _groups = [];
+  private List<Row>? _rows;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _groups = await Catalog.ListGroupsAsync();
+    await Load();
+  }
+
+  private Task Load() => _loads.RunAsync(async () =>
+  {
+    var days = Math.Clamp(_days, 1, 365);
+    IReadOnlyCollection<Guid>? ids = Guid.TryParse(_groupId, out var group)
+      ? (await Catalog.ListProductsAsync(group, withMinStockOnly: false)).Select(p => p.ProductId).ToList()
+      : null;
+    var batches = await Stock.GetAllBatchesAsync(ids, null);
+    var now = Clock.GetUtcNow();
+    var sold = await Stock.GetSoldQuantitiesAsync(ids, now.AddDays(-days), now);
+    var products = (await Catalog.GetProductsAsync([.. batches.Select(b => b.ProductId).Distinct()])).ToDictionary(p => p.ProductId);
+
+    _rows = batches
+      .GroupBy(b => b.ProductId)
+      .Where(g => products.ContainsKey(g.Key))
+      .Select(g =>
+      {
+        var onHand = g.Sum(b => b.Batch.BaseQuantity);
+        var value = g.Sum(b => b.Batch.BaseQuantity * b.Batch.PurchasePricePerBaseUnit);
+        var went = sold.GetValueOrDefault(g.Key);
+        var over = Math.Max(0, onHand - went);
+        return new Row(products[g.Key], onHand, went, over, onHand == 0 ? 0 : decimal.Round(value * over / onHand, 2, MidpointRounding.AwayFromZero));
+      })
+      .Where(r => r.Over > 0 && (!_onlyDead || r.Sold == 0))
+      .OrderByDescending(r => r.Value)
+      .ToList();
+  });
+
+  public void Dispose() => _loads.Dispose();
+
+  private sealed record Row(CatalogProductInfo Product, int OnHand, int Sold, int Over, decimal Value);
+}

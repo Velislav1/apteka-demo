@@ -1,0 +1,139 @@
+@page "/sales/statistics"
+@using Apteka.Sales.Application.Statistics
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject SalesStatisticsHandler Statistics
+@inject Apteka.Identity.Contracts.IUserDirectory UserDirectory
+@inject TimeProvider Clock
+@implements IDisposable
+
+@* „Статистика на продажбите“ (Apteka Expert 2): by product (with ABC), group, user or customer, with profit. *@
+
+<PageTitle>Статистика на продажбите</PageTitle>
+
+<h1>Статистика на продажбите</h1>
+
+<div class="tabs" role="tablist" aria-label="По">
+  @foreach (var (view, label) in Views)
+  {
+    <button id="view-@view" role="tab" aria-selected="@(_view == view ? "true" : "false")" class="@(_view == view ? "active" : null)" @onclick="() => SetView(view)">@label</button>
+  }
+</div>
+
+<div class="toolbar">
+  <label>От <input id="from" type="date" @bind="_from" @bind:after="Load" /></label>
+  <label>до <input id="to" type="date" @bind="_to" @bind:after="Load" /></label>
+</div>
+
+@if (_rows is null)
+{
+  <p class="muted">Зареждане…</p>
+}
+else if (_rows.Count == 0)
+{
+  <p class="muted">Няма продажби за периода.</p>
+}
+else
+{
+  <table class="grid">
+    <thead>
+      <tr>
+        @if (_view == StatisticsView.Products)
+        {
+          <th>ABC</th><th class="num">Код</th>
+        }
+        <th>@Header</th>
+        @if (_view == StatisticsView.Products)
+        {
+          <th>Количество</th>
+        }
+        <th class="num">Бележки</th><th class="num">Оборот с ДДС</th><th class="num">Без ДДС</th><th class="num">Себестойност</th><th class="num">Печалба</th><th class="num">Надценка</th><th class="num">Марж</th>
+      </tr>
+    </thead>
+    <tbody>
+      @foreach (var row in _rows)
+      {
+        <tr>
+          @if (_view == StatisticsView.Products)
+          {
+            <td><span class="abc abc-@row.AbcClass">@row.AbcClass</span></td>
+            <td class="num">@row.Code</td>
+          }
+          <td>@NameOf(row)</td>
+          @if (_view == StatisticsView.Products)
+          {
+            <td>@(row.BaseQuantity is { } q ? Formats.Quantity(q, row.Units) : null)</td>
+          }
+          <td class="num">@row.SaleCount</td>
+          <td class="num">@Formats.Euro(row.Total)</td>
+          <td class="num">@Formats.Euro(row.Net)</td>
+          <td class="num">@Formats.Euro(row.Cost)</td>
+          <td class="num">@Formats.Euro(row.Profit)</td>
+          <td class="num">@(row.MarkupPercent is { } m ? $"{m:0.0} %" : "—")</td>
+          <td class="num">@(row.MarginPercent is { } g ? $"{g:0.0} %" : "—")</td>
+        </tr>
+      }
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="@(_view == StatisticsView.Products ? 5 : 2)"><strong>Общо</strong></td>
+        <td class="num"><strong>@Formats.Euro(_rows.Sum(r => r.Total))</strong></td>
+        <td class="num">@Formats.Euro(_rows.Sum(r => r.Net))</td>
+        <td class="num">@Formats.Euro(_rows.Sum(r => r.Cost))</td>
+        <td class="num"><strong>@Formats.Euro(_rows.Sum(r => r.Profit))</strong></td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+  </table>
+  @if (_view == StatisticsView.Products)
+  {
+    <p class="muted">ABC: A — стоките, които носят първите 80 % от оборота; B — до 95 %; C — останалите. Надценка = печалба / себестойност; марж = печалба / оборот без ДДС.</p>
+  }
+}
+
+@code {
+  private static readonly (StatisticsView View, string Label)[] Views =
+    [(StatisticsView.Products, "По стоки"), (StatisticsView.Groups, "По групи"), (StatisticsView.Users, "По потребители"), (StatisticsView.Customers, "По клиенти")];
+
+  private readonly OneAtATime _loads = new();
+  private StatisticsView _view = StatisticsView.Products;
+  private DateOnly _from;
+  private DateOnly _to;
+  private IReadOnlyList<StatisticsRow>? _rows;
+  private IReadOnlyDictionary<Guid, string> _users = new Dictionary<Guid, string>();
+
+  private string Header => _view switch
+  {
+    StatisticsView.Groups => "Група",
+    StatisticsView.Users => "Потребител",
+    StatisticsView.Customers => "Клиент",
+    _ => "Стока",
+  };
+
+  protected override Task OnInitializedAsync()
+  {
+    _to = BulgarianTime.Today(Clock.GetUtcNow());
+    _from = new DateOnly(_to.Year, _to.Month, 1);
+    return Load();
+  }
+
+  private Task SetView(StatisticsView view)
+  {
+    _view = view;
+    return Load();
+  }
+
+  private Task Load() => _loads.RunAsync(async () =>
+  {
+    _rows = await Statistics.HandleAsync(_from, _to, _view);
+    if (_view == StatisticsView.Users)
+    {
+      _users = await UserDirectory.GetDisplayNamesAsync([.. _rows.Select(r => Guid.TryParse(r.Key, out var id) ? id : Guid.Empty).Where(id => id != Guid.Empty)]);
+    }
+  });
+
+  private string NameOf(StatisticsRow row) =>
+    _view == StatisticsView.Users ? (Guid.TryParse(row.Key, out var id) ? _users.GetValueOrDefault(id, "?") : "—") : row.Name;
+
+  public void Dispose() => _loads.Dispose();
+}
