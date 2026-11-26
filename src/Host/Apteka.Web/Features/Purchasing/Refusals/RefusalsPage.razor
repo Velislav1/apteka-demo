@@ -1,0 +1,161 @@
+@page "/purchasing/refusals"
+@using Apteka.Catalog.Contracts
+@using Apteka.Purchasing.Application.Refusals
+@using Apteka.Purchasing.Domain.Refusals
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject RefusalsHandler Refusals
+@inject ICatalogLookup Catalog
+@inject TimeProvider Clock
+@implements IDisposable
+
+@* „Откази“ (Apteka Expert 2): what customers asked for and the pharmacy did not have. They count as demand in the
+   purchase order proposal („по продажбите“), and the summary shows what was missing most often. *@
+
+<PageTitle>Откази</PageTitle>
+
+<h1>Откази</h1>
+
+<fieldset class="header-form">
+  <legend>Нов отказ</legend>
+  <div class="entry">
+    <ProductPicker OnPicked="Picked" />
+    @if (_product is not null)
+    {
+      <p>Стока: <strong>@_product.Name</strong> (№ @_product.Code) <button class="link" @onclick="() => _product = null">✕</button></p>
+    }
+  </div>
+  <div class="form-grid">
+    <label for="text">Или какво е търсено</label>
+    <input id="text" @bind="_text" maxlength="200" placeholder="ако стоката я няма в номенклатурата" disabled="@(_product is not null)" />
+
+    <label for="quantity">Количество</label>
+    <span>
+      <input id="quantity" type="number" min="1" @bind="_quantity" class="qty" />
+      @if (_product is not null)
+      {
+        <select @bind="_unitId" aria-label="Мярка">
+          @foreach (var unit in _product.Units.OrderByDescending(u => u.Factor))
+          {
+            <option value="@unit.UnitId">@unit.Name</option>
+          }
+        </select>
+      }
+    </span>
+
+    <label for="note">Бележка</label>
+    <input id="note" @bind="_note" maxlength="200" placeholder="напр. ще дойде утре, телефон за връзка (по желание)" />
+  </div>
+  <div class="toolbar"><button @onclick="Add" disabled="@_busy">Запиши отказа</button></div>
+</fieldset>
+
+@if (_error is not null)
+{
+  <p class="alert error" role="alert">@_error</p>
+}
+
+<div class="toolbar">
+  <label>От <input type="date" @bind="_from" @bind:after="Load" /></label>
+  <label>до <input type="date" @bind="_to" @bind:after="Load" /></label>
+</div>
+
+@if (_rows is { Count: > 0 })
+{
+  <h2>Най-търсени липсващи</h2>
+  <table class="grid">
+    <thead><tr><th>Стока</th><th class="num">Пъти</th><th>Количество</th></tr></thead>
+    <tbody>
+      @foreach (var group in _rows.GroupBy(r => r.Name).OrderByDescending(g => g.Count()).Take(20))
+      {
+        var first = group.First();
+        <tr><td>@group.Key</td><td class="num">@group.Count()</td><td>@(first.Units is { Count: > 0 } units ? Formats.Quantity(group.Sum(r => r.Quantity), units) : group.Sum(r => r.Quantity).ToString())</td></tr>
+      }
+    </tbody>
+  </table>
+
+  <h2>Всички откази</h2>
+  <table class="grid">
+    <thead><tr><th>Дата и час</th><th>Стока / търсено</th><th>Количество</th><th>Бележка</th></tr></thead>
+    <tbody>
+      @foreach (var row in _rows)
+      {
+        <tr>
+          <td>@Formats.LocalTime(row.At)</td>
+          <td>@row.Name</td>
+          <td>@(row.Units is { Count: > 0 } units ? Formats.Quantity(row.Quantity, units) : row.Quantity.ToString())</td>
+          <td>@row.Note</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
+else if (_rows is not null)
+{
+  <p class="muted">Няма откази за периода.</p>
+}
+
+@code {
+  private readonly OneAtATime _loads = new();
+  private CatalogProductInfo? _product;
+  private string _unitId = string.Empty;
+  private string? _text;
+  private int _quantity = 1;
+  private string? _note;
+  private DateOnly _from;
+  private DateOnly _to;
+  private List<Row>? _rows;
+  private string? _error;
+  private bool _busy;
+
+  protected override Task OnInitializedAsync()
+  {
+    _to = BulgarianTime.Today(Clock.GetUtcNow());
+    _from = _to.AddDays(-30);
+    return Load();
+  }
+
+  private void Picked((CatalogProductInfo Product, Guid? UnitId) picked)
+  {
+    _product = picked.Product;
+    _unitId = (picked.Product.Units.FirstOrDefault(u => u.UnitId == picked.UnitId) ?? picked.Product.Units.MaxBy(u => u.Factor)!).UnitId.ToString();
+    _text = null;
+  }
+
+  private async Task Add()
+  {
+    _busy = true;
+    _error = null;
+    try
+    {
+      var factor = _product?.Units.FirstOrDefault(u => u.UnitId.ToString() == _unitId)?.Factor ?? 1;
+      var added = await Refusals.AddAsync(_product?.ProductId, _product is null ? _text : null, _quantity * factor, _note);
+      if (added.IsFailure)
+      {
+        _error = added.Error.Message;
+        return;
+      }
+
+      (_product, _text, _quantity, _note) = (null, null, 1, null);
+      await Load();
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+
+  private Task Load() => _loads.RunAsync(async () =>
+  {
+    var refusals = await Refusals.ListAsync(_from, _to);
+    var products = (await Catalog.GetProductsAsync([.. refusals.Where(r => r.ProductId is not null).Select(r => r.ProductId!.Value).Distinct()])).ToDictionary(p => p.ProductId);
+    _rows = refusals.Select(r =>
+    {
+      var product = r.ProductId is { } id ? products.GetValueOrDefault(id) : null;
+      return new Row(r.CreatedAt, product?.Name ?? r.Text ?? "?", r.Quantity, product?.Units, r.Note);
+    }).ToList();
+  });
+
+  public void Dispose() => _loads.Dispose();
+
+  private sealed record Row(DateTimeOffset At, string Name, int Quantity, IReadOnlyList<CatalogUnit>? Units, string? Note);
+}

@@ -1,0 +1,4 @@
+.recap { max-width: 40rem; }
+.recap tr.sub td { font-weight: 600; border-top: 1px solid var(--border-strong); }
+.recap tr.total td { font-weight: 800; font-size: 1.1rem; border-top: 2px solid var(--border-strong); }
+.loss { color: var(--danger); }

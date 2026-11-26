@@ -25,6 +25,10 @@ public sealed class PurchasingDbContext(DbContextOptions<PurchasingDbContext> op
 
     public DbSet<DeliveryCorrection> DeliveryCorrections => Set<DeliveryCorrection>();
 
+    public DbSet<Apteka.Purchasing.Domain.Refusals.Refusal> Refusals => Set<Apteka.Purchasing.Domain.Refusals.Refusal>();
+
+    public DbSet<Apteka.Purchasing.Domain.Expenses.Expense> Expenses => Set<Apteka.Purchasing.Domain.Expenses.Expense>();
+
     public DbSet<Apteka.Purchasing.Domain.Payments.SupplierPayment> SupplierPayments => Set<Apteka.Purchasing.Domain.Payments.SupplierPayment>();
 
     public DbSet<Apteka.Purchasing.Domain.Payments.PaymentAllocation> PaymentAllocations => Set<Apteka.Purchasing.Domain.Payments.PaymentAllocation>();

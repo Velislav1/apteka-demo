@@ -1,0 +1,4 @@
+.header-form { max-width: 46rem; }
+tr.correction td { color: var(--warning); }
+.totals { max-width: 30rem; }
+.totals tr.total td { font-weight: 700; border-top: 2px solid var(--border-strong); }

@@ -7,7 +7,7 @@ using Apteka.SharedKernel;
 namespace Apteka.Purchasing.Application.Orders;
 
 /// <summary>Proposes what to order, by the chosen criterion, for active products (optionally of one group).</summary>
-public sealed class SuggestOrderHandler(ICatalogLookup catalog, IStockQueries stock, TimeProvider clock)
+public sealed class SuggestOrderHandler(ICatalogLookup catalog, IStockQueries stock, Refusals.IRefusalRepository refusals, TimeProvider clock)
 {
     public const int MaxDays = 365;
 
@@ -33,7 +33,16 @@ public sealed class SuggestOrderHandler(ICatalogLookup catalog, IStockQueries st
         var now = clock.GetUtcNow();
         var sold = criterion == OrderCriterion.MinStock
             ? new Dictionary<Guid, int>()
-            : await stock.GetSoldQuantitiesAsync(ids, now.AddDays(-days), now, cancellationToken);
+            : new Dictionary<Guid, int>(await stock.GetSoldQuantitiesAsync(ids, now.AddDays(-days), now, cancellationToken));
+
+        // Refusals are demand too (asked for and not sold because it was missing).
+        if (criterion != OrderCriterion.MinStock)
+        {
+            foreach (var refusal in (await refusals.ListAsync(now.AddDays(-days), now, cancellationToken)).Where(r => r.ProductId is not null))
+            {
+                sold[refusal.ProductId!.Value] = sold.GetValueOrDefault(refusal.ProductId.Value) + refusal.Quantity;
+            }
+        }
 
         var result = new List<OrderSuggestion>();
         foreach (var product in products)

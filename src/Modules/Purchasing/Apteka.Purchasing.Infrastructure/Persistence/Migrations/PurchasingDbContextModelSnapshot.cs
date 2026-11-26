@@ -281,6 +281,57 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Expenses.Expense", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("category");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<string>("DocumentNo")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("document_no");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_expenses");
+
+                    b.HasIndex("Date")
+                        .HasDatabaseName("ix_expenses_date");
+
+                    b.ToTable("expenses", "purchasing", t =>
+                        {
+                            t.HasCheckConstraint("ck_expenses_amount", "amount <> 0");
+                        });
+                });
+
             modelBuilder.Entity("Apteka.Purchasing.Domain.Orders.PurchaseOrder", b =>
                 {
                     b.Property<Guid>("Id")
@@ -466,6 +517,53 @@ namespace Apteka.Purchasing.Infrastructure.Persistence.Migrations
                     b.ToTable("supplier_payments", "purchasing", t =>
                         {
                             t.HasCheckConstraint("ck_supplier_payments_amount", "amount > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Apteka.Purchasing.Domain.Refusals.Refusal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Text")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("text");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_refusals");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_refusals_created_at");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_refusals_product_id");
+
+                    b.ToTable("refusals", "purchasing", t =>
+                        {
+                            t.HasCheckConstraint("ck_refusals_quantity", "quantity > 0");
                         });
                 });
 

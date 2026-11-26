@@ -1,0 +1,99 @@
+@page "/reports/recap"
+@using Apteka.Inventory.Application.Stocktakings
+@using Apteka.Inventory.Application.WriteOffs
+@using Apteka.Inventory.Domain.Stocktakings
+@using Apteka.Purchasing.Application.Expenses
+@using Apteka.Sales.Application.Statistics
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Inventory.WriteOffs
+@using Apteka.Web.Features.Shared
+@inject SalesStatisticsHandler Statistics
+@inject ListWriteOffsHandler WriteOffs
+@inject ListStocktakingsHandler Stocktakings
+@inject ExpensesHandler Expenses
+@inject TimeProvider Clock
+@implements IDisposable
+
+@* „Рекапитулация“ (Apteka Expert 2): the result of a period on one page — what the sales earned over the cost of the
+   goods, less what was written off or found missing, plus/minus the stocktakings, less the other expenses. *@
+
+<PageTitle>Рекапитулация</PageTitle>
+
+<h1>Рекапитулация</h1>
+
+<div class="toolbar">
+  <label>От <input id="from" type="date" @bind="_from" @bind:after="Load" /></label>
+  <label>до <input id="to" type="date" @bind="_to" @bind:after="Load" /></label>
+</div>
+
+@if (_recap is { } r)
+{
+  <table class="grid recap">
+    <tbody>
+      <tr><td>Оборот с ДДС (без сторнираните, след корекциите)</td><td class="num">@Formats.Euro(r.Total)</td></tr>
+      <tr><td class="muted">в т.ч. ДДС</td><td class="num muted">@Formats.Euro(r.Total - r.Net)</td></tr>
+      <tr><td>Оборот без ДДС</td><td class="num">@Formats.Euro(r.Net)</td></tr>
+      <tr><td>− Себестойност на продадените стоки</td><td class="num">@Formats.Euro(r.Cost)</td></tr>
+      <tr class="sub"><td>= Брутна печалба (@(r.Cost == 0 ? "—" : $"{decimal.Round((r.Net - r.Cost) / r.Cost * 100m, 1)} % надценка"))</td><td class="num">@Formats.Euro(r.Net - r.Cost)</td></tr>
+      @foreach (var (kind, value) in r.WrittenOff)
+      {
+        <tr><td>− @WriteOffKinds.Title(kind) (по покупни цени)</td><td class="num">@Formats.Euro(value)</td></tr>
+      }
+      <tr><td>± Разлики от инвентаризации</td><td class="num">@Formats.Euro(r.Stocktakings)</td></tr>
+      <tr><td>− Разходи</td><td class="num">@Formats.Euro(r.Expenses)</td></tr>
+      <tr class="total"><td>= Резултат за периода</td><td class="num @(r.Result < 0 ? "loss" : null)">@Formats.Euro(r.Result)</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">Себестойността и изписаното са по покупните цени на партидите без ДДС; разходите — както са въведени (с ДДС).
+    Изписаното с протокол е включено като разход; ако е платено, плащането не е тук.</p>
+}
+else
+{
+  <p class="muted">Зареждане…</p>
+}
+
+@code {
+  private readonly OneAtATime _loads = new();
+  private DateOnly _from;
+  private DateOnly _to;
+  private Recap? _recap;
+
+  protected override Task OnInitializedAsync()
+  {
+    _to = BulgarianTime.Today(Clock.GetUtcNow());
+    _from = new DateOnly(_to.Year, _to.Month, 1);
+    return Load();
+  }
+
+  private Task Load() => _loads.RunAsync(async () =>
+  {
+    var sales = await Statistics.HandleAsync(_from, _to, StatisticsView.Groups);
+    var writeOffs = await WriteOffs.HandleAsync(_from, _to);
+    var fromUtc = BulgarianTime.StartOfDayUtc(_from);
+    var toUtc = BulgarianTime.StartOfDayUtc(_to.AddDays(1));
+    var stocktakings = (await Stocktakings.HandleAsync())
+      .Where(s => s.Status == StocktakingStatus.Closed && s.ClosedAt >= fromUtc && s.ClosedAt < toUtc)
+      .Sum(s => s.DifferenceValue);
+    var expenses = (await Expenses.ListAsync(_from, _to)).Sum(e => e.Amount);
+    _recap = new Recap(
+      sales.Sum(s => s.Total),
+      sales.Sum(s => s.Net),
+      sales.Sum(s => s.Cost),
+      writeOffs.GroupBy(w => w.Kind).OrderBy(g => g.Key).Select(g => (g.Key, g.Sum(w => w.PurchaseTotal))).ToList(),
+      stocktakings,
+      expenses);
+  });
+
+  public void Dispose() => _loads.Dispose();
+
+  private sealed record Recap(
+    decimal Total,
+    decimal Net,
+    decimal Cost,
+    IReadOnlyList<(Apteka.Inventory.Domain.WriteOffs.WriteOffKind Kind, decimal Value)> WrittenOff,
+    decimal Stocktakings,
+    decimal Expenses)
+  {
+    public decimal Result => Net - Cost - WrittenOff.Sum(w => w.Value) + Stocktakings - Expenses;
+  }
+}

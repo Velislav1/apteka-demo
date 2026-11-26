@@ -1,0 +1,132 @@
+@page "/purchasing/expenses"
+@using Apteka.Purchasing.Application.Expenses
+@using Apteka.Purchasing.Domain.Expenses
+@using Apteka.SharedKernel
+@using Apteka.Web.Features.Shared
+@inject ExpensesHandler Expenses
+@inject TimeProvider Clock
+@implements IDisposable
+
+@* „Въвеждане на разходи“ (Apteka Expert 2): rent, electricity, salaries … They go into „Рекапитулация“.
+   Nothing is deleted: a wrong entry is fixed with the same amount negative. *@
+
+<PageTitle>Разходи</PageTitle>
+
+<h1>Разходи</h1>
+
+<fieldset class="header-form">
+  <legend>Нов разход</legend>
+  <div class="form-grid">
+    <label for="date">Дата</label>
+    <input id="date" type="date" @bind="_date" />
+
+    <label for="category">Вид</label>
+    <input id="category" list="categories" @bind="_category" maxlength="200" />
+    <datalist id="categories">
+      @foreach (var category in Expense.Categories)
+      {
+        <option value="@category"></option>
+      }
+    </datalist>
+
+    <label for="amount">Сума с ДДС</label>
+    <input id="amount" type="number" step="0.01" @bind="_amount" />
+
+    <label for="doc">Документ №</label>
+    <input id="doc" @bind="_documentNo" maxlength="30" />
+
+    <label for="note">Бележка</label>
+    <input id="note" @bind="_note" maxlength="200" />
+  </div>
+  <div class="toolbar"><button @onclick="Add" disabled="@_busy">Запиши</button></div>
+</fieldset>
+
+@if (_error is not null)
+{
+  <p class="alert error" role="alert">@_error</p>
+}
+
+<div class="toolbar">
+  <label>От <input type="date" @bind="_from" @bind:after="Load" /></label>
+  <label>до <input type="date" @bind="_to" @bind:after="Load" /></label>
+</div>
+
+@if (_items is { Count: > 0 })
+{
+  <table class="grid">
+    <thead><tr><th>Дата</th><th>Вид</th><th>Документ</th><th>Бележка</th><th class="num">Сума</th></tr></thead>
+    <tbody>
+      @foreach (var item in _items)
+      {
+        <tr class="@(item.Amount < 0 ? "correction" : null)">
+          <td>@Formats.Date(item.Date)</td>
+          <td>@item.Category</td>
+          <td>@item.DocumentNo</td>
+          <td>@item.Note</td>
+          <td class="num">@Formats.Euro(item.Amount)</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <h2>По вид</h2>
+  <table class="grid totals">
+    <tbody>
+      @foreach (var group in _items.GroupBy(i => i.Category).OrderByDescending(g => g.Sum(i => i.Amount)))
+      {
+        <tr><td>@group.Key</td><td class="num">@Formats.Euro(group.Sum(i => i.Amount))</td></tr>
+      }
+      <tr class="total"><td>Общо</td><td class="num">@Formats.Euro(_items.Sum(i => i.Amount))</td></tr>
+    </tbody>
+  </table>
+}
+else if (_items is not null)
+{
+  <p class="muted">Няма разходи за периода.</p>
+}
+
+@code {
+  private readonly OneAtATime _loads = new();
+  private DateOnly _date;
+  private string _category = string.Empty;
+  private decimal _amount;
+  private string? _documentNo;
+  private string? _note;
+  private DateOnly _from;
+  private DateOnly _to;
+  private IReadOnlyList<Expense>? _items;
+  private string? _error;
+  private bool _busy;
+
+  protected override Task OnInitializedAsync()
+  {
+    _date = _to = BulgarianTime.Today(Clock.GetUtcNow());
+    _from = new DateOnly(_to.Year, _to.Month, 1);
+    return Load();
+  }
+
+  private async Task Add()
+  {
+    _busy = true;
+    _error = null;
+    try
+    {
+      var added = await Expenses.AddAsync(_date, _category, _amount, _documentNo, _note);
+      if (added.IsFailure)
+      {
+        _error = added.Error.Message;
+        return;
+      }
+
+      (_amount, _documentNo, _note) = (0, null, null);
+      await Load();
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+
+  private Task Load() => _loads.RunAsync(async () => _items = await Expenses.ListAsync(_from, _to));
+
+  public void Dispose() => _loads.Dispose();
+}
