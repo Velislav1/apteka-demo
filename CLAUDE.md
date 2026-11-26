@@ -117,7 +117,12 @@ apteka-demo/
 - `Stocktaking` + `StocktakingLine` — инвентаризация (всички / група / рафт): Number, Scope, Status (Open/Closed), StartedAt/By, ClosedAt/By; редове по партида с ExpectedQuantity, CountedQuantity?, Difference?. Най-много една отворена; докато е отворена, стоките ѝ не се продават, заприхождават, коригират и бракуват; приключването прави движения Correction; приключената не се променя (тригер)
 - `Customer` — клиент/пациент: Id, Code (sequence `sales.customer_codes`), Name, Egn? (10 цифри, вярна дата и контролна цифра, уникално; само измислени), Phone?, Note?, IsActive; не се трие (тригер)
 - `SaleReturn` + `SaleReturnLine` + `SaleReturnLineBatch` — корекция на продажба (кредитно известие): Number (sequence `sales.sale_return_numbers`), SaleId, Reason?, Total, VatTotal; редове SaleLineId, Quantity (връща се, в мярката на реда), Amount, VatAmount, партиди. Само управител; само за добавяне; продажба с корекция не се сторнира цялата
-- `Sale` — Id, Number (от sequence), SaleType, UserId, CustomerId?, CreatedAt, Total, VatTotal, PaymentMethod (Cash/Card), CashReceived?, Status (Completed/Reversed)
+- `Sale` — Id, Number (от sequence), SaleType, UserId, CustomerId?, CreatedAt, Total, VatTotal, PaymentMethod (Cash/Card/OnAccount — на отложено, само с клиент), PaymentTermDays, CashReceived?, Status (Completed/Reversed)
+- `CustomerPayment` + алокации по продажби — плащания от клиенти за продажби на отложено; дългът се изчислява (сума − корекции − плащания), не се пази
+- `CashShift` + `CashMovement` — смяна на касата: начална сума, внасяне/теглене с основание; при приключване очаквано и преброено; приключената не се променя
+- `PurchaseOrder` + редове — заявка за доставка (чернова/изпратена), предлагане по мин. запас или по продажбите за N дни; премахнатите редове се маркират
+- `SupplierPayment` + алокации — плащания към доставчици; задължението = редове и корекции с ДДС − плащания (изчислява се)
+- `BatchBlock` — история на блокирането на партида (изтегляне); блокираната не се продава (FEFO я прескача), но се бракува/връща
 - `SaleLine` — Id, SaleId, Position, ProductId, ProductName, ProductUnitId, UnitName, UnitFactor, Quantity, UnitPrice (с ДДС), DiscountPercent, DiscountAmount, VatRate, LineTotal, VatAmount
 - `SaleLineBatch` — Id, SaleLineId, Position (редът на FEFO), BatchId, BaseQuantity (от кои партиди е изписан редът; FEFO може да го раздели)
 - `Reversal` — Id, SaleId (уникален), Reason?, UserId, CreatedAt (сторно на цялата продажба)
@@ -150,6 +155,11 @@ apteka-demo/
 9. **Корекционна складова разписка** (Доставки) — към приключена доставка, ± по редовете; Ctrl+Enter два пъти.
 10. **Инвентаризация** (Настройки → Склад) — протокол по партиди, „Намерено“ в кутии + бройки, записва се веднага;
     Ctrl+Enter два пъти приключва.
+12. **Заявки за доставка; задължения и плащания към доставчици** (Доставки).
+13. **Смяна на касата; плащания от клиенти** (Продажби). На касата F9 в плащането — на отложено; F7 — лекарствена справка и заместители.
+14. **Партида** (клик на номера в наличността) — блокиране при изтегляне, кой е купил, връщане на доставчика.
+15. **Справки** — също статистика на продажбите (стоки с ABC, групи, потребители, клиенти), оборотна ведомост, свръхналичности.
+Сканиране на 2D кода (GS1 DataMatrix) — навсякъде, където се търси по баркод; в доставката попълва партида и срок.
 11. **Клиенти, пациенти** (Настройки → Номенклатури) — табове за търсене: по име / ЕГН / код / телефон; F5, F6;
     картата на клиента показва покупките му.
 
