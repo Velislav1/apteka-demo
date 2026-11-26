@@ -23,6 +23,8 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("price_change_numbers", "inventory");
+
             modelBuilder.HasSequence("stocktaking_numbers", "inventory");
 
             modelBuilder.HasSequence("write_off_numbers", "inventory");
@@ -137,6 +139,91 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_batches_product_id_expiry_date");
 
                     b.ToTable("batches", "inventory");
+                });
+
+            modelBuilder.Entity("Apteka.Inventory.Domain.PriceChanges.PriceChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('inventory.price_change_numbers')");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_price_changes");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_price_changes_number");
+
+                    b.ToTable("price_changes", "inventory");
+                });
+
+            modelBuilder.Entity("Apteka.Inventory.Domain.PriceChanges.PriceChangeLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batch_id");
+
+                    b.Property<decimal>("NewPrice")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("new_price");
+
+                    b.Property<decimal>("OldPrice")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("old_price");
+
+                    b.Property<Guid>("PriceChangeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("price_change_id");
+
+                    b.Property<int>("PricedUnitFactor")
+                        .HasColumnType("integer")
+                        .HasColumnName("priced_unit_factor");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_price_change_lines");
+
+                    b.HasIndex("BatchId")
+                        .HasDatabaseName("ix_price_change_lines_batch_id");
+
+                    b.HasIndex("PriceChangeId")
+                        .HasDatabaseName("ix_price_change_lines_price_change_id");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_price_change_lines_product_id");
+
+                    b.ToTable("price_change_lines", "inventory", t =>
+                        {
+                            t.HasCheckConstraint("ck_price_change_lines_new_price", "new_price > 0");
+                        });
                 });
 
             modelBuilder.Entity("Apteka.Inventory.Domain.StockMovements.StockMovement", b =>
@@ -440,6 +527,23 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_batch_blocks_batches_batch_id");
                 });
 
+            modelBuilder.Entity("Apteka.Inventory.Domain.PriceChanges.PriceChangeLine", b =>
+                {
+                    b.HasOne("Apteka.Inventory.Domain.Batches.Batch", null)
+                        .WithMany()
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_price_change_lines_batches_batch_id");
+
+                    b.HasOne("Apteka.Inventory.Domain.PriceChanges.PriceChange", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("PriceChangeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_price_change_lines_price_changes_price_change_id");
+                });
+
             modelBuilder.Entity("Apteka.Inventory.Domain.StockMovements.StockMovement", b =>
                 {
                     b.HasOne("Apteka.Inventory.Domain.Batches.Batch", null)
@@ -482,6 +586,11 @@ namespace Apteka.Inventory.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_write_off_lines_write_offs_write_off_id");
+                });
+
+            modelBuilder.Entity("Apteka.Inventory.Domain.PriceChanges.PriceChange", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("Apteka.Inventory.Domain.Stocktakings.Stocktaking", b =>

@@ -56,6 +56,20 @@ public sealed class Batch : Entity<Guid>
 
     public bool IsExpiredOn(DateOnly date) => ExpiryDate < date;
 
+    /// <summary>„Промяна на цени“: a new sale price (with VAT) for the unit the batch is priced in.</summary>
+    public Result ChangeSalePrice(decimal pricedUnitSalePrice)
+    {
+        if (pricedUnitSalePrice <= 0)
+        {
+            return Result.Failure(InventoryErrors.InvalidPrice);
+        }
+
+        var price = UnitPrice.Of(pricedUnitSalePrice);
+        PricedUnitSalePrice = price.Amount;
+        SalePrice = price.PerBaseUnit(PricedUnitFactor).Amount;
+        return Result.Success();
+    }
+
     public static Result<Batch> Create(BatchSpec spec, DateTimeOffset createdAt)
     {
         var batchNo = spec.BatchNo.Trim();

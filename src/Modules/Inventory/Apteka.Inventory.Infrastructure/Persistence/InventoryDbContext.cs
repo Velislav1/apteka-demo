@@ -12,6 +12,7 @@ public static class InventorySchema
     public const string Name = "inventory";
     public const string WriteOffNumberSequence = "write_off_numbers";
     public const string StocktakingNumberSequence = "stocktaking_numbers";
+    public const string PriceChangeNumberSequence = "price_change_numbers";
 }
 
 public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> options)
@@ -27,11 +28,14 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
 
     public DbSet<Domain.BatchBlocks.BatchBlock> BatchBlocks => Set<Domain.BatchBlocks.BatchBlock>();
 
+    public DbSet<Domain.PriceChanges.PriceChange> PriceChanges => Set<Domain.PriceChanges.PriceChange>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.HasSequence<long>(InventorySchema.WriteOffNumberSequence, InventorySchema.Name).StartsAt(1);
         modelBuilder.HasSequence<long>(InventorySchema.StocktakingNumberSequence, InventorySchema.Name).StartsAt(1);
+        modelBuilder.HasSequence<long>(InventorySchema.PriceChangeNumberSequence, InventorySchema.Name).StartsAt(1);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(InventoryDbContext).Assembly);
         UseSnakeCaseNames(modelBuilder);
     }

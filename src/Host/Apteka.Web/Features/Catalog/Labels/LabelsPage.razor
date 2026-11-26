@@ -1,0 +1,114 @@
+@page "/catalog/labels"
+@using Apteka.Catalog.Application.Products
+@using Apteka.Catalog.Contracts
+@using Apteka.Sales.Application.Checkout
+@using Apteka.Web.Features.Shared
+@using Microsoft.JSInterop
+@inject ICatalogLookup Catalog
+@inject GetProductHandler GetProduct
+@inject FindTillProductHandler TillPrices
+@inject IJSRuntime JS
+
+@* „Стикери“ / ценови етикети: name, price of the sale unit (as the till sells it now), code and barcode.
+   Products come from a price change („?products=…“) or are added here by code, barcode or name. *@
+
+<PageTitle>Етикети</PageTitle>
+
+<h1 class="no-print">Ценови етикети</h1>
+
+<div class="toolbar no-print">
+  <div class="picker"><ProductPicker OnPicked="Picked" /></div>
+  <button @onclick="Print" disabled="@(_labels.Count == 0)">Печат</button>
+  <button class="secondary" @onclick="() => _labels.Clear()" disabled="@(_labels.Count == 0)">Изчисти</button>
+</div>
+
+@if (_error is not null)
+{
+  <p class="alert error no-print" role="alert">@_error</p>
+}
+
+@if (_labels.Count == 0)
+{
+  <p class="muted no-print">Добавете стоки по код, баркод или име, или отворете етикетите от „Промяна на цени“.</p>
+}
+else
+{
+  <div class="labels">
+    @foreach (var label in _labels)
+    {
+      <div class="label">
+        <div class="label-name">@label.Name</div>
+        <div class="label-price">@Formats.Euro(label.Price) <span>/ @label.Unit</span></div>
+        @if (label.BasePrice is { } basePrice)
+        {
+          <div class="label-base">@Formats.Price(basePrice) / @label.BaseUnit</div>
+        }
+        <div class="label-bottom">
+          <span class="label-code">№ @label.Code</span>
+          @if (label.Barcode is { } barcode)
+          {
+            @((MarkupString)Ean13Svg.Render(barcode, 28))
+          }
+        </div>
+        <button class="link no-print" title="Махни" @onclick="() => _labels.Remove(label)">✕</button>
+      </div>
+    }
+  </div>
+}
+
+@code {
+  /// <summary>„?products=id,id“ opens the labels of these products (e.g. after a price change).</summary>
+  [SupplyParameterFromQuery(Name = "products")] public string? ProductsParameter { get; set; }
+
+  private readonly List<Label> _labels = [];
+  private string? _error;
+
+  protected override async Task OnInitializedAsync()
+  {
+    foreach (var id in (ProductsParameter ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries))
+    {
+      if (Guid.TryParse(id, out var productId) && await Catalog.GetProductAsync(productId) is { } product)
+      {
+        await Add(product);
+      }
+    }
+  }
+
+  private Task Picked((CatalogProductInfo Product, Guid? UnitId) picked) => Add(picked.Product);
+
+  private async Task Add(CatalogProductInfo product)
+  {
+    _error = null;
+    if (_labels.Any(l => l.ProductId == product.ProductId))
+    {
+      return;
+    }
+
+    var priced = await TillPrices.ByCodeAsync(product.Code);
+    if (priced.IsFailure)
+    {
+      _error = $"„{product.Name}“: {priced.Error.Message}";
+      return;
+    }
+
+    var till = priced.Value;
+    var view = await GetProduct.HandleAsync(product.ProductId);
+    var barcode = view?.Barcodes.FirstOrDefault(b => b.ProductUnitId == till.UnitId)?.Code ?? view?.Barcodes.FirstOrDefault()?.Code;
+    var baseUnit = product.Units.FirstOrDefault(u => u.Factor == 1);
+    decimal? basePrice = till.UnitFactor > 1 ? decimal.Round(till.UnitPrice / till.UnitFactor, 4, MidpointRounding.AwayFromZero) : null;
+    _labels.Add(new Label(product.ProductId, product.Name, product.Code, till.UnitPrice, till.UnitName, basePrice, baseUnit?.Name ?? string.Empty, barcode));
+  }
+
+  private async Task Print()
+  {
+    try
+    {
+      await JS.InvokeVoidAsync("print");
+    }
+    catch (JSDisconnectedException)
+    {
+    }
+  }
+
+  private sealed record Label(Guid ProductId, string Name, long Code, decimal Price, string Unit, decimal? BasePrice, string BaseUnit, string? Barcode);
+}

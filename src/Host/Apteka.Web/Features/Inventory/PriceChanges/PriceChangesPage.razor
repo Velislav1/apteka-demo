@@ -1,0 +1,216 @@
+@page "/inventory/price-changes"
+@using System.Globalization
+@using Apteka.Catalog.Contracts
+@using Apteka.Inventory.Application.PriceChanges
+@using Apteka.Web.Features.Shared
+@inject PriceChangesHandler PriceChanges
+@inject ICatalogLookup Catalog
+@inject Apteka.Identity.Contracts.IUserDirectory UserDirectory
+@inject NavigationManager Navigation
+
+@* „Промяна на цени“ (Apteka Expert 2): propose new sale prices for the batches in stock — by a percent or a new
+   markup on the purchase price, for a group — correct any of them by hand, apply, then print the new labels. *@
+
+<PageTitle>Промяна на цени</PageTitle>
+
+<h1>Промяна на продажни цени</h1>
+
+<fieldset class="header-form">
+  <legend>Предложение</legend>
+  <div class="form-grid">
+    <label for="group">Група</label>
+    <select id="group" @bind="_groupId">
+      <option value="">Всички стоки с наличност</option>
+      @foreach (var group in _groups)
+      {
+        <option value="@group.Id">@group.Name</option>
+      }
+    </select>
+
+    <label for="method">Начин</label>
+    <select id="method" @bind="_method">
+      <option value="@PriceMethod.Percent">Промяна на цената с %</option>
+      <option value="@PriceMethod.Markup">Нова надценка % върху покупната цена</option>
+    </select>
+
+    <label for="value">@(_method == PriceMethod.Percent ? "Процент (напр. 5 или −3)" : "Надценка %")</label>
+    <input id="value" type="number" step="0.01" @bind="_value" />
+
+    <label for="round">Закръгляне до</label>
+    <select id="round" @bind="_roundTo">
+      <option value="0.01">0,01 €</option>
+      <option value="0.05">0,05 €</option>
+      <option value="0.10">0,10 €</option>
+    </select>
+  </div>
+  <div class="toolbar"><button class="secondary" @onclick="Propose" disabled="@_busy">Предложи цени</button></div>
+</fieldset>
+
+@if (_error is not null)
+{
+  <p class="alert error" role="alert">@_error</p>
+}
+@if (_message is not null)
+{
+  <p class="alert success" role="status">
+    @_message
+    @if (_changedProducts.Count > 0)
+    {
+      <a href="catalog/labels?products=@string.Join(",", _changedProducts)">Печат на етикети за променените</a>
+    }
+  </p>
+}
+
+@if (_rows is { Count: > 0 })
+{
+  <table class="grid">
+    <thead>
+      <tr>
+        <th><input type="checkbox" aria-label="Всички" checked="@_rows.All(r => r.Apply)" @onchange="e => SetAll(e.Value is true)" /></th>
+        <th class="num">Код</th><th>Стока</th><th>Партида</th><th>Мярка</th><th class="num">Покупна</th><th class="num">Стара цена</th><th class="num">Надц.</th><th class="num">Нова цена</th><th class="num">Нова надц.</th>
+      </tr>
+    </thead>
+    <tbody>
+      @foreach (var row in _rows)
+      {
+        <tr class="@(row.Apply ? null : "inactive")">
+          <td><input type="checkbox" aria-label="Промени @row.Row.ProductName @row.Row.BatchNo" @bind="row.Apply" /></td>
+          <td class="num">@row.Row.Code</td>
+          <td>@row.Row.ProductName</td>
+          <td>@row.Row.BatchNo</td>
+          <td>@row.Row.UnitName</td>
+          <td class="num">@Formats.Price(row.Row.PurchasePrice)</td>
+          <td class="num">@Formats.Euro(row.Row.OldPrice)</td>
+          <td class="num">@Markup(row.Row.MarkupOf(row.Row.OldPrice))</td>
+          <td class="num"><input type="number" min="0.01" step="0.01" class="price" aria-label="Нова цена @row.Row.ProductName" @bind="row.NewPrice" @bind:event="oninput" /></td>
+          <td class="num @(row.Row.MarkupOf(row.NewPrice) < 0 ? "loss" : null)">@Markup(row.Row.MarkupOf(row.NewPrice))</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <div class="toolbar">
+    <input aria-label="Основание" placeholder="Основание (напр. нова цена от доставчика)" @bind="_reason" maxlength="200" />
+    <button @onclick="Apply" disabled="@(_busy || !_rows.Any(r => r.Apply && r.NewPrice != r.Row.OldPrice))">@(_confirm ? "Потвърди промяната" : "Приложи новите цени")</button>
+    @if (_confirm)
+    {
+      <button class="secondary" @onclick="() => _confirm = false">Отказ</button>
+      <span class="muted">Ще се променят @_rows.Count(r => r.Apply && r.NewPrice != r.Row.OldPrice) партиди.</span>
+    }
+  </div>
+}
+else if (_rows is not null)
+{
+  <p class="muted">Няма партиди с наличност за тези условия.</p>
+}
+
+<h2>Направени промени</h2>
+@if (_history is { Count: > 0 })
+{
+  <table class="grid">
+    <thead><tr><th class="num">№</th><th>Дата и час</th><th>Потребител</th><th>Основание</th><th class="num">Партиди</th></tr></thead>
+    <tbody>
+      @foreach (var item in _history)
+      {
+        <tr>
+          <td class="num">@item.Number</td>
+          <td>@Formats.LocalTime(item.CreatedAt)</td>
+          <td>@(item.UserId is { } user ? _users.GetValueOrDefault(user) : null)</td>
+          <td>@item.Reason</td>
+          <td class="num">@item.LineCount</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
+else
+{
+  <p class="muted">Няма промени на цени.</p>
+}
+
+@code {
+  private IReadOnlyList<CatalogGroup> _groups = [];
+  private string _groupId = string.Empty;
+  private PriceMethod _method = PriceMethod.Percent;
+  private decimal _value;
+  private decimal _roundTo = 0.01m;
+  private List<EditRow>? _rows;
+  private string? _reason;
+  private bool _confirm;
+  private bool _busy;
+  private string? _error;
+  private string? _message;
+  private List<Guid> _changedProducts = [];
+  private IReadOnlyList<PriceChangeItem>? _history;
+  private IReadOnlyDictionary<Guid, string> _users = new Dictionary<Guid, string>();
+
+  protected override async Task OnInitializedAsync()
+  {
+    _groups = await Catalog.ListGroupsAsync();
+    await LoadHistory();
+  }
+
+  private async Task LoadHistory()
+  {
+    _history = await PriceChanges.ListAsync();
+    _users = await UserDirectory.GetDisplayNamesAsync([.. _history.Where(h => h.UserId is not null).Select(h => h.UserId!.Value).Distinct()]);
+  }
+
+  private async Task Propose()
+  {
+    (_error, _message, _confirm) = (null, null, false);
+    var rows = await PriceChanges.ProposeAsync(new PriceProposal(Guid.TryParse(_groupId, out var group) ? group : null, null, _method, _value, _roundTo));
+    _rows = rows.Select(r => new EditRow(r) { NewPrice = r.NewPrice, Apply = r.NewPrice != r.OldPrice }).ToList();
+  }
+
+  private void SetAll(bool apply)
+  {
+    foreach (var row in _rows!)
+    {
+      row.Apply = apply;
+    }
+  }
+
+  private async Task Apply()
+  {
+    if (!_confirm)
+    {
+      _confirm = true;
+      return;
+    }
+
+    _busy = true;
+    _error = null;
+    try
+    {
+      var chosen = _rows!.Where(r => r.Apply && r.NewPrice != r.Row.OldPrice).ToList();
+      var applied = await PriceChanges.ApplyAsync(_reason, chosen.ToDictionary(r => r.Row.BatchId, r => r.NewPrice));
+      _confirm = false;
+      if (applied.IsFailure)
+      {
+        _error = applied.Error.Message;
+        return;
+      }
+
+      _changedProducts = chosen.Select(r => r.Row.ProductId).Distinct().ToList();
+      _message = $"Промяна на цени № {applied.Value}: променени {chosen.Count} партиди.";
+      _rows = null;
+      _reason = null;
+      await LoadHistory();
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+
+  private static string Markup(decimal? percent) => percent is { } p ? p.ToString("0.0", CultureInfo.GetCultureInfo("bg-BG")) + " %" : "—";
+
+  private sealed class EditRow(PriceRow row)
+  {
+    public PriceRow Row { get; } = row;
+
+    public decimal NewPrice { get; set; }
+
+    public bool Apply { get; set; }
+  }
+}

@@ -1,0 +1,15 @@
+.picker { min-width: 24rem; }
+.labels { display: grid; grid-template-columns: repeat(auto-fill, minmax(62mm, 1fr)); gap: 4mm; }
+.label { position: relative; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); padding: 3mm; background: var(--surface); break-inside: avoid; }
+.label-name { font-weight: 600; font-size: 0.95rem; line-height: 1.2; min-height: 2.4em; padding-right: 1.2rem; }
+.label-price { font-size: 1.6rem; font-weight: 800; margin-top: 1mm; }
+.label-price span { font-size: 0.85rem; font-weight: 500; }
+.label-base { font-size: 0.75rem; color: var(--text-muted); }
+.label-bottom { display: flex; align-items: end; justify-content: space-between; gap: 2mm; margin-top: 1mm; }
+.label-code { font-size: 0.75rem; }
+.label ::deep svg.ean13 { width: 30mm; height: auto; }
+.label button { position: absolute; top: 1mm; right: 1mm; }
+@media print {
+  .labels { grid-template-columns: repeat(3, 1fr); gap: 2mm; }
+  .label { border-color: #999; }
+}

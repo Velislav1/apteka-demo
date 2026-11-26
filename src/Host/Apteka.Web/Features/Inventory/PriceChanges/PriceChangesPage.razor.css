@@ -1,0 +1,4 @@
+.header-form { max-width: 46rem; }
+.price { width: 7rem; text-align: right; }
+.loss { color: var(--danger); font-weight: 600; }
+.toolbar input:not([type]) { min-width: 22rem; }
