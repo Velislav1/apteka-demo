@@ -1,0 +1,5 @@
+.header-form { max-width: 40rem; }
+.summary { max-width: 34rem; margin-bottom: 1rem; }
+.summary tr.total td { font-weight: 700; border-top: 2px solid var(--border-strong); }
+.short { color: var(--danger); }
+fieldset input:not([type=number]) { min-width: 18rem; }

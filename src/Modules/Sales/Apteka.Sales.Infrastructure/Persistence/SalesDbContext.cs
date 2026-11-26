@@ -13,6 +13,7 @@ public static class SalesSchema
     public const string SaleNumberSequence = "sale_numbers";
     public const string CustomerCodeSequence = "customer_codes";
     public const string ReturnNumberSequence = "sale_return_numbers";
+    public const string ShiftNumberSequence = "cash_shift_numbers";
 }
 
 public sealed class SalesDbContext(DbContextOptions<SalesDbContext> options)
@@ -30,12 +31,15 @@ public sealed class SalesDbContext(DbContextOptions<SalesDbContext> options)
 
     public DbSet<SaleReturn> SaleReturns => Set<SaleReturn>();
 
+    public DbSet<Apteka.Sales.Domain.Shifts.CashShift> CashShifts => Set<Apteka.Sales.Domain.Shifts.CashShift>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.HasSequence<long>(SalesSchema.SaleNumberSequence, SalesSchema.Name).StartsAt(1);
         modelBuilder.HasSequence<long>(SalesSchema.CustomerCodeSequence, SalesSchema.Name).StartsAt(1);
         modelBuilder.HasSequence<long>(SalesSchema.ReturnNumberSequence, SalesSchema.Name).StartsAt(1);
+        modelBuilder.HasSequence<long>(SalesSchema.ShiftNumberSequence, SalesSchema.Name).StartsAt(1);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(SalesDbContext).Assembly);
         UseSnakeCaseNames(modelBuilder);
     }

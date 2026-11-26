@@ -1,0 +1,184 @@
+@page "/sales/shift"
+@using Apteka.Sales.Application.Shifts
+@using Apteka.Web.Features.Shared
+@inject ShiftsHandler Shifts
+@inject Apteka.Identity.Contracts.IUserDirectory UserDirectory
+
+@* „Смяна на касата“: start with the cash in the drawer, put cash in / take it out with a reason, and at the end count
+   the cash: the program shows what should be there and the difference. *@
+
+<PageTitle>Смяна на касата</PageTitle>
+
+<h1>Смяна на касата</h1>
+
+@if (_error is not null)
+{
+  <p class="alert error" role="alert">@_error</p>
+}
+@if (_message is not null)
+{
+  <p class="alert success" role="status">@_message</p>
+}
+
+@if (_loaded && _current is null)
+{
+  <fieldset class="header-form">
+    <legend>Нова смяна</legend>
+    <div class="form-grid">
+      <label for="opening">Начална сума в касата</label>
+      <input id="opening" type="number" min="0" step="0.01" @bind="_opening" />
+    </div>
+    <div class="toolbar"><button @onclick="Open" disabled="@_busy">Отвори смяната</button></div>
+  </fieldset>
+}
+else if (_current is { } shift)
+{
+  <div class="doc-header card">
+    <div><span class="muted">Смяна №</span><strong>@shift.Number</strong></div>
+    <div><span class="muted">Отворена</span><strong>@Formats.LocalTime(shift.OpenedAt)</strong></div>
+    <div><span class="muted">Продажби</span><strong>@shift.SaleCount</strong></div>
+  </div>
+
+  <table class="grid summary">
+    <tbody>
+      <tr><td>Начална сума</td><td class="num">@Formats.Euro(shift.OpeningCash)</td></tr>
+      <tr><td>+ Продажби в брой</td><td class="num">@Formats.Euro(shift.CashSales)</td></tr>
+      <tr><td>− Върнати в брой (корекции)</td><td class="num">@Formats.Euro(shift.CashRefunds)</td></tr>
+      <tr><td>+ Служебно въведени</td><td class="num">@Formats.Euro(shift.CashIn)</td></tr>
+      <tr><td>− Служебно изведени</td><td class="num">@Formats.Euro(shift.CashOut)</td></tr>
+      <tr class="total"><td>= Трябва да има в касата</td><td class="num">@Formats.Euro(shift.ExpectedCash)</td></tr>
+      <tr><td class="muted">Продажби с карта (за сведение)</td><td class="num muted">@Formats.Euro(shift.CardSales)</td></tr>
+    </tbody>
+  </table>
+
+  <fieldset>
+    <legend>Внасяне / теглене</legend>
+    <div class="toolbar">
+      <input aria-label="Сума" type="number" min="0.01" step="0.01" @bind="_amount" placeholder="Сума" />
+      <input aria-label="Основание" @bind="_reason" maxlength="200" placeholder="Основание, напр. разменни пари, плащане на доставчик" />
+      <button class="secondary" @onclick="() => Move(+1)" disabled="@_busy">Внеси</button>
+      <button class="secondary" @onclick="() => Move(-1)" disabled="@_busy">Изтегли</button>
+    </div>
+    @if (shift.Movements.Count > 0)
+    {
+      <ul>
+        @foreach (var movement in shift.Movements)
+        {
+          <li>@Formats.LocalTime(movement.At) — @(movement.Amount > 0 ? "внесени" : "изтеглени") @Formats.Euro(Math.Abs(movement.Amount)): @movement.Reason</li>
+        }
+      </ul>
+    }
+  </fieldset>
+
+  <fieldset>
+    <legend>Приключване</legend>
+    <div class="toolbar">
+      <label>Преброени пари <input id="counted" type="number" min="0" step="0.01" @bind="_counted" @bind:event="oninput" /></label>
+      @if (_counted is { } counted)
+      {
+        <span>Разлика: <strong class="@(counted - shift.ExpectedCash < 0 ? "short" : null)">@Formats.Euro(counted - shift.ExpectedCash)</strong></span>
+      }
+      <input aria-label="Бележка" @bind="_note" maxlength="200" placeholder="Бележка (напр. причина за разликата)" />
+      <button @onclick="Close" disabled="@(_busy || _counted is null)">Приключи смяната</button>
+    </div>
+  </fieldset>
+}
+
+<h2>Приключени смени</h2>
+@if (_history is { Count: > 0 })
+{
+  <table class="grid">
+    <thead><tr><th class="num">№</th><th>Потребител</th><th>От</th><th>До</th><th class="num">В брой</th><th class="num">С карта</th><th class="num">Очаквано</th><th class="num">Преброено</th><th class="num">Разлика</th><th>Бележка</th></tr></thead>
+    <tbody>
+      @foreach (var item in _history.Where(h => !h.IsOpen))
+      {
+        <tr>
+          <td class="num">@item.Number</td>
+          <td>@_users.GetValueOrDefault(item.UserId)</td>
+          <td>@Formats.LocalTime(item.OpenedAt)</td>
+          <td>@Formats.LocalTime(item.ClosedAt!.Value)</td>
+          <td class="num">@Formats.Euro(item.CashSales - item.CashRefunds)</td>
+          <td class="num">@Formats.Euro(item.CardSales)</td>
+          <td class="num">@Formats.Euro(item.ExpectedCash)</td>
+          <td class="num">@Formats.Euro(item.CountedCash ?? 0)</td>
+          <td class="num @(item.Difference < 0 ? "short" : null)">@Formats.Euro(item.Difference ?? 0)</td>
+          <td>@item.Note</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
+else
+{
+  <p class="muted">Няма приключени смени.</p>
+}
+
+@code {
+  private ShiftView? _current;
+  private IReadOnlyList<ShiftView>? _history;
+  private IReadOnlyDictionary<Guid, string> _users = new Dictionary<Guid, string>();
+  private bool _loaded;
+  private decimal _opening;
+  private decimal _amount;
+  private string? _reason;
+  private decimal? _counted;
+  private string? _note;
+  private string? _error;
+  private string? _message;
+  private bool _busy;
+
+  protected override Task OnInitializedAsync() => Load();
+
+  private async Task Load()
+  {
+    _current = await Shifts.GetCurrentAsync();
+    _history = await Shifts.ListAsync();
+    _users = await UserDirectory.GetDisplayNamesAsync([.. _history.Select(h => h.UserId).Distinct()]);
+    _loaded = true;
+  }
+
+  private Task Open() => Run(async () =>
+  {
+    var opened = await Shifts.OpenAsync(_opening);
+    return (opened.IsFailure ? opened.Error.Message : null, "Смяната е отворена.");
+  });
+
+  private Task Move(int sign) => Run(async () =>
+  {
+    var moved = await Shifts.MoveCashAsync(sign * Math.Abs(_amount), _reason);
+    if (moved.IsSuccess)
+    {
+      (_amount, _reason) = (0, null);
+    }
+
+    return (moved.IsFailure ? moved.Error.Message : null, sign > 0 ? "Сумата е внесена." : "Сумата е изтеглена.");
+  });
+
+  private Task Close() => Run(async () =>
+  {
+    var closed = await Shifts.CloseAsync(_counted ?? 0, _note);
+    if (closed.IsSuccess)
+    {
+      (_counted, _note) = (null, null);
+    }
+
+    return (closed.IsFailure ? closed.Error.Message : null, "Смяната е приключена.");
+  });
+
+  private async Task Run(Func<Task<(string? Error, string Done)>> action)
+  {
+    _busy = true;
+    (_error, _message) = (null, null);
+    try
+    {
+      var (error, done) = await action();
+      _error = error;
+      _message = error is null ? done : null;
+      await Load();
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+}

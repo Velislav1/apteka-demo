@@ -23,6 +23,8 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("cash_shift_numbers", "sales");
+
             modelBuilder.HasSequence("customer_codes", "sales");
 
             modelBuilder.HasSequence("sale_numbers", "sales");
@@ -446,6 +448,102 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Apteka.Sales.Domain.Shifts.CashMovement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("ShiftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shift_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_cash_movements");
+
+                    b.HasIndex("ShiftId")
+                        .HasDatabaseName("ix_cash_movements_shift_id");
+
+                    b.ToTable("cash_movements", "sales", t =>
+                        {
+                            t.HasCheckConstraint("ck_cash_movements_amount", "amount <> 0");
+                        });
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Shifts.CashShift", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<decimal?>("CountedCash")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("counted_cash");
+
+                    b.Property<decimal?>("ExpectedCash")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("expected_cash");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<long>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('sales.cash_shift_numbers')");
+
+                    b.Property<DateTimeOffset>("OpenedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("opened_at");
+
+                    b.Property<decimal>("OpeningCash")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("opening_cash");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_cash_shifts");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_cash_shifts_number");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_cash_shifts_one_open_per_user")
+                        .HasFilter("closed_at IS NULL");
+
+                    b.ToTable("cash_shifts", "sales");
+                });
+
             modelBuilder.Entity("Apteka.Sales.Domain.Returns.SaleReturn", b =>
                 {
                     b.HasOne("Apteka.Sales.Domain.Sales.Sale", null)
@@ -522,6 +620,16 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_sale_line_batches_sale_lines_sale_line_id");
                 });
 
+            modelBuilder.Entity("Apteka.Sales.Domain.Shifts.CashMovement", b =>
+                {
+                    b.HasOne("Apteka.Sales.Domain.Shifts.CashShift", null)
+                        .WithMany("Movements")
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_cash_movements_cash_shifts_shift_id");
+                });
+
             modelBuilder.Entity("Apteka.Sales.Domain.Returns.SaleReturn", b =>
                 {
                     b.Navigation("Lines");
@@ -540,6 +648,11 @@ namespace Apteka.Sales.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Apteka.Sales.Domain.Sales.SaleLine", b =>
                 {
                     b.Navigation("Batches");
+                });
+
+            modelBuilder.Entity("Apteka.Sales.Domain.Shifts.CashShift", b =>
+                {
+                    b.Navigation("Movements");
                 });
 #pragma warning restore 612, 618
         }
