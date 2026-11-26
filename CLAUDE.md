@@ -108,11 +108,11 @@ apteka-demo/
 - `ProductUnit` — Id, ProductId, Name, Factor (int ≥ 1); точно една мярка с Factor = 1 на стока
 - `Barcode` — Id, ProductId, ProductUnitId, Code (уникален)
 - `Supplier` — Id, Name (уникално), Eik (9/13 цифри с контролна цифра, уникален), PaymentTermDays, IsActive
-- `Delivery` — Id, Number (№ на складовата разписка, от sequence `purchasing.delivery_numbers`), SupplierId, InvoiceNo (уникален за доставчика), InvoiceDate, PaymentTermDays (по подразбиране от доставчика; падеж = дата на фактурата + дни), ReceivedAt, UserId, Status (Draft/Posted), PostedAt
+- `Delivery` — Id, Number (№ на складовата разписка, от sequence `purchasing.delivery_numbers`), SupplierId, InvoiceNo (уникален за доставчика), InvoiceDate, PaymentTermDays (по подразбиране от доставчика; падеж = дата на фактурата + дни), ReceivedAt, UserId, Status (Draft/Posted), PostedAt, IsConsignment (консигнация: плаща се само изписаното = получено − върнато − наличност)
 - `DeliveryLine` — Id, DeliveryId, Position, ProductId, ProductUnitId, UnitFactor, Quantity (в тази мярка), UnitPurchasePrice (Цена ТЕ, без ДДС), SupplierDiscountPercent (Отстъпка ТЕ %; покупна цена = цена ТЕ × (1 − отстъпка), до 4 знака — тя влиза в сумата, партидата и надценката), MarkupPercent?, SalePrice (с ДДС), BatchNo, ExpiryDate, IsRemoved (премахнат ред от чернова)
 - `Batch` — Id, ProductId, BatchNo, ExpiryDate, PurchasePrice (за най-малка мярка, без ДДС), SalePrice (за най-малка мярка, с ДДС), PricedUnitFactor + PricedUnitSalePrice (точната цена на мярката, в която е въведена), StockType, SourceDocumentType/Id, SourceLineId (уникален)
 - `StockMovement` — Id, BatchId, QuantityDelta (int, в най-малка мярка), Kind (Delivery/Sale/Reversal/WriteOff/Correction), DocumentType, DocumentId, UserId, CreatedAt
-- `WriteOff` + `WriteOffLine` — бракуване: Number (sequence `inventory.write_off_numbers`), Reason?, UserId, CreatedAt; редове с ProductName, UnitName, UnitFactor, Quantity, BatchId, BatchNo, ExpiryDate, PurchasePrice (за най-малка мярка). Само за добавяне (тригер); движение WriteOff от избраната партида (и изтекла)
+- `WriteOff` + `WriteOffLine` — бракуване: Number (sequence `inventory.write_off_numbers`), Kind (WriteOff/Sample/Protocol/Shortage — брак, мостра, с протокол, липси), Recipient? (задължителен при протокол), Reason?, UserId, CreatedAt; редове с ProductName, UnitName, UnitFactor, Quantity, BatchId, BatchNo, ExpiryDate, PurchasePrice (за най-малка мярка). Само за добавяне (тригер); движение WriteOff от избраната партида (и изтекла)
 - `DeliveryCorrection` + `DeliveryCorrectionLine` — корекционна складова разписка към приключена доставка: Number (sequence `purchasing.delivery_correction_numbers`), DeliveryId, NoteNo?, NoteDate, Reason?; редове DeliveryLineId, QuantityDelta (±, в мярката на реда), UnitPurchasePrice (нетна). Само за добавяне; движение Correction върху партидата на реда
 - `Stocktaking` + `StocktakingLine` — инвентаризация (всички / група / рафт): Number, Scope, Status (Open/Closed), StartedAt/By, ClosedAt/By; редове по партида с ExpectedQuantity, CountedQuantity?, Difference?. Най-много една отворена; докато е отворена, стоките ѝ не се продават, заприхождават, коригират и бракуват; приключването прави движения Correction; приключената не се променя (тригер)
 - `Customer` — клиент/пациент: Id, Code (sequence `sales.customer_codes`), Name, Egn? (10 цифри, вярна дата и контролна цифра, уникално; само измислени), Phone?, Note?, IsActive; не се трие (тригер)
@@ -123,6 +123,8 @@ apteka-demo/
 - `PurchaseOrder` + редове — заявка за доставка (чернова/изпратена), предлагане по мин. запас или по продажбите за N дни; премахнатите редове се маркират
 - `SupplierPayment` + алокации — плащания към доставчици; задължението = редове и корекции с ДДС − плащания (изчислява се)
 - `PriceChange` + редове — промяна на продажни цени на партиди (стара и нова цена на реда); само за добавяне; партидата получава новата цена
+- `Refusal` — отказ (търсена стока, която я няма): ProductId? или Text, Quantity, Note?, UserId, CreatedAt; влиза в предложението за заявка
+- `Expense` — разход на аптеката: Date, Category, Amount (с ДДС), DocumentNo?, Note?; влиза в рекапитулацията
 - `BatchBlock` — история на блокирането на партида (изтегляне); блокираната не се продава (FEFO я прескача), но се бракува/връща
 - `SaleLine` — Id, SaleId, Position, ProductId, ProductName, ProductUnitId, UnitName, UnitFactor, Quantity, UnitPrice (с ДДС), DiscountPercent, DiscountAmount, VatRate, LineTotal, VatAmount
 - `SaleLineBatch` — Id, SaleLineId, Position (редът на FEFO), BatchId, BaseQuantity (от кои партиди е изписан редът; FEFO може да го раздели)
@@ -163,6 +165,10 @@ apteka-demo/
 14. **Партида** (клик на номера в наличността) — блокиране при изтегляне, кой е купил, връщане на доставчика.
 15. **Справки** — също статистика на продажбите (стоки с ABC, групи, потребители, клиенти), оборотна ведомост, свръхналичности.
 16. **Промяна на цени** (Настройки → Склад) — предложение с % или нова надценка, закръгляне, поправка на ръка; после **ценови етикети** с баркод.
+17. **Изписване** (Продажби) — бракуване, за мостра, с протокол (на кого), на липси; **откази** и **разходи** (Доставки);
+    **рекапитулация** (оборот, себестойност, печалба, разходи); меню „Справки“ в две колони като в Експерт.
+18. **Консигнация** (Доставки) — вземане (доставка с отметка „Консигнация“), връщане (корекция), отчет и плащане на изписаното.
+19. **Експорт към счетоводство** (Справки, само управител) — дневник на покупките и на продажбите (по дни и ДДС ставки), CSV за Excel.
 Сканиране на 2D кода (GS1 DataMatrix) — навсякъде, където се търси по баркод; в доставката попълва партида и срок.
 
 ## Тестове (задължителни преди всяко „готово“)
